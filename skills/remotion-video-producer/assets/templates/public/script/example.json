@@ -1,0 +1,43 @@
+{
+  "videoId": "example",
+  "title": "3 habits of creators who grow",
+  "voice": {
+    "provider": "elevenlabs",
+    "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+    "model": "eleven_multilingual_v2",
+    "settings": {"stability": 0.45, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 1.04}
+  },
+  "scenes": [
+    {
+      "id": "scene-01",
+      "headline": "Nobody watches your first second.",
+      "highlight": "first second",
+      "voiceover": "Nobody is watching your first second. So stop wasting it.",
+      "visual": {"type": "gradient"},
+      "minSeconds": 2.5
+    },
+    {
+      "id": "scene-02",
+      "headline": "Habit one: open with the payoff",
+      "highlight": "payoff",
+      "subline": "Say the result before the setup.",
+      "voiceover": "Habit one. Open with the payoff. Tell people what they get before you tell them how.",
+      "visual": {"type": "gradient"}
+    },
+    {
+      "id": "scene-03",
+      "headline": "Habit two: one idea per video",
+      "highlight": "one idea",
+      "voiceover": "Habit two. One idea per video. Three ideas is a playlist, not a Short.",
+      "visual": {"type": "gradient"}
+    },
+    {
+      "id": "scene-04",
+      "headline": "Habit three: end on a loop",
+      "highlight": "loop",
+      "subline": "Your last frame is your next hook.",
+      "voiceover": "Habit three. End on a loop. Your last frame should feel like the start of the next one.",
+      "visual": {"type": "gradient"}
+    }
+  ]
+}

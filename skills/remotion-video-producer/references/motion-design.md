@@ -1,0 +1,137 @@
+# Motion design in Remotion: the quality bar
+
+Table of contents
+1. Why cheap-looking motion happens
+2. Easing vocabulary and defaults
+3. Entrances, exits and stagger
+4. Kinetic typography
+5. Camera: the whole scene moves
+6. Transitions and cut design
+7. Effects, light, grain and grade
+8. Motion blur
+9. Shapes, paths, particles, data
+10. 3D and depth
+11. Loops and idle motion
+12. Anti-patterns
+
+## 1. Why cheap-looking motion happens
+
+Amateur video: linear tweens, everything enters at once, static backgrounds, transitions that are decorative rather than motivated, motion with no weight. Professional video: every element has mass (ease-out on entry, ease-in on exit), the scene breathes (slow camera), timing has hierarchy (hero first, support second, accents last), and cuts happen on beats (voice, music, or a visual reveal). Build each scene by asking "what does the viewer look at first, and how do I lead their eye to the next thing".
+
+## 2. Easing vocabulary and defaults
+
+Keep these curves in `src/lib/motion.ts` (template) and reach for them by name:
+
+| Name | Curve | Use |
+|---|---|---|
+| `EASE.out` | `Easing.bezier(0.16, 1, 0.3, 1)` | Default entrance, UI reveals |
+| `EASE.in` | `Easing.bezier(0.7, 0, 0.84, 0)` | Exits |
+| `EASE.inOut` | `Easing.bezier(0.65, 0, 0.35, 1)` | Camera moves, position changes mid-scene |
+| `EASE.snap` | `Easing.bezier(0.2, 0.9, 0.2, 1)` | Fast UI, counters |
+| `Easing.spring({damping: 200})` | critically damped | Push without bounce, safe everywhere |
+| `spring({config: {damping: 12, stiffness: 140}})` | bouncy | Playful logos, stickers, emoji |
+| `spring({config: {damping: 20, stiffness: 90, mass: 1.2}})` | heavy | Large panels, hero cards |
+
+Durations at 30 fps: entrances 8 to 15 frames, exits 6 to 10 frames, camera moves the length of the scene, transitions 10 to 18 frames. Nothing user-facing moves linearly except progress bars and constant-speed scrolls (tickers, marquees).
+
+For scale use `output: 'perceptual-scale'`. For opacity + translate entrances, start at 30 to 60 px offset, not 200. Rotations for entrances are 3 to 8 degrees, not 45.
+
+## 3. Entrances, exits and stagger
+
+The staggered spring is the workhorse:
+
+```tsx
+const enter = (i: number) => spring({frame, fps, delay: i * 3, config: {damping: 200}});
+// per element: opacity: enter(i), translate: `0px ${(1 - enter(i)) * 40}px`
+```
+
+- Stagger 2 to 4 frames between siblings; 1 frame between letters; 4 to 6 frames between cards.
+- Exit before the next scene's entrance so both never fight for attention: fade + move out over 6 to 10 frames ending at the scene's last frame (use `durationInFrames - 8` as the exit start).
+- Mask reveals feel more expensive than fades: wrap text in a `div` with `overflow: hidden` and translate the inner element up from 100 percent.
+- For lines of text, reveal by line, not by word, unless it is a hook.
+
+## 4. Kinetic typography
+
+The `KineticTitle` template does word-by-word spring entrance with an optional highlight word. Guidance:
+- Hooks: one idea, 2 to 5 words, 96 to 120 px, weight 900, tight `letterSpacing: -0.03em`, `lineHeight: 0.95`.
+- Emphasize one word per headline: color, `Highlight` / `Underline` from `@remotion/rough-notation` driven by `progress`, or a scale pop of 1.06 on its beat.
+- Numbers: count up with `interpolate` + `Math.round`, ease-out, and format with `toLocaleString`. Add a subtle `posterize: 2` for a mechanical odometer feel.
+- Fit long copy with `fitText` from `@remotion/layout-utils`, and cap at the platform maximum.
+- Text on footage needs a treatment: 40 to 60 percent dark scrim, a blurred backdrop card (`backdropFilter: 'blur(24px)'`), or a solid label bar. Never raw white text over busy video.
+- Do not animate letter-spacing or font-weight per frame with variable fonts unless the font supports it cleanly; animate `scale` and `translate` instead.
+
+## 5. Camera: the whole scene moves
+
+Wrap scene content in a container and drive it:
+
+```tsx
+const drift = noise2D('cam', frame / 90, 0) * 6;      // handheld sway in px
+const push = interpolate(frame, [0, durationInFrames], [1, 1.06], {easing: EASE.inOut}); // slow push-in
+<AbsoluteFill style={{scale: String(push), translate: `${drift}px 0px`}}>...</AbsoluteFill>
+```
+- Push-in 4 to 8 percent over a scene for talking-head or hero shots; pull-out for reveals.
+- Parallax: background moves 30 percent of the foreground's translate; three layers maximum.
+- Whip-pan cut: 6-frame translate of 100 percent with `blur()` effect ramp, then the next scene enters from the opposite side.
+- Ken Burns on stills (`KenBurnsImage` template): start scale 1.05 to 1.15, drift 2 to 4 percent, ease-in-out, pick a focal point per image.
+
+## 6. Transitions and cut design
+
+Motivate every transition: a cut when the voice starts a new sentence, a wipe in the direction of motion, a light leak on an emotional beat, a zoom-through on "and here's how".
+
+- Default: hard cut with an entrance animation on the new scene. Fewer transitions read as more confident.
+- `fade()` 10 to 12 frames for mood changes; `slide()` / `wipe()` / `blurSlide()` 12 to 15 frames matching the direction of the exiting motion; `clockWipe` / `iris` for reveals; `flip` / `bookFlip` sparingly (product spins, comparisons).
+- Shader presentations for cinematic cuts (WebGL): `filmBurn` (organic burn-through, pairs with a music swell), `dreamyZoom` (soft zoom + rotation), `zoomBlur` / `crossZoom` (impact), `dissolve` (noise dissolve), `ripple`, `crosswarp`, `swap`, `linearBlur`, `zoomInOut`. `pushCut()` is CSS-only: a scale push with a flash frame built in (`flashColor`, `flashFrames`), ideal for beat drops.
+- Light leak overlay (`LightLeakOverlay` template with `lightLeak()` effect) over a hard cut: 20 to 28 frames, `hueShift` toward the brand color.
+- Match cuts: end scene A with the hero at the position where scene B's hero starts.
+- Flash frame: a 2-frame white or brand-color `Solid` at the cut, used once or twice per video for impact beats.
+- Sound every transition with an SFX (`whoosh`, `whip`, `switch`) placed at the cut frame, 20 to 40 percent volume.
+
+## 7. Effects, light, grain and grade
+
+A subtle finishing pass separates flat renders from cinematic ones:
+- Vignette (`vignette({})` on a `<Solid>` overlay or on the video) at low strength.
+- Film grain: `noise({...})` or `whiteNoise` at 3 to 6 percent opacity, animated by seeding with the frame (`seed: frame`), on a full-frame `<Solid>` with `mixBlendMode: 'overlay'`.
+- Glow on titles: `glow()` effect on `<HtmlInCanvas>` or a CSS `textShadow` stack (`0 0 24px rgba(brand,0.6), 0 0 64px rgba(brand,0.3)`).
+- Chromatic aberration and zoom blur only on impact frames, 3 to 6 frames, then off.
+- Color grade: `exposure`, `levels`, `whiteBalance`, `shadowsHighlights`, `vibrance`, `saturation`, `tint` / `duotone`, or a `.cube` LUT via `lut()` on footage to unify mixed sources; or a CSS `filter` on a wrapper for HTML content.
+- Backgrounds: animated gradients (`GradientBackground` template), `linearGradient` / `halftoneLinearGradient` / `waves` / `contourLines` effects on a `<Solid>`, or slow-moving blurred blobs (`filter: blur(80px)`) with noise-driven positions.
+- All `@remotion/effects`, shader transitions and light leaks need a WebGL backend (`angle` on desktop GPU, `swangle` without a GPU). Keep them opt-in so a render never fails on a machine without GL; the templates expose `webgl` props for this.
+
+## 8. Motion blur
+
+Fast moves without motion blur look like PowerPoint. Options:
+- `<HtmlInCanvasMotionBlur width height samples={8} shutterAngle={180}>` from `@remotion/motion-blur` (4.0.529+, best quality; preview needs the Chrome canvas-draw-element flag; renders are fine).
+- `<Trail layers={4} lagInFrames={0.15} trailOpacity={0.6}>` and `<CameraMotionBlur shutterAngle={180} samples={10}>` from the same package for older versions.
+- `zoomBlur` / `blur` effects ramped by `interpolate` on whip pans.
+- Cost: samples multiply render time. Use on hero moves only.
+
+## 9. Shapes, paths, particles, data
+
+- `@remotion/shapes` for clean geometry: `<Rect>`, `<Circle>`, `<Star>`, `<Pie progress>` (radial progress), `<Arrow>`, `<Spark>`.
+- Draw-on lines and logos: `evolvePath(progress, d)` -> `strokeDasharray/offset` on an SVG path. Combine with `getPointAtLength` to move a dot along the line.
+- Morphing: `interpolatePaths(frame, [0, 30], [dA, dB])` inline on `<Interactive.Path>`.
+- Particles: 40 to 120 elements positioned with `random(i)` and animated by `frame`; keep them as absolutely positioned `div`s or one SVG. Do not exceed a few hundred DOM nodes.
+- Charts: build bars with `interpolate` per bar with a stagger, lines with `evolvePath`, counters for values. Match the platform text minimums.
+- Audio-reactive: `useWindowedAudioData` + `visualizeAudio` from `@remotion/media-utils` for bars, waveforms and bass-driven scale (see `audio-voiceover.md`).
+
+## 10. 3D and depth
+
+- CSS 3D first: `perspective: 1200px` on a parent, `rotateX/rotateY` on cards, `transformStyle: 'preserve-3d'`. Cheap and renders anywhere.
+- `@remotion/three` for real 3D (product spins, logo extrusions, environments). Lights required; animate only from `useCurrentFrame()`; `<Sequence layout="none">` inside the canvas.
+- `cube()` transition for 3D scene changes.
+- Fake depth with layered parallax, drop shadows that grow with scale, and blur on far layers.
+
+## 11. Loops and idle motion
+
+Anything on screen for more than 2 s needs idle motion: a slow float (`Math.sin(frame / 20) * 4` px), rotating gradient angle, breathing scale (1 to 1.02), shimmer sweep across a button, blinking cursor. Make loop lengths divide the scene duration when the scene is a perfect loop (Shorts that restart).
+
+## 12. Anti-patterns
+
+- Everything animating at once; elements without a hierarchy.
+- Linear tweens on anything the viewer looks at.
+- Bounce on serious content; bounce on more than one element at a time.
+- Transitions longer than 20 frames; a different transition on every cut.
+- Text that appears and immediately disappears (minimum on-screen time = reading time, ~0.25 s per word plus 0.6 s).
+- Text or logos inside the platform UI zones.
+- Motion that continues after the voice moves on (trim the scene to the voice).
+- Raw stock footage with no grade, scrim or crop.

@@ -1,0 +1,46 @@
+{
+  "skill_name": "remotion-video-producer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "start Remotion. I need a 30 second YouTube Short about '3 mistakes new freelancers make'. Write the script yourself, use an ElevenLabs voice (key is in .env), word-by-word captions in the pop style, dark background with an electric blue accent, end with a follow CTA. Set it up in ./freelancer-short and get it to the point where I can run the render.",
+      "expected_output": "A Remotion project scaffolded with the skill's templates, a public/script/freelancer-short.json with 4 to 6 scenes (hook in scene 1), voiceover generated or a clear command to run it, a Shorts composition at 1080x1920 using SocialVideo/VoiceoverScene with captions and the end card, type check passing, and a render command using scripts/render-preset.sh shorts.",
+      "files": [],
+      "expectations": [
+        "A script JSON exists under public/script/ with a videoId, a voice block and scenes that each have id, headline, voiceover",
+        "The first scene's headline or voiceover is a hook shorter than 12 words",
+        "Root.tsx registers a 1080x1920 composition at 30 fps",
+        "Captions are rendered with the CaptionLayer component or createTikTokStyleCaptions",
+        "remotion.config.ts enables the angle OpenGL renderer",
+        "npx tsc --noEmit passes in the created project",
+        "The final message tells the user which command renders the Short and mentions the ELEVENLABS_API_KEY requirement"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I already have a Remotion project in ./promo with a 16:9 composition called 'ProductLaunch'. I need the same video delivered as an Instagram Reel and a Facebook 4:5 feed post without redesigning the scenes. Text currently uses hardcoded pixel positions. Make it multi-format and render all three.",
+      "expected_output": "The agent refactors layout to derive positions from useVideoConfig and the platforms helper (safe rect, unit), registers Reel (1080x1920) and Feed (1080x1350) compositions pointing at the same component, verifies text stays inside the safe zones with the SafeArea overlay, and renders three files named with platform and size via render-preset.sh.",
+      "files": [],
+      "expectations": [
+        "New compositions with ids for the vertical and 4:5 formats are registered in Root.tsx",
+        "Scene layout no longer relies on absolute pixel coordinates tied to 1920x1080",
+        "The platforms helper or an equivalent safe-zone calculation is used",
+        "Three render commands or outputs exist, one per format, with distinct output names",
+        "No scene component was duplicated per platform"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a voiceover and burned-in captions to my existing Remotion explainer. I recorded the narration myself as public/vo/part1.wav ... part6.wav, one file per section. The sections are currently fixed at 5 seconds each and the audio gets cut off. Sync the sections to the audio and give me karaoke captions in the lower third. Keep the music but make it dip under my voice.",
+      "expected_output": "audio-durations.mjs builds a manifest from the six files, transcribe-whisper.mjs (or cloud) produces captions, calculateMetadata sizes sections to the audio plus a gap, CaptionLayer in karaoke style placed in the safe lower band, MusicBed ducks under the voice segments.",
+      "files": [],
+      "expectations": [
+        "A manifest.json with six scenes and durations is created from the existing WAV files",
+        "Section durations are computed from the manifest in calculateMetadata rather than hardcoded to 5 seconds",
+        "Captions are generated with Whisper (local or API) or an equivalent transcription step and stored as Caption JSON",
+        "The music track uses a volume function that lowers level during voice segments",
+        "Captions use the karaoke style and are positioned inside the safe area"
+      ]
+    }
+  ]
+}

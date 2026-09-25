@@ -1,0 +1,84 @@
+# Visual design for programmatic video
+
+Table of contents
+1. Design tokens per project
+2. Typography
+3. Color and contrast
+4. Backgrounds and texture
+5. Photos, footage and AI-generated assets
+6. Brand systems and logos
+7. Layout patterns by format
+8. Thumbnails and covers
+
+## 1. Design tokens per project
+
+Create `src/lib/theme.ts` on every job with: `colors` (bg, surface, text, muted, accent, accent2), `fonts` (display, body, mono), `radius`, `shadow`, and `grade` (a filter string or effect list for footage). Every component reads from it. Swapping a brand becomes a one-file change and the cut stays coherent.
+
+Defaults when the brief gives nothing: near-black background `#0B0B0F`, off-white text `#F5F5F7`, one saturated accent, one supporting accent, display font with a strong 900 weight (Inter, Sora, Space Grotesk, Plus Jakarta Sans, Bricolage Grotesque, Instrument Serif for editorial), body font Inter.
+
+## 2. Typography
+
+- Load exactly the weights used. Display 700 to 900, body 400 to 500.
+- Hierarchy inside a scene: one display element, one supporting line, optional micro-label (uppercase, tracked +0.08em, 28 to 32 px).
+- Tight leading for display (0.92 to 1.0), normal for body (1.3 to 1.4). Negative tracking on large display text (-0.02 to -0.04em).
+- Max line length: 22 characters vertical, 40 characters horizontal for headlines.
+- Numbers and stats: tabular figures (`fontVariantNumeric: 'tabular-nums'`) so counters do not jitter.
+- Multilingual: `@remotion/google-fonts` supports subsets (`latin-ext`, `devanagari`, `arabic`, `cyrillic`, ...); load them explicitly, or use `@remotion/fonts` with a local file. Check glyph fallback by rendering a still.
+- Emoji: `@remotion/animated-emoji` for animated, or Noto Color Emoji via a local font for static consistency across render machines.
+
+## 3. Color and contrast
+
+- Text contrast ratio at least 4.5:1 against its actual background at the moment it appears (over footage, measure against the scrim, not the raw frame).
+- Use one accent for emphasis and interactions; a second only for data or category coding.
+- Gradients: two to three stops, hues within 60 degrees of each other for premium, complementary for energy. Animate the angle or the stop positions slowly.
+- Dark UIs render smaller in H.264; add a slight lift (`#0B0B0F` not `#000`) to avoid banding, and keep grain subtle.
+- Color space: design in sRGB, render with `--color-space=bt709` so the upload matches Studio.
+
+## 4. Backgrounds and texture
+
+Never a flat, static background for more than a second. Choose one:
+- `GradientBackground` template: two blurred blobs moved by noise over a base gradient, plus optional grain.
+- `<Solid>` with `@remotion/effects` generators: `linearGradient`, `waves`, `contourLines`, `halftoneLinearGradient`, `dotGrid`, `gridlines`, `paper`, animated by passing `frame`-derived params.
+- Looping footage (`<Video loop>`) heavily graded and darkened under a gradient overlay.
+- Large blurred version of the hero image behind the hero (the "album art" look) for image-driven scenes.
+- Subtle grid or dot pattern at 6 to 10 percent for tech content.
+
+## 5. Photos, footage and AI-generated assets
+
+Ingest: put files under `public/media/<video-id>/` with predictable names (`s01-hero.png`, `s02-broll.mp4`). Convert exotic codecs (ProRes, HEVC from phones, AV1) to H.264 MP4 with `npx remotion ffmpeg -i in.mov -c:v libx264 -crf 16 -pix_fmt yuv420p -movflags +faststart out.mp4` before use. Images larger than 4000 px: downscale to the canvas size times 1.5 to keep renders fast.
+
+Treatment:
+- Crop to the format with `objectFit: 'cover'` plus `objectPosition` on the focal point, or `crop*` props for interactive framing.
+- Grade every external asset the same way (theme `grade`): typically `contrast(1.05) saturate(0.9)` plus a color tint from the accent at 10 to 20 percent, so mixed sources look like one shoot.
+- AI images (Nano Banana, GPT Image, Midjourney, etc.): request them at the target ratio, 2K plus, no text baked in (add text in Remotion for editability), consistent lighting direction across the set. Upscale before import rather than in the browser.
+- AI video (Veo, Kling, Sora, Runway, Higgsfield): 5 to 10 s clips; trim with `trimBefore/trimAfter`, speed with `playbackRate` 0.85 to 1.1 for feel, loop the best 2 to 3 s with `loop` when a longer hold is needed, and always put the hook copy on top rather than depending on baked text.
+- Cutouts / transparent PNG: drop shadow via CSS `filter: drop-shadow()` or `dropShadow()` effect; give them a slow float.
+- Screen recordings and UI: wrap in a device frame or a rounded card with an inner shadow; zoom to the interaction with a camera push; add a cursor highlight circle.
+
+## 6. Brand systems and logos
+
+- Logo as SVG whenever possible; animate with `evolvePath` (draw-on), staggered `Interactive.Path` opacity, or a mask wipe. Keep the final held logo pixel-identical to the brand file (no skew, no color shift).
+- Lockup rules: clear space equal to the logo mark height; never smaller than 120 px wide on vertical.
+- End cards: logo, one line, CTA, and 1.5 to 2.5 s of hold; a Shorts end card also includes a "follow" or "part 2" cue inside the safe zone.
+- Watermark: 60 to 70 percent opacity, inside the safe zone, top-left or top-right.
+
+## 7. Layout patterns by format
+
+Vertical (9:16):
+- Hero centered in the upper third of the safe box, headline below or overlapping, captions in the lower part of the box.
+- Split screen (top/bottom) for comparisons or talking head + b-roll.
+- Full-bleed footage with a stacked headline; never place two columns of text.
+
+Horizontal (16:9):
+- Rule-of-thirds anchor for speaker or product; text in the opposite third.
+- Lower thirds at y 820 to 960 with a slide-and-reveal.
+- Chapter cards: number, title, one-line subtitle, background motion.
+
+Square / 4:5:
+- Center-weighted; margins 60 px; headline max 3 lines.
+
+Multi-format: write layouts with `useVideoConfig()` and the platform token. A helper like `isVertical = height > width` and `unit = width / 1080` scales sizes; positions use percentages of the safe rectangle from `platforms.ts`.
+
+## 8. Thumbnails and covers
+
+Render a `<Still>` composition from the same theme: face or hero at 55 to 65 percent height, 3 to 4 words at 140 px plus, high contrast, a color block behind the text. YouTube 1280x720, Reels cover 1080x1920 (grid crop is the central 4:5, keep the subject there). Export PNG for editing, JPG under 2 MB for upload: `npx remotion still Thumbnail out/thumb.png`.
