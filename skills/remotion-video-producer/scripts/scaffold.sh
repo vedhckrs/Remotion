@@ -13,6 +13,7 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES="$SKILL_DIR/assets/templates"
 DIR="${1:-.}"
 PM="${2:-npm}"
+case "$PM" in --*) PM=npm ;; esac
 KEEP_ROOT=0
 for arg in "$@"; do [ "$arg" = "--keep-root" ] && KEEP_ROOT=1; done
 
@@ -46,6 +47,19 @@ echo "Copying templates"
 mkdir -p src public/script public/voiceover public/music public/media public/captions out
 cp -R "$TEMPLATES/src/." src/
 cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
+
+# create-video installs Tailwind v4 in the blank template (src/index.css imports it).
+# Keep it wired in the config so the CSS is processed; templates themselves use inline styles.
+if grep -q '"@remotion/tailwind-v4"' package.json && ! grep -q enableTailwind remotion.config.ts; then
+  node -e '
+const fs = require("fs");
+let c = fs.readFileSync("remotion.config.ts", "utf8");
+c = c.replace("import {Config} from '\''@remotion/cli/config'\'';", "import {Config} from '\''@remotion/cli/config'\'';\nimport {enableTailwind} from '\''@remotion/tailwind-v4'\'';");
+c += "\n// Tailwind v4 was installed by create-video. Animate with useCurrentFrame(), never with transition-* or animate-* classes.\nConfig.overrideBundlerConfig(enableTailwind);\n";
+fs.writeFileSync("remotion.config.ts", c);
+'
+  echo "Tailwind v4 detected: kept enabled in remotion.config.ts"
+fi
 [ -f public/script/example.json ] || cp "$TEMPLATES/public/script/example.json" public/script/example.json
 
 if [ "$KEEP_ROOT" -eq 0 ]; then

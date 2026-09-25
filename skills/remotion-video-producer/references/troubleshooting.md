@@ -7,6 +7,9 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 - An asset loaded late in one tab: wrap fetches in `delayRender()` / `useDelayRender()`; use `<Img>`, `<Video>`, `<Audio>`, `<AnimatedImage>` instead of CSS `background-image` or raw `<img>`.
 - Emergency diagnosis: `--concurrency=1` removes tab-state differences; if the flicker disappears, the cause is non-determinism.
 
+## Google Fonts fail to load during `compositions` or render (`net::ERR_CERT_AUTHORITY_INVALID`, `Failed to fetch`)
+- Headless Chrome does not trust a corporate or sandbox proxy certificate, so `@remotion/google-fonts` cannot download the font. Pass `--ignore-certificate-errors` to `npx remotion compositions|render|still` in that environment, or self-host the font with `@remotion/fonts` from `public/fonts/` (also the right choice for reproducible renders on Lambda and in CI).
+
 ## Fonts render as fallback in the video but fine in Studio
 - `loadFont()` not called at module scope, or wrong weight requested. Load the exact weights and subsets, call at the top of the file, and check `waitUntilDone()` before measuring text.
 - Local fonts: file must be in `public/` and referenced with `staticFile()`; `format` inferred from the extension.
@@ -34,6 +37,9 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 ## `delayRender()` timeout
 - A fetch or font never resolved. Increase `--timeout=60000` only after checking the URL/CORS; call `cancelRender(err)` in the catch so the error surfaces instead of the timeout.
 - Remote media without CORS headers fails in Chrome: move it to `public/` or a CORS-enabled bucket.
+
+## Console shows `voiceover/<id>/manifest.json 404` before voiceover exists
+- Expected. `calculateMetadata` in the `SocialVideo` template falls back to reading-time estimates until `scripts/generate-voiceover.mjs` or `audio-durations.mjs` writes the manifest; the noise disappears after that. A missing `public/script/<id>.json`, by contrast, is a hard error on purpose.
 
 ## Composition duration is wrong
 - `calculateMetadata` returned before the manifest updated: rerun the voiceover script, then restart Studio (metadata is recomputed on prop changes and reload).

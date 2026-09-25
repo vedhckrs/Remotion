@@ -28,5 +28,9 @@ Config.setPixelFormat('yuv420p');
 
 Config.setOverwriteOutput(true);
 
+// Tailwind: if the project uses it, scaffold.sh appends `Config.overrideBundlerConfig(enableTailwind)`
+// from '@remotion/tailwind-v4' here. Remember that Tailwind's transition-* / animate-* classes do not
+// render in Remotion; drive all motion from useCurrentFrame().
+
 // Give slow fonts/media more time before failing a frame (ms).
 Config.setDelayRenderTimeoutInMilliseconds(60000);
