@@ -1,3 +1,4 @@
+import type React from 'react';
 import {Easing, interpolate, spring} from 'remotion';
 
 /**
@@ -9,8 +10,20 @@ import {Easing, interpolate, spring} from 'remotion';
  * same motion reads identically at 60 fps masters.
  */
 export const EASE = {
-  /** Default entrance: fast start, soft landing. */
+  /** Default entrance: fast start, soft landing (expo-out). */
   out: Easing.bezier(0.16, 1, 0.3, 1),
+  /**
+   * Fluid family (researched: Material 3 emphasized tokens, Apple's `.smooth` spring). Use these
+   * for anything that should feel like liquid rather than a UI click: no overshoot, long tail.
+   */
+  /** Material 3 "emphasized decelerate": enters fast, settles for a long time. Text, icons, cards. */
+  emphasizedOut: Easing.bezier(0.05, 0.7, 0.1, 1),
+  /** Material 3 "emphasized accelerate": exits leave quietly then fast. */
+  emphasizedIn: Easing.bezier(0.3, 0, 0.8, 0.15),
+  /** Material 3 "standard": both ends soft; position changes, camera, transitions. */
+  smooth: Easing.bezier(0.2, 0, 0, 1),
+  /** Quint-out: a touch softer than expo for big elements. */
+  quintOut: Easing.bezier(0.22, 1, 0.36, 1),
   /** Exits: slow start, fast leave. */
   in: Easing.bezier(0.7, 0, 0.84, 0),
   /** Camera moves and mid-scene position changes. */
@@ -34,6 +47,12 @@ export const SPRING = {
   heavy: {damping: 20, stiffness: 90, mass: 1.2},
   /** Fast-paced content: arrives in ~6 frames at 30 fps with a hint of overshoot. */
   punch: {damping: 16, stiffness: 260, mass: 0.7},
+  /** Critically damped (zeta ~ 1.0, like SwiftUI .smooth): reaches the target as fast as possible with zero overshoot. Default for text and icons. */
+  fluid: {damping: 26, stiffness: 170, mass: 1},
+  /** Slightly under-damped (zeta ~ 0.8, like SwiftUI .snappy): alive but not bouncy. Buttons, badges, counters. */
+  snappy: {damping: 22, stiffness: 240, mass: 0.8},
+  /** Over-damped and heavy (zeta ~ 1.4): slow, expensive settle for hero images and panels. */
+  silk: {damping: 34, stiffness: 120, mass: 1.2},
 } as const;
 
 export type Pacing = 'fast' | 'medium' | 'calm';
@@ -82,9 +101,59 @@ export const envelope = (frame: number, durationInFrames: number, fadeIn = 10, f
     easing: [EASE.out, Easing.linear, EASE.in],
   });
 
-/** Slow camera push from `from` to `to` scale across the scene. */
+/** Slow camera push from `from` to `to` scale across the scene (standard curve: no visible start or stop). */
 export const cameraPush = (frame: number, durationInFrames: number, from = 1, to = 1.06) =>
-  interpolate(frame, [0, durationInFrames], [from, to], {...clamp, easing: EASE.inOut});
+  interpolate(frame, [0, durationInFrames], [from, to], {...clamp, easing: EASE.smooth});
+
+// ---- Fluid motion helpers -------------------------------------------------------------------------
+
+/**
+ * Eased 0..1 progress for a fluid entrance: starts at `delay`, lasts `duration` (both in frames
+ * authored at 30 fps), emphasized-decelerate curve. Pair with `fluidStyle()`.
+ */
+export const fluid = (frame: number, fps: number, options: {delay?: number; duration?: number; easing?: (t: number) => number} = {}) => {
+  const delay = options.delay ?? 0;
+  const start = delay <= 0 ? 0 : fr(delay, fps);
+  const end = Math.max(start + 1, fr(delay + (options.duration ?? 18), fps)); // stills (fps 1) collapse to one frame
+  return interpolate(frame, [start, end], [0, 1], {...clamp, easing: options.easing ?? EASE.emphasizedOut});
+};
+
+/**
+ * Style for a fluid entrance from progress `p`: fades in, rises `distance` px, sharpens from a
+ * soft blur, and settles from a slight under-scale. Everything eases together so the element
+ * feels like it condenses into place instead of snapping. `blur` costs a filter pass; set 0 on
+ * hundreds of siblings.
+ */
+export const fluidStyle = (p: number, options: {distance?: number; blur?: number; scaleFrom?: number; axis?: 'x' | 'y'} = {}): React.CSSProperties => {
+  const distance = options.distance ?? 24;
+  const blur = (options.blur ?? 8) * (1 - p);
+  const scaleFrom = options.scaleFrom ?? 0.96;
+  const offset = (1 - p) * distance;
+  return {
+    opacity: interpolate(p, [0, 0.6], [0, 1], clamp),
+    translate: options.axis === 'x' ? `${offset}px 0px` : `0px ${offset}px`,
+    scale: String(scaleFrom + (1 - scaleFrom) * p),
+    filter: blur > 0.3 ? `blur(${blur.toFixed(2)}px)` : undefined,
+  };
+};
+
+/** Fluid exit: 1 -> 0 finishing at `endFrame`, emphasized-accelerate curve. Multiply into opacity / distance. */
+export const fluidOut = (frame: number, fps: number, endFrame: number, duration = 10) =>
+  interpolate(frame, [Math.min(endFrame - 1, endFrame - fr(duration, fps)), endFrame], [1, 0], {...clamp, easing: EASE.emphasizedIn});
+
+/**
+ * Natural stagger: instead of a fixed gap, delays follow an ease-out distribution so the first
+ * items arrive quickly and the tail compresses (how water and crowds move). Returns the delay of
+ * item `index` in frames at 30 fps, spanning `total` frames across `count` items.
+ */
+export const staggerDelay = (index: number, count: number, total: number) => {
+  if (count <= 1) return 0;
+  const t = index / (count - 1);
+  return total * (1 - (1 - t) ** 2.2);
+};
+
+/** Continuous, deterministic breathing (0.97..1.03 by default) for held elements so they never freeze. */
+export const breathe = (frame: number, fps: number, amount = 0.03, period = 90, phase = 0) => 1 + Math.sin(((frame + phase) / fr(period, fps)) * Math.PI * 2) * amount;
 
 /** Gentle idle float in px. Deterministic; phase offsets siblings. `period` in frames at 30 fps. */
 export const idleFloat = (frame: number, amplitude = 4, period = 40, phase = 0, fps = 30) =>

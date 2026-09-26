@@ -24,21 +24,41 @@ Keep these curves in `src/lib/motion.ts` (template) and reach for them by name:
 
 | Name | Curve | Use |
 |---|---|---|
-| `EASE.out` | `Easing.bezier(0.16, 1, 0.3, 1)` | Default entrance, UI reveals |
+| `EASE.emphasizedOut` | `Easing.bezier(0.05, 0.7, 0.1, 1)` | Fluid entrances: text, icons, cards (Material 3 emphasized decelerate) |
+| `EASE.emphasizedIn` | `Easing.bezier(0.3, 0, 0.8, 0.15)` | Fluid exits |
+| `EASE.smooth` | `Easing.bezier(0.2, 0, 0, 1)` | Position changes, camera, transitions (Material 3 standard) |
+| `EASE.out` | `Easing.bezier(0.16, 1, 0.3, 1)` | Expo-out entrance, UI reveals |
 | `EASE.in` | `Easing.bezier(0.7, 0, 0.84, 0)` | Exits |
 | `EASE.inOut` | `Easing.bezier(0.65, 0, 0.35, 1)` | Camera moves, position changes mid-scene |
 | `EASE.snap` | `Easing.bezier(0.2, 0.9, 0.2, 1)` | Fast UI, counters |
 | `Easing.spring({damping: 200})` | critically damped | Push without bounce, safe everywhere |
 | `spring({config: {damping: 12, stiffness: 140}})` | bouncy | Playful logos, stickers, emoji |
 | `spring({config: {damping: 20, stiffness: 90, mass: 1.2}})` | heavy | Large panels, hero cards |
+| `SPRING.fluid` `{damping: 26, stiffness: 170}` | critically damped (zeta 1.0, Apple `.smooth`) | Default for text and icons: fastest arrival with zero overshoot |
+| `SPRING.snappy` `{damping: 22, stiffness: 240, mass: 0.8}` | zeta 0.8 (Apple `.snappy`) | Badges, pills, counters: alive, not bouncy |
+| `SPRING.silk` `{damping: 34, stiffness: 120, mass: 1.2}` | over-damped | Hero images, end-card logo: slow expensive settle |
 
 Durations at 30 fps: entrances 8 to 15 frames, exits 6 to 10 frames, camera moves the length of the scene, transitions 10 to 18 frames. Nothing user-facing moves linearly except progress bars and constant-speed scrolls (tickers, marquees).
 
 For scale use `output: 'perceptual-scale'`. For opacity + translate entrances, start at 30 to 60 px offset, not 200. Rotations for entrances are 3 to 8 degrees, not 45.
 
+## 2b. Fluid motion (the default feel)
+
+"Fluid" is what viewers call motion with no visible start, stop or bounce: every property of an element eases together on one long-tailed curve, siblings flow rather than tick, and nothing ever freezes. The templates default to it (`KineticTitle motion="fluid"`, `Icon animate="fluid"`, fluid transitions) and expose the pieces in `lib/motion.ts`:
+
+- `fluid(frame, fps, {delay, duration})` returns eased 0..1 on the emphasized-decelerate curve; `fluidStyle(p, {distance, blur, scaleFrom})` turns it into opacity + rise + de-blur + settle so an element condenses into place. Use 18 to 24 frames for text, 22 to 30 for icons and cards, 8 to 12 for fast cuts.
+- `fluidOut(frame, fps, endFrame)` accelerates away on the emphasized-accelerate curve. Exits are always shorter than entrances (about half).
+- `staggerDelay(i, count, total)` distributes delays on an ease-out so early items come quickly and the tail compresses, the way a wave or a crowd arrives; use it instead of a constant gap for more than three siblings.
+- `breathe(frame, fps)` keeps held elements alive at 3 percent scale over 3 seconds; `idleFloat` for position; `cameraPush` now uses the standard curve so the scene never visibly starts moving.
+- Springs: `SPRING.fluid` (critically damped), `SPRING.snappy` (slight life), `SPRING.silk` (heavy). Reserve `bouncy` for stickers and emoji; overshoot on type reads as cheap.
+- Blur as motion: a 6 to 10 px blur that resolves with the entrance sells speed without motion-blur passes; keep it under 12 px and off when more than ~30 elements animate at once (each blur is a filter pass at 4K).
+- Overlap: start the next element while the previous one is at ~60 percent; never wait for a full stop. Transitions in the fluid catalog (`smoothFade`, `glideSlide`, `liquidWipe`, `irisReveal`) follow the same idea: the outgoing scene keeps moving (drifts, scales back) while the incoming one arrives.
+
+Research behind the numbers: Material 3 easing tokens (emphasized decelerate `0.05, 0.7, 0.1, 1`, standard `0.2, 0, 0, 1`), Apple SwiftUI spring presets (`.smooth` critically damped, `.snappy` slightly under-damped, `.bouncy` under-damped), and Disney's follow-through / overlapping action / slow-in slow-out principles. Sources: [m3.material.io easing and duration](https://m3.material.io/styles/motion/easing-and-duration/tokens-specs), [SwiftUI spring reference](https://github.com/GetStream/swiftui-spring-animations), [Apple spring(response:dampingFraction:)](https://developer.apple.com/documentation/SwiftUI/Animation/spring(response:dampingFraction:blendDuration:)).
+
 ## 3. Entrances, exits and stagger
 
-The staggered spring is the workhorse:
+The staggered spring is the workhorse for energetic content; for the fluid default see 2b. With springs:
 
 ```tsx
 const enter = (i: number) => spring({frame, fps, delay: i * 3, config: {damping: 200}});
@@ -76,6 +96,8 @@ const push = interpolate(frame, [0, durationInFrames], [1, 1.06], {easing: EASE.
 
 ## 6. Transitions and cut design
 
+Two catalogs in `lib/transitions.tsx`, chosen by the `transitions` prop of `SocialVideo`: `fluid` (default: `smoothFade` crossfade with condense and de-blur, `glideSlide` continuous camera-like glide, `liquidWipe` organic noise-shaped edge, `irisReveal` soft circle, plus a softened zoom and whip for fast pacing) and `hard` (slams, push cuts, whip pans, glitch) for hype content. `transitionTiming()` gives the built-in presentations the standard curve so nothing moves linearly.
+
 Motivate every transition: a cut when the voice starts a new sentence, a wipe in the direction of motion, a light leak on an emotional beat, a zoom-through on "and here's how".
 
 - Default: hard cut with an entrance animation on the new scene. Fewer transitions read as more confident.
@@ -94,7 +116,7 @@ A subtle finishing pass separates flat renders from cinematic ones:
 - Glow on titles: `glow()` effect on `<HtmlInCanvas>` or a CSS `textShadow` stack (`0 0 24px rgba(brand,0.6), 0 0 64px rgba(brand,0.3)`).
 - Chromatic aberration and zoom blur only on impact frames, 3 to 6 frames, then off.
 - Color grade: `exposure`, `levels`, `whiteBalance`, `shadowsHighlights`, `vibrance`, `saturation`, `tint` / `duotone`, or a `.cube` LUT via `lut()` on footage to unify mixed sources; or a CSS `filter` on a wrapper for HTML content.
-- Backgrounds: animated gradients (`GradientBackground` template), `linearGradient` / `halftoneLinearGradient` / `waves` / `contourLines` effects on a `<Solid>`, or slow-moving blurred blobs (`filter: blur(80px)`) with noise-driven positions.
+- Backgrounds: the single-hue `Background` systems (section 8c), or `halftoneLinearGradient` / `waves` / `contourLines` effects on a `<Solid>` in one tonal color. No multi-color blobs or gradients.
 - All `@remotion/effects`, shader transitions and light leaks need a WebGL backend (`angle` on desktop GPU, `swangle` without a GPU). Keep them opt-in so a render never fails on a machine without GL; the templates expose `webgl` props for this.
 
 ## 8. Motion blur
@@ -107,14 +129,14 @@ Fast moves without motion blur look like PowerPoint. Options:
 
 ## 8b. Neon, 3D camera rig, impact hits (template components)
 
-- `NeonText`: layered glow, deterministic tube-ignition flicker, breathing pulse, optional extrusion; `font="impact"` for Anton. Pair with `Camera3D` and a dark `GradientBackground` for a neon stage (script `visual.type: "neon"`).
+- `NeonText`: layered glow, deterministic tube-ignition flicker, breathing pulse, optional extrusion; `font="impact"` for Anton. Pair with `Camera3D` and the `spotlight` background for a neon stage (script `visual.type: "neon"`).
 - `Camera3D` + `Layer depth` + `Card3D`: CSS perspective rig with pan / tilt / roll / dolly keyframes in seconds and `handheld` noise. Layers at negative depth move less (background), positive depth more (foreground). Oversize far layers (`style={{scale: '1.4'}}`) so rotation never reveals edges. Three layers is plenty.
 - `ImpactFlash at={[0, 45]}`: accent or white flash plus a 2 to 3 percent scale bump on beats; the composition adds one on every cut in `fast` pacing.
 - `pickTransition(pacing, index)` in `lib/transitions.tsx` cycles zoom punch / push cut with flash / whip pan / glitch slam for fast, slide / fade / soft zoom for medium, fades for calm. All CSS; shader presentations can be swapped in with `webglExtras`.
 
 ## 8c. Animated backgrounds (template `Background`)
 
-Ten systems, all frame-driven and themed, in `components/Background.tsx`: gradient, mesh, grid, particles, aurora, rays, waves, dots, streaks, solid. Speed is in real seconds (`speed` multiplies), intensity scales opacity, and every system fades toward a vignette so text stays legible. Pair energy with pacing: streaks / grid / aurora for fast, mesh / waves / rays for calm, dots / particles behind data. Never stack two busy systems; one background, one subject, one accent.
+Ten systems, all frame-driven, single-hue and themed, in `components/Background.tsx`: solid, tonal, spotlight, grid, dots, particles, rays, waves, streaks, paper. Speed is in real seconds (`speed` multiplies), intensity scales opacity, and every system fades toward a vignette so text stays legible. Pair energy with pacing: streaks / grid / spotlight for fast, tonal / waves / rays for calm, dots / particles / solid behind data. Never stack two busy systems; one background, one subject, one accent.
 
 ## 9. Shapes, paths, particles, data
 

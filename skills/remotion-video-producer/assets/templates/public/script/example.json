@@ -27,7 +27,7 @@
       "highlight": "first second",
       "voiceover": "Nobody is watching your first second. So stop wasting it.",
       "visual": {
-        "type": "gradient"
+        "type": "plain"
       },
       "minSeconds": 2.2
     },
@@ -38,7 +38,7 @@
       "subline": "Say the result before the setup.",
       "voiceover": "Habit one. Open with the payoff. Tell people what they get before you tell them how.",
       "visual": {
-        "type": "gradient"
+        "type": "plain"
       },
       "speaker": {
         "name": "Ved",
@@ -115,7 +115,7 @@
       "subline": "Your last frame is your next hook.",
       "voiceover": "Habit three. End on a loop. Your last frame should feel like the start of the next one.",
       "visual": {
-        "type": "gradient"
+        "type": "plain"
       }
     }
   ],

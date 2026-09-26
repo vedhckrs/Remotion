@@ -37,7 +37,8 @@ export type ScriptScene = {
   readonly voiceover: string;
   /** Visual intent for this scene. */
   readonly visual?: {
-    readonly type: 'gradient' | 'image' | 'video' | 'chart' | 'neon' | 'icons';
+    /** 'plain' = headline on the style's animated background ('gradient' is accepted as a legacy alias). */
+    readonly type: 'plain' | 'gradient' | 'image' | 'video' | 'chart' | 'neon' | 'icons';
     readonly src?: string;
     readonly focal?: readonly [number, number];
     readonly chart?: ChartSpec;

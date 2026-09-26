@@ -136,6 +136,12 @@ watermark opacity).
 - Claude Code headless: `claude -p "<prompt>" --allowedTools ...` writes scripts; `--output-format json` gives structured results. Known: occasional hang without a TTY under launchd (timeout + retry handles it).
 - n8n / Node-RED for people who want a visual flow around the same scripts; the dashboard's `/api/tasks` endpoint accepts the same task names.
 
+## 6e. Motion and color research applied in the templates
+
+- Easing: Material 3 motion tokens (emphasized decelerate / accelerate, standard) at https://m3.material.io/styles/motion/easing-and-duration/tokens-specs; Apple SwiftUI spring presets (`.smooth`, `.snappy`, `.bouncy`, `response` / `dampingFraction`) documented at https://developer.apple.com/documentation/SwiftUI/Animation/spring(response:dampingFraction:blendDuration:) and https://github.com/GetStream/swiftui-spring-animations. Encoded as `EASE.emphasizedOut/In`, `EASE.smooth`, `SPRING.fluid/snappy/silk`.
+- Contrast: WCAG 2 SC 1.4.3 (4.5:1 text, 3:1 large text) and 1.4.11 (3:1 non-text), https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html; APCA as the WCAG 3 candidate, https://www.colorcontrast.org/blog/what-is-apca/. Encoded in `lib/color.ts` (`contrast`, `ensureContrast`, `readableOn`).
+- Color proportion: the 60-30-10 rule as used by colorists, https://nofilmschool.com/60-30-10-color-rule and https://fstoppers.com/video-editing/why-great-movies-use-60-30-10-percent-color-rule-600981. Encoded as the theme roles and the single-hue background systems.
+
 ## 7. Neon, glow, 2.5D / 3D and camera
 
 - `NeonText`: layered text-shadow glow, deterministic tube-ignition flicker, breathing pulse,

@@ -3,10 +3,10 @@ import {Audio, Video} from '@remotion/media';
 import {AbsoluteFill, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {Background} from '../components/Background';
 import {Camera3D, Layer} from '../components/Camera3D';
-import {GradientBackground} from '../components/GradientBackground';
 import {KenBurnsImage} from '../components/KenBurnsImage';
 import {KineticTitle} from '../components/KineticTitle';
 import {LutVideo} from '../components/LutMedia';
+import {alpha, scrimFor} from '../lib/color';
 import {NeonText} from '../components/NeonText';
 import type {GradeName} from '../lib/grades';
 import {PACING, SPRING, cameraPush, fr, type Pacing} from '../lib/motion';
@@ -32,7 +32,7 @@ export const VoiceoverScene: React.FC<{
   readonly grade?: GradeName;
   /** Enable WebGL-only polish (film grain, LUT on footage). Requires --gl=angle or swangle. */
   readonly webglExtras?: boolean;
-}> = ({scene, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background: backgroundKind = 'gradient', grade = 'none', webglExtras = false}) => {
+}> = ({scene, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background: backgroundKind = 'tonal', grade = 'none', webglExtras = false}) => {
   const theme = useTheme();
   const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
@@ -41,7 +41,7 @@ export const VoiceoverScene: React.FC<{
   const p = PACING[pacing];
 
   const push = cameraPush(frame, durationInFrames, 1, p.cameraPush);
-  const visual = scene.visual ?? {type: 'gradient' as const};
+  const visual = scene.visual ?? {type: 'plain' as const};
   const headlineSize = (isVertical ? 96 : isHorizontal ? 104 : 88) * unit;
   const exitAt = durationInFrames - fr(4, fps);
 
@@ -62,10 +62,10 @@ export const VoiceoverScene: React.FC<{
         ) : (
           <Video src={staticFile(visual.src)} muted objectFit="cover" style={{width: '100%', height: '100%', filter: theme.grade}} name="Footage" />
         )}
-        <AbsoluteFill style={{background: `linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.6) 100%)`}} />
+        <AbsoluteFill style={{background: scrimFor(theme.colors.bg)}} />
       </AbsoluteFill>
     ) : isNeon ? (
-      <GradientBackground seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} colors={[theme.colors.bg, theme.colors.surface]} blobs={[accent, theme.colors.accent2]} />
+      <Background kind="spotlight" seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} intensity={1.2} />
     ) : (
       <Background kind={backgroundKind} seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} />
     );
@@ -119,7 +119,7 @@ export const VoiceoverScene: React.FC<{
         <Camera3D keyframes={[{at: 0, pan: -4, tilt: 2, dolly: -60}, {at: durationInFrames / fps, pan: 4, tilt: -1, dolly: 40}]} handheld={0.6} seed={scene.id}>
           <Layer depth={-320} style={{scale: '1.45'}}>{background}</Layer>
           <Layer depth={-120}>
-            <AbsoluteFill style={{background: `radial-gradient(circle at 50% 55%, ${accent}33 0%, rgba(0,0,0,0) 55%)`}} />
+            <AbsoluteFill style={{background: `radial-gradient(circle at 50% 55%, ${alpha(accent, 0.2)} 0%, rgba(0,0,0,0) 55%)`}} />
           </Layer>
           <Layer depth={80}>{copy}</Layer>
         </Camera3D>

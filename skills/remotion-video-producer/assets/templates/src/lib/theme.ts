@@ -38,15 +38,26 @@ export type FontKey = keyof typeof FONT_FAMILIES;
 /** Resolves when all fonts are ready; await before measuring text. */
 export const fontsReady = () => Promise.all([inter.waitUntilDone(), montserrat.waitUntilDone(), anton.waitUntilDone(), poppins.waitUntilDone(), spaceGrotesk.waitUntilDone(), playfair.waitUntilDone()]);
 
+/**
+ * Color roles (60-30-10): `bg` is the dominant field (one hue, solid), `surface` a tonal step of
+ * the same hue for cards and tiles, `text` / `muted` are derived from the background's luminance
+ * (white on dark, near-black on light), `accent` is the single brand accent used for the 10 percent
+ * that must pop, `onAccent` the text color that reads on it, `accent2` an analogous second color
+ * reserved for data series (never for backgrounds), `highlight` the caption emphasis color, `line`
+ * a translucent stroke, `scrim` the overlay for copy on footage. src/lib/styles.ts derives the
+ * dependent roles with src/lib/color.ts so every preset is legible by construction.
+ */
 export type ThemeColors = {
   readonly bg: string;
   readonly surface: string;
   readonly text: string;
   readonly muted: string;
   readonly accent: string;
+  readonly onAccent: string;
   readonly accent2: string;
   /** Caption highlight (Hormozi yellow by default). */
   readonly highlight: string;
+  readonly line: string;
   readonly scrim: string;
 };
 
@@ -68,8 +79,10 @@ export const theme: Theme = {
     text: '#F5F5F7',
     muted: 'rgba(245,245,247,0.64)',
     accent: '#7C5CFF',
-    accent2: '#22D3EE',
+    onAccent: '#FFFFFF',
+    accent2: '#A78BFA',
     highlight: '#FFD93D',
+    line: 'rgba(245,245,247,0.12)',
     scrim: 'rgba(0,0,0,0.55)',
   },
   fonts: {

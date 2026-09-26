@@ -15,16 +15,16 @@ export const EndCard: React.FC<{
   readonly accent?: string;
   readonly background?: BackgroundKind;
   readonly webglExtras?: boolean;
-}> = ({headline, cta = 'Follow for more', handle, logoSrc, accent: accentProp, background = 'gradient', webglExtras = false}) => {
+}> = ({headline, cta = 'Follow for more', handle, logoSrc, accent: accentProp, background = 'tonal', webglExtras = false}) => {
   const theme = useTheme();
   const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const {safe, unit, isVertical} = usePlatformLayout();
 
-  const logo = spring({frame, fps, config: SPRING.heavy});
-  const title = spring({frame, fps, delay: fr(8, fps), config: SPRING.soft});
-  const pill = spring({frame, fps, delay: fr(16, fps), config: SPRING.bouncy});
+  const logo = spring({frame, fps, config: SPRING.silk});
+  const title = spring({frame, fps, delay: fr(8, fps), config: SPRING.fluid});
+  const pill = spring({frame, fps, delay: fr(16, fps), config: SPRING.snappy});
   const shimmer = interpolate(frame % fr(60, fps), [0, fr(60, fps)], [-120, 220], {easing: EASE.inOut});
 
   const titleSize = (isVertical ? 84 : 72) * unit;
@@ -62,7 +62,7 @@ export const EndCard: React.FC<{
             background: accent,
             fontSize: 40 * unit,
             fontWeight: 800,
-            color: '#fff',
+            color: theme.colors.onAccent,
             opacity: pill,
             scale: String(0.8 + pill * 0.2),
             boxShadow: `0 20px 60px ${accent}66`,

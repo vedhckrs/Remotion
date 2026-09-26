@@ -2,6 +2,7 @@ import React from 'react';
 import {Img, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {SPRING, fr, idleFloat} from '../lib/motion';
 import {getLogoSlot, type LogoCorner, type PlatformId} from '../lib/platforms';
+import {isDark} from '../lib/color';
 import {useTheme} from '../lib/theme';
 
 /**
@@ -43,7 +44,7 @@ export const LogoBadge: React.FC<{
         gap: 12 * unit,
         padding: pill && text ? `0 ${slot.height * 0.28}px` : 0,
         borderRadius: 999,
-        background: pill && text ? 'rgba(0,0,0,0.42)' : 'transparent',
+        background: pill && text ? (isDark(theme.colors.bg) ? 'rgba(0,0,0,0.42)' : 'rgba(255,255,255,0.7)') : 'transparent',
         backdropFilter: pill && text ? 'blur(12px)' : undefined,
         opacity: interpolate(enter, [0, 1], [0, opacity], {extrapolateRight: 'clamp'}),
         translate: `0px ${(1 - enter) * -slot.height * 0.4 + float}px`,

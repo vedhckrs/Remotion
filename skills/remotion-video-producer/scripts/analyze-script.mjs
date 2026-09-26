@@ -17,7 +17,7 @@
  *   [neon] / [image: path] / [video: path] at the start of a scene picks the visual
  *   [icons: youtube, instagram, logos:react, lucide:zap]   brand/UI icon scene (default set simple-icons)
  *   [speaker: Ada Lovelace | Founder, Analytical Engines]  lower third for that scene
- *   [bg: aurora]                 per-scene background system
+ *   [bg: spotlight]              per-scene background system (solid, tonal, spotlight, grid, dots, particles, rays, waves, streaks, paper)
  *   (delivery: excited)          per-scene delivery hint for TTS
  *   --style <preset>             midnight-neon | clean-corporate | hype-bold | luxury-noir | warm-editorial | tech-grid
  *   --keywords "a, b"            seeds the seo block (titles, hashtags, description skeleton) for the publish pack
@@ -66,7 +66,7 @@ if (args.check) {
   if (!seo.thumbnailText) problems.push('seo.thumbnailText missing (3 to 5 words)');
   else if (seo.thumbnailText.split(/\s+/).length > 6) problems.push('seo.thumbnailText over 6 words; thumbnails need 3 to 5');
   if (!seo.hashtags?.length) problems.push('seo.hashtags missing');
-  const kinds = (script.scenes || []).map((s) => s.visual?.type || 'gradient');
+  const kinds = (script.scenes || []).map((s) => s.visual?.type || 'plain');
   console.log(`${file}: ${script.scenes?.length || 0} scenes, ~${Math.round(total)} s at ${script.pacing || 'medium'} pacing, style ${script.style || '(default)'}, visuals ${Array.from(new Set(kinds)).join('/')}`);
   if (problems.length) {
     console.log(`Problems:\n - ${problems.join('\n - ')}`);
@@ -139,7 +139,7 @@ const firstSentence = (text, maxWords = 8) => {
 
 const scenes = blocks.map((block, i) => {
   const id = `scene-${String(i + 1).padStart(2, '0')}`;
-  let visual = {type: 'gradient'};
+  let visual = {type: 'plain'};
   let delivery;
   let subline;
   let highlight;

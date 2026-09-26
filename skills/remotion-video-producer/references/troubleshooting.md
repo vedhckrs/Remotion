@@ -17,7 +17,7 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 ## Effects, light leaks or `HtmlInCanvas` are missing or black in the render
 - WebGL disabled or the wrong backend for the machine. `--gl=angle` (or `Config.setChromiumOpenGlRenderer('angle')`) on a desktop with a GPU; `--gl=angle-egl` on Linux with a GPU; `--gl=swangle` on anything without a GPU (Docker, CI, cloud VMs; it is software rendering and slower). Lambda and Cloud Run default to `swangle`. If `angle` throws "Failed to acquire WebGL2 context", switch to `swangle` before anything else. `swiftshader`, `egl` and `vulkan` exist but rarely help where `swangle` does not.
 - Confirm the backend actually works with one still: `npx remotion still <id> out/gl.png --frame=10 --gl=swangle`.
-- Templates degrade without WebGL: `GradientBackground` grain and `LightLeakOverlay` are opt-in via `webgl` props / the `webglExtras` composition prop, so a render never depends on GL unless you turned those on.
+- Templates degrade without WebGL: `Background` grain and `LightLeakOverlay` are opt-in via `webgl` props / the `webglExtras` composition prop, so a render never depends on GL unless you turned those on.
 - Nested `<HtmlInCanvas>` is unsupported; flatten.
 - Preview of `HtmlInCanvas` and `HtmlInCanvasMotionBlur` needs Chrome 149+ with `chrome://flags/#canvas-draw-element`; rendering does not.
 

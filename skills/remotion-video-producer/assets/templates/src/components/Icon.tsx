@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {interpolate, spring, staticFile, useCurrentFrame, useDelayRender, useVideoConfig} from 'remotion';
-import {SPRING, fr, idleFloat} from '../lib/motion';
+import {alpha, contrast, isDark, lift} from '../lib/color';
+import {SPRING, fluid, fr, idleFloat} from '../lib/motion';
 import {useTheme} from '../lib/theme';
 
 /**
@@ -11,11 +12,14 @@ import {useTheme} from '../lib/theme';
  * SVG Logos), lucide / tabler (UI stroke icons), fluent-emoji-flat (colorful emoji), plus any
  * custom SVG you drop into public/icons/custom/.
  *
- * Animations: pop (spring in), draw (stroke icons draw themselves), float, spin, none. `glow`
- * adds a colored drop shadow. Monochrome sets take `color`; colorful sets keep their own.
+ * Animations: fluid (default: condenses into place, no overshoot), pop (spring), draw (stroke
+ * icons draw themselves), float, spin, none. `glow` adds a colored drop shadow. Monochrome sets
+ * take `color`; colorful sets keep their own. `BrandLogo` checks the official brand color
+ * against its tile and falls back to the theme text color when the mark would vanish (a black
+ * wordmark on a black stage, a white one on paper).
  */
 export type IconSet = 'simple-icons' | 'logos' | 'lucide' | 'tabler' | 'fluent-emoji-flat' | 'custom';
-export type IconAnimation = 'pop' | 'draw' | 'float' | 'spin' | 'none';
+export type IconAnimation = 'fluid' | 'pop' | 'draw' | 'float' | 'spin' | 'none';
 
 export type IconCredit = {set: string; name: string; title: string; license: string; source: string | null; hex: string | null};
 
@@ -96,7 +100,7 @@ export const Icon: React.FC<{
   readonly delay?: number;
   readonly glow?: string | boolean;
   readonly style?: React.CSSProperties;
-}> = ({set = 'lucide', name, size = 120, color, animate = 'pop', delay = 0, glow = false, style}) => {
+}> = ({set = 'lucide', name, size = 120, color, animate = 'fluid', delay = 0, glow = false, style}) => {
   const theme = useTheme();
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -104,6 +108,7 @@ export const Icon: React.FC<{
   const mono = set === 'simple-icons' || set === 'lucide' || set === 'tabler';
   const local = frame - fr(delay, fps);
   const enter = spring({frame: local, fps, config: SPRING.soft});
+  const flow = fluid(local, fps, {duration: 22});
   const draw = interpolate(local, [0, fr(28, fps)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const html = useMemo(() => (svg ? prepareSvg(svg, {draw: animate === 'draw', progress: draw, mono}) : ''), [svg, animate, draw, mono]);
   if (!svg) return null;
@@ -116,11 +121,11 @@ export const Icon: React.FC<{
         height: size,
         display: 'inline-block',
         color: color ?? theme.colors.text,
-        opacity: animate === 'none' || animate === 'draw' ? 1 : interpolate(enter, [0, 0.4], [0, 1], {extrapolateRight: 'clamp'}),
-        scale: animate === 'pop' ? String(0.5 + enter * 0.5) : '1',
-        translate: animate === 'float' ? `0px ${idleFloat(frame, size * 0.05, 60, delay, fps)}px` : undefined,
+        opacity: animate === 'none' || animate === 'draw' ? 1 : animate === 'fluid' ? interpolate(flow, [0, 0.6], [0, 1], {extrapolateRight: 'clamp'}) : interpolate(enter, [0, 0.4], [0, 1], {extrapolateRight: 'clamp'}),
+        scale: animate === 'pop' ? String(0.5 + enter * 0.5) : animate === 'fluid' ? String(0.88 + flow * 0.12) : '1',
+        translate: animate === 'float' ? `0px ${idleFloat(frame, size * 0.05, 60, delay, fps)}px` : animate === 'fluid' ? `0px ${(1 - flow) * size * 0.12}px` : undefined,
         transform,
-        filter: glowColor ? `drop-shadow(0 0 ${size * 0.12}px ${glowColor}) drop-shadow(0 0 ${size * 0.3}px ${glowColor}88)` : undefined,
+        filter: [glowColor ? `drop-shadow(0 0 ${size * 0.12}px ${glowColor}) drop-shadow(0 0 ${size * 0.3}px ${alpha(glowColor, 0.53)})` : '', animate === 'fluid' && flow < 0.97 ? `blur(${((1 - flow) * size * 0.06).toFixed(2)}px)` : ''].filter(Boolean).join(' ') || undefined,
         ...style,
       }}
       dangerouslySetInnerHTML={{__html: html}}
@@ -139,17 +144,22 @@ export const BrandLogo: React.FC<{
   readonly delay?: number;
   readonly glow?: boolean;
   readonly set?: 'simple-icons' | 'logos';
-}> = ({name, size = 160, official = true, color, label, animate = 'pop', delay = 0, glow = false, set = 'simple-icons'}) => {
+}> = ({name, size = 160, official = true, color, label, animate = 'fluid', delay = 0, glow = false, set = 'simple-icons'}) => {
   const theme = useTheme();
   const credits = useIconCredits();
   const credit = credits.find((c) => c.set === set && c.name === name);
-  const brandColor = color ?? (official && credit?.hex ? `#${credit.hex}` : theme.colors.text);
+  // The tile is one tonal step off the background; a mark must hold 2.5:1 against it or it goes mono.
+  const tileBg = lift(theme.colors.bg, isDark(theme.colors.bg) ? 7 : -6);
+  const official_ = official && credit?.hex ? `#${credit.hex}` : null;
+  const brandColor = color ?? (official_ && contrast(official_, tileBg) >= 2.5 ? official_ : theme.colors.text);
   const {fps} = useVideoConfig();
   const frame = useCurrentFrame();
-  const labelIn = spring({frame, fps, delay: fr(delay + 6, fps), config: SPRING.settle});
+  const labelIn = spring({frame, fps, delay: fr(delay + 6, fps), config: SPRING.fluid});
+  // The tile condenses together with its mark (same curve, 2 frames ahead) so it never sits empty.
+  const tileIn = animate === 'none' ? 1 : fluid(frame, fps, {delay: Math.max(0, delay - 2), duration: 20});
   return (
     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: size * 0.12}}>
-      <div style={{width: size * 1.25, height: size * 1.25, borderRadius: size * 0.28, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: glow ? `0 0 ${size * 0.5}px ${brandColor}55` : theme.shadow.card}}>
+      <div style={{width: size * 1.25, height: size * 1.25, borderRadius: size * 0.28, background: tileBg, border: `1px solid ${theme.colors.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: glow ? `0 0 ${size * 0.5}px ${alpha(brandColor, 0.33)}` : theme.shadow.card, opacity: interpolate(tileIn, [0, 0.6], [0, 1], {extrapolateRight: 'clamp'}), scale: String(0.9 + tileIn * 0.1), translate: `0px ${(1 - tileIn) * size * 0.1}px`}}>
         <Icon set={set} name={name} size={size * 0.7} color={brandColor} animate={animate} delay={delay} glow={glow ? brandColor : false} />
       </div>
       {label ? (

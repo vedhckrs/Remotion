@@ -4,8 +4,10 @@ import {fade} from '@remotion/transitions/fade';
 import {slide} from '@remotion/transitions/slide';
 import {wipe} from '@remotion/transitions/wipe';
 import {pushCut} from '@remotion/transitions/push-cut';
+import {linearTiming} from '@remotion/transitions';
+import {noise2D} from '@remotion/noise';
 import {AbsoluteFill, Easing, interpolate, random} from 'remotion';
-import type {Pacing} from './motion';
+import {EASE, type Pacing} from './motion';
 
 /**
  * Transition catalog: pick by pacing and cut index so a video alternates naturally instead of
@@ -15,6 +17,8 @@ import type {Pacing} from './motion';
  */
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
+/** Travel curve for wipes and glides: soft start, soft stop, no double easing (timing stays linear). */
+const travel = Easing.bezier(0.45, 0, 0.15, 1);
 
 // ---- zoomPunch: incoming scene punches in from 1.6x, outgoing retreats -------------------------
 type ZoomPunchProps = {readonly from?: number; readonly flash?: boolean};
@@ -100,6 +104,87 @@ const GlitchSlamComponent: React.FC<TransitionPresentationComponentProps<GlitchS
 
 export const glitchSlam = (props: GlitchSlamProps = {}): TransitionPresentation<GlitchSlamProps> => ({component: GlitchSlamComponent, props});
 
+// ---- Fluid family: no hard edges, no overshoot, everything eases together --------------------------
+
+// smoothFade: crossfade where the incoming scene condenses (1.04 -> 1, de-blur) and the outgoing drifts back.
+type SmoothFadeProps = {readonly blur?: number};
+const SmoothFadeComponent: React.FC<TransitionPresentationComponentProps<SmoothFadeProps>> = ({children, presentationDirection, presentationProgress, passedProps}) => {
+  const entering = presentationDirection === 'entering';
+  const p = interpolate(presentationProgress, [0, 1], [0, 1], {easing: travel, ...clamp});
+  const maxBlur = passedProps.blur ?? 10;
+  const scale = entering ? 1.04 - 0.04 * p : 1 - 0.02 * p;
+  const opacity = entering ? p : 1 - p;
+  const blur = entering ? (1 - p) * maxBlur : p * maxBlur * 0.5;
+  return <AbsoluteFill style={{scale: String(scale), opacity, filter: blur > 0.3 ? `blur(${blur.toFixed(2)}px)` : undefined}}>{children}</AbsoluteFill>;
+};
+export const smoothFade = (props: SmoothFadeProps = {}): TransitionPresentation<SmoothFadeProps> => ({component: SmoothFadeComponent, props});
+
+// glideSlide: incoming glides in from 8 percent with the emphasized curve while the outgoing drifts 4 percent and fades. Reads as one continuous camera move.
+type GlideProps = {readonly direction?: 'left' | 'right' | 'up' | 'down'};
+const GlideComponent: React.FC<TransitionPresentationComponentProps<GlideProps>> = ({children, presentationDirection, presentationProgress, passedProps}) => {
+  const dir = passedProps.direction ?? 'left';
+  const entering = presentationDirection === 'entering';
+  const p = interpolate(presentationProgress, [0, 1], [0, 1], {easing: travel, ...clamp});
+  const sign = dir === 'left' || dir === 'up' ? 1 : -1;
+  const horizontal = dir === 'left' || dir === 'right';
+  const offset = entering ? (1 - p) * 8 * sign : -p * 4 * sign;
+  const translate = horizontal ? `${offset}% 0%` : `0% ${offset}%`;
+  const opacity = entering ? interpolate(p, [0, 0.5], [0, 1], clamp) : 1 - p;
+  return <AbsoluteFill style={{translate, opacity, scale: entering ? '1' : String(1 - p * 0.03)}}>{children}</AbsoluteFill>;
+};
+export const glideSlide = (props: GlideProps = {}): TransitionPresentation<GlideProps> => ({component: GlideComponent, props});
+
+// irisReveal: the incoming scene opens from a soft circle at `origin` (percent) while the outgoing eases back.
+type IrisProps = {readonly origin?: readonly [number, number]};
+const IrisComponent: React.FC<TransitionPresentationComponentProps<IrisProps>> = ({children, presentationDirection, presentationProgress, passedProps}) => {
+  const [ox, oy] = passedProps.origin ?? [50, 50];
+  const entering = presentationDirection === 'entering';
+  const p = interpolate(presentationProgress, [0, 1], [0, 1], {easing: travel, ...clamp});
+  if (!entering) return <AbsoluteFill style={{scale: String(1 + p * 0.04), opacity: 1 - p * 0.6}}>{children}</AbsoluteFill>;
+  const r = p * 150; // percent of the larger side, well past the corners
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{clipPath: `circle(${r + 4}% at ${ox}% ${oy}%)`, opacity: 0.5}}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{clipPath: `circle(${r}% at ${ox}% ${oy}%)`}}>{children}</AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+export const irisReveal = (props: IrisProps = {}): TransitionPresentation<IrisProps> => ({component: IrisComponent, props});
+
+// liquidWipe: an organic edge (noise-shaped polygon) sweeps across; a softer second edge leads it. CSS only, deterministic.
+type LiquidProps = {readonly direction?: 'left' | 'right' | 'up' | 'down'; readonly seed?: number; readonly amplitude?: number};
+const liquidPolygon = (p: number, dir: NonNullable<LiquidProps['direction']>, seed: number, amplitude: number, lead: number) => {
+  const pts: string[] = [];
+  const n = 24;
+  const horizontal = dir === 'left' || dir === 'right';
+  const front = (dir === 'left' || dir === 'up' ? 1 - p : p) * (100 + amplitude * 2) - amplitude + lead;
+  for (let i = 0; i <= n; i++) {
+    const along = (i / n) * 100;
+    const wobble = noise2D(`liquid-${seed}`, i / 4, p * 3) * amplitude;
+    const edge = front + wobble;
+    pts.push(horizontal ? `${edge}% ${along}%` : `${along}% ${edge}%`);
+  }
+  const far = dir === 'left' || dir === 'up' ? '100%' : '0%';
+  const closing = horizontal ? [`${far} 100%`, `${far} 0%`] : [`100% ${far}`, `0% ${far}`];
+  return `polygon(${[...pts, ...closing].join(', ')})`;
+};
+const LiquidComponent: React.FC<TransitionPresentationComponentProps<LiquidProps>> = ({children, presentationDirection, presentationProgress, passedProps}) => {
+  const dir = passedProps.direction ?? 'left';
+  const seed = passedProps.seed ?? 1;
+  const amplitude = passedProps.amplitude ?? 9;
+  const entering = presentationDirection === 'entering';
+  const p = interpolate(presentationProgress, [0, 1], [0, 1], {easing: travel, ...clamp});
+  if (!entering) return <AbsoluteFill style={{scale: String(1 - p * 0.03)}}>{children}</AbsoluteFill>;
+  const leadSign = dir === 'left' || dir === 'up' ? -1 : 1;
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{clipPath: liquidPolygon(p, dir, seed + 7, amplitude * 1.3, leadSign * 5), opacity: 0.45}}>{children}</AbsoluteFill>
+      <AbsoluteFill style={{clipPath: liquidPolygon(p, dir, seed, amplitude, 0)}}>{children}</AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+export const liquidWipe = (props: LiquidProps = {}): TransitionPresentation<LiquidProps> => ({component: LiquidComponent, props});
+
 // ---- Catalog ------------------------------------------------------------------------------------
 export type AnyPresentation = TransitionPresentation<Record<string, unknown>>;
 
@@ -109,10 +194,26 @@ const asAny = (p: TransitionPresentation<any>): AnyPresentation => p as AnyPrese
  * Returns the presentation for cut number `index` under a pacing. Fast pacing alternates punchy
  * moves; calm pacing stays with fades and slow slides. Deterministic so renders match previews.
  */
-export const pickTransition = (pacing: Pacing, index: number): AnyPresentation => {
-  const fast = [asAny(zoomPunch()), asAny(pushCut({flashFrames: 2})), asAny(whipPan({direction: index % 2 === 0 ? 'left' : 'up'})), asAny(glitchSlam({seed: index + 1}))];
-  const medium = [asAny(fade()), asAny(slide({direction: 'from-right'})), asAny(zoomPunch({from: 1.25, flash: false})), asAny(wipe({direction: 'from-left'}))];
-  const calm = [asAny(fade()), asAny(fade()), asAny(slide({direction: 'from-bottom'}))];
+export const pickTransition = (pacing: Pacing, index: number, flavor: 'fluid' | 'hard' = 'fluid'): AnyPresentation => {
+  if (flavor === 'hard') {
+    // Original punchy catalog: slams, whips, glitch. Opt in for hype content.
+    const fast = [asAny(zoomPunch()), asAny(pushCut({flashFrames: 2})), asAny(whipPan({direction: index % 2 === 0 ? 'left' : 'up'})), asAny(glitchSlam({seed: index + 1}))];
+    const medium = [asAny(fade()), asAny(slide({direction: 'from-right'})), asAny(zoomPunch({from: 1.25, flash: false})), asAny(wipe({direction: 'from-left'}))];
+    const calm = [asAny(fade()), asAny(fade()), asAny(slide({direction: 'from-bottom'}))];
+    const set = pacing === 'fast' ? fast : pacing === 'calm' ? calm : medium;
+    return set[index % set.length];
+  }
+  // Fluid catalog (default): energy comes from timing, not from hard edges.
+  const fast = [asAny(zoomPunch({from: 1.3, flash: false})), asAny(glideSlide({direction: index % 2 === 0 ? 'left' : 'up'})), asAny(irisReveal({origin: [50, 45]})), asAny(whipPan({direction: 'left', blur: 18}))];
+  const medium = [asAny(smoothFade()), asAny(glideSlide({direction: 'left'})), asAny(liquidWipe({direction: index % 2 === 0 ? 'left' : 'up', seed: index + 1})), asAny(irisReveal())];
+  const calm = [asAny(smoothFade({blur: 14})), asAny(liquidWipe({direction: 'up', seed: index + 3, amplitude: 6})), asAny(smoothFade())];
   const set = pacing === 'fast' ? fast : pacing === 'calm' ? calm : medium;
   return set[index % set.length];
 };
+
+/**
+ * Timing for a cut. Every presentation in both catalogs applies its own curve, so the timing stays
+ * linear; easing here as well would double-ease and make a 24-frame wipe finish in 8. Pass
+ * `eased = true` only for a bare built-in presentation (fade, slide, wipe) used on its own.
+ */
+export const transitionTiming = (durationInFrames: number, eased = false) => linearTiming({durationInFrames, easing: eased ? EASE.smooth : undefined});

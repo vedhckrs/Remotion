@@ -59,7 +59,7 @@ export const LineChart: React.FC<{
         </clipPath>
       </defs>
       {[0.25, 0.5, 0.75].map((g) => (
-        <line key={g} x1={pad.l} x2={pad.l + innerW} y1={pad.t + innerH * g} y2={pad.t + innerH * g} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+        <line key={g} x1={pad.l} x2={pad.l + innerW} y1={pad.t + innerH * g} y2={pad.t + innerH * g} stroke={theme.colors.line} strokeWidth={1} />
       ))}
       {area ? <path d={areaD} fill={`url(#${gradId})`} clipPath={`url(#${gradId}-clip)`} /> : null}
       <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={evolution.strokeDasharray} strokeDashoffset={evolution.strokeDashoffset} style={{filter: `drop-shadow(0 0 ${strokeWidth * 1.5}px ${color}88)`}} />

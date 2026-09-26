@@ -102,7 +102,7 @@ const Inner: React.FC<ThumbnailProps & {readonly script: VideoScript}> = ({varia
       >
         {words.map(({word, hot}, i) =>
           hot && preset.thumbnail.accentBlock ? (
-            <span key={i} style={{background: theme.colors.accent, color: '#fff', padding: `${fontSize * 0.04}px ${fontSize * 0.14}px`, borderRadius: fontSize * 0.08, rotate: '-2deg', display: 'inline-block', boxShadow: `0 12px 40px ${theme.colors.accent}66`}}>
+            <span key={i} style={{background: theme.colors.accent, color: theme.colors.onAccent, padding: `${fontSize * 0.04}px ${fontSize * 0.14}px`, borderRadius: fontSize * 0.08, rotate: '-2deg', display: 'inline-block', boxShadow: `0 12px 40px ${theme.colors.accent}66`}}>
               {word}
             </span>
           ) : (

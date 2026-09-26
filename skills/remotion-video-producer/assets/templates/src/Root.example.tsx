@@ -25,6 +25,7 @@ const shared = {
   gapSeconds: null,
   showSafeArea: false,
   webglExtras: false,
+  transitions: 'fluid' as const,
 };
 
 const comp = (id: string, platform: keyof typeof PLATFORMS) => (

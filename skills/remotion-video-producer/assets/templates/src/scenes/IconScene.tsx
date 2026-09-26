@@ -25,7 +25,7 @@ export const IconScene: React.FC<{
   readonly pacing?: Pacing;
   readonly background?: BackgroundKind;
   readonly versus?: boolean;
-}> = ({scene, icons, audioSrc, index = 0, pacing = 'medium', background = 'mesh', versus}) => {
+}> = ({scene, icons, audioSrc, index = 0, pacing = 'medium', background = 'tonal', versus}) => {
   const theme = useTheme();
   const frame = useCurrentFrame();
   const {fps, durationInFrames} = useVideoConfig();
@@ -50,7 +50,7 @@ export const IconScene: React.FC<{
   };
 
   const heroSize = Math.min(safe.width, safe.height) * (list.length === 1 ? 0.42 : list.length === 2 ? 0.3 : 0.2);
-  const vsIn = spring({frame, fps, delay: fr(iconsDelay + 10, fps), config: SPRING.bouncy});
+  const vsIn = spring({frame, fps, delay: fr(iconsDelay + 10, fps), config: SPRING.snappy});
 
   return (
     <AbsoluteFill style={{backgroundColor: theme.colors.bg}}>
@@ -62,7 +62,7 @@ export const IconScene: React.FC<{
         <div style={{flex: isHorizontal ? 1 : undefined, width: isHorizontal ? undefined : '100%', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: heroSize * 0.35, position: 'relative', marginTop: isVertical ? safe.height * 0.06 : 0}}>
           {list.map((spec, i) => renderIcon(spec, i, heroSize))}
           {isVersus ? (
-            <div style={{position: 'absolute', left: '50%', top: '38%', translate: '-50% -50%', width: heroSize * 0.42, height: heroSize * 0.42, borderRadius: '50%', background: theme.colors.accent, color: '#fff', fontFamily: theme.fonts.impact, fontSize: heroSize * 0.18, display: 'flex', alignItems: 'center', justifyContent: 'center', scale: String(vsIn), opacity: interpolate(vsIn, [0, 0.3], [0, 1], {extrapolateRight: 'clamp'}), boxShadow: `0 0 ${heroSize * 0.3}px ${theme.colors.accent}88`}}>
+            <div style={{position: 'absolute', left: '50%', top: '38%', translate: '-50% -50%', width: heroSize * 0.42, height: heroSize * 0.42, borderRadius: '50%', background: theme.colors.accent, color: theme.colors.onAccent, fontFamily: theme.fonts.impact, fontSize: heroSize * 0.18, display: 'flex', alignItems: 'center', justifyContent: 'center', scale: String(vsIn), opacity: interpolate(vsIn, [0, 0.3], [0, 1], {extrapolateRight: 'clamp'}), boxShadow: `0 0 ${heroSize * 0.3}px ${theme.colors.accent}88`}}>
               VS
             </div>
           ) : null}

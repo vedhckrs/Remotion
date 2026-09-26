@@ -1,6 +1,6 @@
 import React from 'react';
 import type {Caption} from '@remotion/captions';
-import {TransitionSeries, linearTiming} from '@remotion/transitions';
+import {TransitionSeries} from '@remotion/transitions';
 import {zColor} from '@remotion/zod-types';
 import {AbsoluteFill, Sequence, staticFile, type CalculateMetadataFunction} from 'remotion';
 import {z} from 'zod';
@@ -19,7 +19,7 @@ import {PLATFORM_IDS} from '../lib/platforms';
 import {absoluteCaptions, computeSceneTimings, fetchJson, manifestUrl, scriptUrl, totalFrames, voiceoverUrl, type SceneTiming, type VideoScript, type VoiceoverManifest} from '../lib/script';
 import {BACKGROUND_KINDS, STYLE_IDS, getStyle, themeWith, type BackgroundKind, type CaptionStyleName} from '../lib/styles';
 import {ThemeProvider} from '../lib/theme';
-import {pickTransition} from '../lib/transitions';
+import {pickTransition, transitionTiming} from '../lib/transitions';
 import {IconScene} from '../scenes/IconScene';
 import {InfographicScene} from '../scenes/InfographicScene';
 import {VoiceoverScene} from '../scenes/VoiceoverScene';
@@ -56,6 +56,8 @@ export const socialVideoSchema = z.object({
   showSafeArea: z.boolean(),
   /** Light leak flare and film grain. WebGL only: render with --gl=angle (GPU) or --gl=swangle (no GPU). */
   webglExtras: z.boolean(),
+  /** 'fluid' (default): smooth fades, glides, liquid wipes, iris. 'hard': slams, whips, glitch for hype cuts. */
+  transitions: z.enum(['fluid', 'hard']),
 });
 
 export type SocialVideoProps = z.infer<typeof socialVideoSchema> & {
@@ -105,7 +107,7 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   };
 };
 
-export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, accent: accentProp, captionStyle, grade, background, logo, music, endCard, showSafeArea, webglExtras, script, manifest, timings = [], captions = [], resolvedPacing = 'medium', transitionFrames = 12, resolvedStyle}) => {
+export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, accent: accentProp, captionStyle, grade, background, logo, music, endCard, showSafeArea, webglExtras, transitions: transitionFlavor = 'fluid', script, manifest, timings = [], captions = [], resolvedPacing = 'medium', transitionFrames = 12, resolvedStyle}) => {
   if (!script) return null;
 
   // Style preset -> theme (fonts, colors, caption look, grade, background). Props override per field.
@@ -170,7 +172,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, ac
     items.push(
       <TransitionSeries.Sequence key={`seq-${timing.id}`} durationInFrames={timing.sequenceFrames} name={isEnd ? 'End card' : `Scene ${scene.id}`} premountFor={fr(20, fps)}>
         {isFast && i > 0 ? (
-          <ImpactFlash at={[0]} color={accent} opacity={0.35} length={4} bump={0.02}>
+          <ImpactFlash at={[0]} color={accent} opacity={transitionFlavor === 'hard' ? 0.35 : 0.12} length={4} bump={transitionFlavor === 'hard' ? 0.02 : 0.008}>
             {content}
           </ImpactFlash>
         ) : (
@@ -180,7 +182,7 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, ac
     );
 
     if (i < timings.length - 1) {
-      items.push(<TransitionSeries.Transition key={`tr-${timing.id}`} presentation={pickTransition(resolvedPacing, i)} timing={linearTiming({durationInFrames: transitionFrames})} />);
+      items.push(<TransitionSeries.Transition key={`tr-${timing.id}`} presentation={pickTransition(resolvedPacing, i, transitionFlavor)} timing={transitionTiming(transitionFrames)} />);
     }
   });
 

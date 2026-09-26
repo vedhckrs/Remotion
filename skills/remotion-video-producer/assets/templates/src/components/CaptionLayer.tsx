@@ -1,6 +1,7 @@
 import React, {useMemo} from 'react';
 import {createTikTokStyleCaptions, type Caption, type TikTokPage} from '@remotion/captions';
 import {AbsoluteFill, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {isDark, readableOn} from '../lib/color';
 import {SPRING, fr} from '../lib/motion';
 import {getCaptionBand, usePlatformLayout, type PlatformId} from '../lib/platforms';
 import {useTheme} from '../lib/theme';
@@ -94,8 +95,13 @@ const CaptionPage: React.FC<{
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
-  const enter = spring({frame, fps, config: SPRING.punch, durationInFrames: fr(7, fps)});
+  const enter = spring({frame, fps, config: style === 'hormozi' || style === 'outline' ? SPRING.punch : SPRING.snappy, durationInFrames: fr(style === 'hormozi' ? 7 : 10, fps)});
   const stroke = Math.max(1, (style === 'hormozi' ? 3.5 : style === 'outline' ? 5 : 2.5) * unit);
+  // Stroked styles are white-on-black-stroke and read on anything. Filled styles adapt to the theme.
+  const dark = isDark(theme.colors.bg);
+  const bar = dark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.88)';
+  const onBar = readableOn(dark ? '#000000' : '#FFFFFF');
+  const onAccent = theme.colors.onAccent;
 
   const base: React.CSSProperties = {
     position: 'absolute',
@@ -106,7 +112,8 @@ const CaptionPage: React.FC<{
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    columnGap: fontSize * 0.22,
+    // Stroked, hard-shadowed styles eat into the gap (stroke + 4 px shadow), so they get a wider one.
+    columnGap: fontSize * (style === 'hormozi' || style === 'outline' ? 0.38 : 0.24),
     rowGap: fontSize * 0.14,
     translate: `0px ${-fontSize * 0.6}px`,
     fontFamily: theme.fonts[font],
@@ -123,14 +130,14 @@ const CaptionPage: React.FC<{
   if (style === 'minimal') {
     return (
       <div style={{...base, opacity: enter, translate: `0px ${-fontSize * 0.6 + (1 - enter) * fontSize * 0.3}px`}}>
-        <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'center', columnGap: fontSize * 0.22, padding: `${fontSize * 0.18}px ${fontSize * 0.5}px`, borderRadius: fontSize * 0.35, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)'}}>
+        <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'center', columnGap: fontSize * 0.22, padding: `${fontSize * 0.18}px ${fontSize * 0.5}px`, borderRadius: fontSize * 0.35, background: bar, backdropFilter: 'blur(10px)'}}>
           {page.tokens.map((token, i) => {
             const active = token.fromMs <= nowMs && token.toMs > nowMs;
             const spoken = token.toMs <= nowMs;
             const text = token.text.trim();
             if (!text) return null;
             return (
-              <span key={`${token.fromMs}-${i}`} style={{color: active || spoken ? '#FFFFFF' : 'rgba(255,255,255,0.55)', textTransform: 'lowercase'}}>
+              <span key={`${token.fromMs}-${i}`} style={{color: active || spoken ? onBar : dark ? 'rgba(255,255,255,0.55)' : 'rgba(17,17,17,0.5)', textTransform: 'lowercase'}}>
                 {text}
               </span>
             );
@@ -175,7 +182,7 @@ const CaptionPage: React.FC<{
         }
         if (style === 'boxed') {
           return (
-            <span key={`${token.fromMs}-${i}`} style={{display: 'inline-block', padding: `${fontSize * 0.06}px ${fontSize * 0.18}px`, borderRadius: fontSize * 0.18, background: active ? accent : 'rgba(0,0,0,0.6)', color: '#FFFFFF', scale: String(active ? 1.06 : 1)}}>
+            <span key={`${token.fromMs}-${i}`} style={{display: 'inline-block', padding: `${fontSize * 0.06}px ${fontSize * 0.18}px`, borderRadius: fontSize * 0.18, background: active ? accent : bar, color: active ? onAccent : onBar, scale: String(active ? 1.06 : 1)}}>
               {text}
             </span>
           );

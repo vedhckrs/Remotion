@@ -28,7 +28,7 @@ export const InfographicScene: React.FC<{
   /** Quiet background so the data reads (preset.dataBackground by default). */
   readonly background?: BackgroundKind;
   readonly webglExtras?: boolean;
-}> = ({scene, chart, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background = 'dots', webglExtras = false}) => {
+}> = ({scene, chart, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background = 'solid', webglExtras = false}) => {
   const theme = useTheme();
   const accent = accentProp ?? theme.colors.accent;
   const {fps, durationInFrames} = useVideoConfig();

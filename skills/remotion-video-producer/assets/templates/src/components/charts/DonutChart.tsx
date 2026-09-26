@@ -1,6 +1,7 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../../lib/motion';
+import {alpha, tone} from '../../lib/color';
 import {useTheme} from '../../lib/theme';
 
 export type DonutSegment = {readonly label: string; readonly value: number; readonly color?: string};
@@ -27,7 +28,8 @@ export const DonutChart: React.FC<{
   const r = size / 2 - stroke / 2;
   const circumference = 2 * Math.PI * r;
   const total = segments.length === 1 ? 100 : segments.reduce((s, d) => s + d.value, 0);
-  const palette = [accent, theme.colors.accent2, '#F59E0B', '#EF4444', '#10B981', '#A78BFA'];
+  // One hue, tonal steps: the leader in the accent, the rest lighter/darker versions and text tints.
+  const palette = [accent, theme.colors.accent2, tone(accent, 45), tone(accent, -35), alpha(theme.colors.text, 0.35), alpha(theme.colors.text, 0.18)];
 
   const progress = interpolate(frame, [fr(delay, fps), fr(delay + sweepFrames, fps)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.inOut});
   const pop = spring({frame, fps, delay: fr(delay + 6, fps), config: SPRING.soft});
@@ -46,7 +48,7 @@ export const DonutChart: React.FC<{
   return (
     <div style={{position: 'relative', width: size, height: size, fontFamily: theme.fonts.display, color: theme.colors.text}}>
       <svg width={size} height={size} style={{transform: 'rotate(-90deg)', overflow: 'visible'}}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={theme.colors.line} strokeWidth={stroke} />
         {arcs.map(({seg, start, visible, color}) => (
           <circle
             key={seg.label}

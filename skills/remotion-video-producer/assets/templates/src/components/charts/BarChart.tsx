@@ -1,6 +1,7 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../../lib/motion';
+import {alpha} from '../../lib/color';
 import {useTheme} from '../../lib/theme';
 
 export type BarDatum = {readonly label: string; readonly value: number; readonly color?: string};
@@ -37,7 +38,7 @@ export const BarChart: React.FC<{
       {data.map((d, i) => {
         const grow = spring({frame, fps, delay: fr(delay + i * stagger, fps), config: SPRING.soft});
         const value = interpolate(grow, [0, 1], [0, d.value], {extrapolateRight: 'clamp'});
-        const color = d.color ?? (i === leader ? accent : 'rgba(255,255,255,0.28)');
+        const color = d.color ?? (i === leader ? accent : alpha(theme.colors.text, 0.28));
         const text = `${value.toLocaleString('en-US', {maximumFractionDigits: decimals, minimumFractionDigits: decimals})}${unit}`;
         if (horizontal) {
           const rowH = (height - gap * (data.length - 1)) / data.length;
