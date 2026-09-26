@@ -2,8 +2,9 @@ import React from 'react';
 import {AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr, idleFloat} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
-import {theme} from '../lib/theme';
-import {GradientBackground} from './GradientBackground';
+import type {BackgroundKind} from '../lib/styles';
+import {useTheme} from '../lib/theme';
+import {Background} from './Background';
 
 /** Closing card: logo drops in, headline and CTA pill follow, subtle idle motion while held. */
 export const EndCard: React.FC<{
@@ -12,8 +13,11 @@ export const EndCard: React.FC<{
   readonly handle?: string;
   readonly logoSrc?: string;
   readonly accent?: string;
+  readonly background?: BackgroundKind;
   readonly webglExtras?: boolean;
-}> = ({headline, cta = 'Follow for more', handle, logoSrc, accent = theme.colors.accent, webglExtras = false}) => {
+}> = ({headline, cta = 'Follow for more', handle, logoSrc, accent: accentProp, background = 'gradient', webglExtras = false}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const {safe, unit, isVertical} = usePlatformLayout();
@@ -27,7 +31,7 @@ export const EndCard: React.FC<{
 
   return (
     <AbsoluteFill>
-      <GradientBackground grain={webglExtras ? 0.06 : 0} />
+      <Background kind={background} seed="end" grain={webglExtras ? 0.06 : 0} />
       <div
         style={{
           position: 'absolute',

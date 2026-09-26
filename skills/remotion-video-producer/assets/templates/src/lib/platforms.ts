@@ -86,9 +86,10 @@ export type SafeRect = {
   readonly centerY: number;
 };
 
+/** 9:16 (1.78) is vertical, 16:9 horizontal, and 4:5 / 1:1 (ratio below 1.5) count as square. */
 export const orientationFor = (width: number, height: number): Orientation => {
-  if (height > width * 1.2) return 'vertical';
-  if (width > height * 1.2) return 'horizontal';
+  if (height >= width * 1.5) return 'vertical';
+  if (width >= height * 1.5) return 'horizontal';
   return 'square';
 };
 

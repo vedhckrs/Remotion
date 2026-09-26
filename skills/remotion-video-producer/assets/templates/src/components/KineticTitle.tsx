@@ -1,7 +1,7 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../lib/motion';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Word-by-word kinetic headline with a masked rise, spring settle and an
@@ -25,8 +25,8 @@ export const KineticTitle: React.FC<{
   text,
   highlight,
   fontSize = 96,
-  color = theme.colors.text,
-  highlightColor = theme.colors.accent,
+  color: colorProp,
+  highlightColor: highlightProp,
   align = 'center',
   delay = 0,
   stagger = 3,
@@ -35,6 +35,9 @@ export const KineticTitle: React.FC<{
   weight = 900,
   uppercase = false,
 }) => {
+  const theme = useTheme();
+  const color = colorProp ?? theme.colors.text;
+  const highlightColor = highlightProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const words = text.split(/\s+/).filter(Boolean);

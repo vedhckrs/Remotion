@@ -2,7 +2,7 @@ import React from 'react';
 import {noise2D} from '@remotion/noise';
 import {noise} from '@remotion/effects/noise';
 import {AbsoluteFill, Solid, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Living background: base gradient whose angle drifts, two blurred color blobs
@@ -16,7 +16,10 @@ export const GradientBackground: React.FC<{
   readonly grain?: number;
   readonly speed?: number;
   readonly seed?: string;
-}> = ({colors = [theme.colors.bg, '#141428'], blobs = [theme.colors.accent, theme.colors.accent2], grain = 0, speed = 1, seed = 'bg'}) => {
+}> = ({colors: colorsProp, blobs: blobsProp, grain = 0, speed = 1, seed = 'bg'}) => {
+  const theme = useTheme();
+  const colors = colorsProp ?? [theme.colors.bg, theme.colors.surface];
+  const blobs = blobsProp ?? [theme.colors.accent, theme.colors.accent2];
   const frame = useCurrentFrame();
   const {width, height, durationInFrames, fps} = useVideoConfig();
   const t = (frame / (3 * fps)) * speed;

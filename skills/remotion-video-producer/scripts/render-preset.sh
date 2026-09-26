@@ -105,7 +105,7 @@ case "$PRESET" in
   prores)        FLAGS=(--codec=prores --prores-profile=4444 --image-format=png --pixel-format=yuva444p10le --overwrite); [ "$HW" = "1" ] && FLAGS+=(--hardware-acceleration=if-possible); [ -n "${REMOTION_GL:-}" ] && FLAGS+=("--gl=${REMOTION_GL}"); SUFFIX="prores"; EXT=mov ;;
   *) echo "Unknown preset: $PRESET" >&2; exit 1 ;;
 esac
-if [ "$FOURK" = "1" ] && [ "$PRESET" != "youtube-4k" ]; then
+if [ "$FOURK" = "1" ] && [ "$PRESET" != "youtube-4k" ] && [ "$PRESET" != "preview" ]; then
   FLAGS+=(--scale=2)
   SUFFIX="${SUFFIX}_4k"
   # Four times the pixels per tab: halve the tab count unless the user pinned one.

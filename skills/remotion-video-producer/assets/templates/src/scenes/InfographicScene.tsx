@@ -1,8 +1,8 @@
 import React from 'react';
 import {Audio} from '@remotion/media';
 import {AbsoluteFill, useVideoConfig} from 'remotion';
+import {Background} from '../components/Background';
 import {Counter} from '../components/Counter';
-import {GradientBackground} from '../components/GradientBackground';
 import {KineticTitle} from '../components/KineticTitle';
 import {BarChart} from '../components/charts/BarChart';
 import {DonutChart} from '../components/charts/DonutChart';
@@ -10,7 +10,8 @@ import {LineChart} from '../components/charts/LineChart';
 import {PACING, fr, type Pacing} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
 import type {ChartSpec, ScriptScene} from '../lib/script';
-import {theme} from '../lib/theme';
+import type {BackgroundKind} from '../lib/styles';
+import {useTheme} from '../lib/theme';
 
 /**
  * Data scene: headline on top, one chart in the safe rect, voice underneath.
@@ -24,8 +25,12 @@ export const InfographicScene: React.FC<{
   readonly accent?: string;
   readonly index?: number;
   readonly pacing?: Pacing;
+  /** Quiet background so the data reads (preset.dataBackground by default). */
+  readonly background?: BackgroundKind;
   readonly webglExtras?: boolean;
-}> = ({scene, chart, audioSrc, accent = theme.colors.accent, index = 0, pacing = 'medium', webglExtras = false}) => {
+}> = ({scene, chart, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background = 'dots', webglExtras = false}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const {fps, durationInFrames} = useVideoConfig();
   const {safe, unit, isVertical, isHorizontal} = usePlatformLayout();
   const p = PACING[pacing];
@@ -52,7 +57,7 @@ export const InfographicScene: React.FC<{
 
   return (
     <AbsoluteFill style={{backgroundColor: theme.colors.bg}}>
-      <GradientBackground seed={`chart-${index}`} grain={webglExtras ? 0.05 : 0} speed={0.6} />
+      <Background kind={background} seed={`chart-${index}`} grain={webglExtras ? 0.05 : 0} speed={0.6} intensity={0.7} />
       <div
         style={{
           position: 'absolute',

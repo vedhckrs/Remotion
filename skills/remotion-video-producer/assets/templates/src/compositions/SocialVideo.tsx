@@ -2,20 +2,25 @@ import React from 'react';
 import type {Caption} from '@remotion/captions';
 import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {zColor} from '@remotion/zod-types';
-import {AbsoluteFill, staticFile, type CalculateMetadataFunction} from 'remotion';
+import {AbsoluteFill, Sequence, staticFile, type CalculateMetadataFunction} from 'remotion';
 import {z} from 'zod';
+import {AttributionBar} from '../components/AttributionBar';
 import {CaptionLayer} from '../components/CaptionLayer';
 import {EndCard} from '../components/EndCard';
 import {ImpactFlash} from '../components/ImpactFlash';
 import {LightLeakOverlay} from '../components/LightLeakOverlay';
 import {LogoBadge} from '../components/LogoBadge';
+import {LowerThird} from '../components/LowerThird';
 import {MusicBed} from '../components/MusicBed';
 import {SafeArea} from '../components/SafeArea';
-import {GRADE_NAMES, Graded} from '../lib/grades';
-import {PACING, fr, type Pacing} from '../lib/motion';
+import {GRADE_NAMES, Graded, type GradeName} from '../lib/grades';
+import {PACING, fr, readingSeconds, type Pacing} from '../lib/motion';
 import {PLATFORM_IDS} from '../lib/platforms';
 import {absoluteCaptions, computeSceneTimings, fetchJson, manifestUrl, scriptUrl, totalFrames, voiceoverUrl, type SceneTiming, type VideoScript, type VoiceoverManifest} from '../lib/script';
+import {BACKGROUND_KINDS, STYLE_IDS, getStyle, themeWith, type BackgroundKind, type CaptionStyleName} from '../lib/styles';
+import {ThemeProvider} from '../lib/theme';
 import {pickTransition} from '../lib/transitions';
+import {IconScene} from '../scenes/IconScene';
 import {InfographicScene} from '../scenes/InfographicScene';
 import {VoiceoverScene} from '../scenes/VoiceoverScene';
 
@@ -31,11 +36,18 @@ export const socialVideoSchema = z.object({
   platform: z.enum(PLATFORM_IDS as [string, ...string[]]),
   /** Must match the <Composition fps>; calculateMetadata returns it. */
   fps: z.number().int().min(24).max(120),
-  accent: zColor(),
-  /** 'auto' takes the pacing from the script (default medium). */
+  /** Style preset (src/lib/styles.ts). 'auto' takes it from the script, falling back to the default preset. */
+  style: z.enum(['auto', ...STYLE_IDS] as [string, ...string[]]),
+  /** null = the preset's accent. */
+  accent: zColor().nullable(),
+  /** 'auto' takes the pacing from the script, else from the style preset. */
   pacing: z.enum(['auto', 'fast', 'medium', 'calm']),
-  captionStyle: z.enum(['hormozi', 'pop', 'boxed', 'karaoke', 'outline', 'minimal', 'none']),
-  grade: z.enum(GRADE_NAMES as [string, ...string[]]),
+  /** 'auto' = the preset's caption style; 'none' hides captions. */
+  captionStyle: z.enum(['auto', 'hormozi', 'pop', 'boxed', 'karaoke', 'outline', 'minimal', 'none']),
+  /** 'auto' = script grade, else the preset's grade. */
+  grade: z.enum(['auto', ...GRADE_NAMES] as [string, ...string[]]),
+  /** 'auto' = script background, else the preset's background system. */
+  background: z.enum(['auto', ...BACKGROUND_KINDS] as [string, ...string[]]),
   logo: z.object({src: z.string().nullable(), text: z.string().nullable(), corner: z.enum(['top-left', 'top-right', 'top-center', 'bottom-left'])}).nullable(),
   music: z.object({src: z.string(), level: z.number().min(0).max(1)}).nullable(),
   endCard: z.object({headline: z.string(), cta: z.string(), handle: z.string()}).nullable(),
@@ -54,6 +66,7 @@ export type SocialVideoProps = z.infer<typeof socialVideoSchema> & {
   readonly captions?: readonly Caption[];
   readonly resolvedPacing?: Pacing;
   readonly transitionFrames?: number;
+  readonly resolvedStyle?: string;
 };
 
 const END_CARD_SECONDS = 2.5;
@@ -66,7 +79,8 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   }
   const manifest = await fetchJson<VoiceoverManifest>(manifestUrl(props.videoId), abortSignal);
 
-  const resolvedPacing: Pacing = props.pacing === 'auto' ? script.pacing ?? 'medium' : props.pacing;
+  const preset = getStyle(props.style === 'auto' ? script.style : props.style);
+  const resolvedPacing: Pacing = props.pacing === 'auto' ? script.pacing ?? preset.pacing : props.pacing;
   const pace = PACING[resolvedPacing];
   const gapSeconds = props.gapSeconds ?? pace.gapSeconds;
   const transitionFrames = fr(pace.transitionFrames, fps);
@@ -74,8 +88,7 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   // Without voiceover yet, estimate each scene from reading time so the layout can be built.
   const durations = script.scenes.map((scene) => {
     const fromManifest = manifest?.scenes.find((s) => s.id === scene.id)?.durationSeconds;
-    const estimate = 0.6 + (scene.voiceover.trim().split(/\s+/).length * 60) / pace.wpm;
-    return {id: scene.id, durationSeconds: fromManifest ?? estimate, minSeconds: scene.minSeconds};
+    return {id: scene.id, durationSeconds: fromManifest ?? readingSeconds(scene.voiceover, pace.wpm), minSeconds: scene.minSeconds};
   });
   if (props.endCard) {
     durations.push({id: '__end', durationSeconds: END_CARD_SECONDS, minSeconds: END_CARD_SECONDS});
@@ -87,13 +100,21 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   return {
     durationInFrames: totalFrames(timings),
     fps,
-    props: {...props, script, manifest, timings, captions, resolvedPacing, transitionFrames},
+    props: {...props, script, manifest, timings, captions, resolvedPacing, transitionFrames, resolvedStyle: preset.id},
     defaultOutName: `${props.videoId}_${props.platform}`,
   };
 };
 
-export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, accent, captionStyle, grade, logo, music, endCard, showSafeArea, webglExtras, script, manifest, timings = [], captions = [], resolvedPacing = 'medium', transitionFrames = 12}) => {
+export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, accent: accentProp, captionStyle, grade, background, logo, music, endCard, showSafeArea, webglExtras, script, manifest, timings = [], captions = [], resolvedPacing = 'medium', transitionFrames = 12, resolvedStyle}) => {
   if (!script) return null;
+
+  // Style preset -> theme (fonts, colors, caption look, grade, background). Props override per field.
+  const preset = getStyle(resolvedStyle ?? (style === 'auto' ? script.style : style));
+  const theme = themeWith(preset, {accent: accentProp});
+  const accent = theme.colors.accent;
+  const effectiveCaptionStyle: CaptionStyleName | 'none' = captionStyle === 'auto' ? preset.captionStyle : (captionStyle as CaptionStyleName | 'none');
+  const effectiveGrade: GradeName = grade === 'auto' ? script.grade ?? preset.grade : (grade as GradeName);
+  const effectiveBackground: BackgroundKind = background === 'auto' ? script.background ?? preset.background : (background as BackgroundKind);
 
   const scenes = script.scenes;
   const voiceSegments = timings
@@ -101,8 +122,17 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, accent, c
     .map((t) => ({startSeconds: t.startFrame / fps, endSeconds: (t.startFrame + t.voiceFrames) / fps}));
   const effectiveLogo = logo ?? script.logo ?? null;
   const effectiveMusic = music ?? (script.music?.src ? {src: script.music.src, level: script.music.level ?? 0.18} : null);
-  const effectiveGrade = grade !== 'none' ? grade : script.grade ?? 'none';
   const isFast = resolvedPacing === 'fast';
+
+  // Third-party marks get a tiny ownership line while they are on screen (the whole video when the
+  // channel logo itself is a third-party mark). Keys are "set:name" as in public/icons/credits.json.
+  const iconKey = (ic: {set?: string; name: string}) => `${ic.set ?? 'simple-icons'}:${ic.name}`;
+  const persistentIcons = script.logo?.icon ? [iconKey(script.logo.icon)] : [];
+  const attributionRanges = persistentIcons.length
+    ? [{from: 0, durationInFrames: totalFrames(timings), used: Array.from(new Set([...persistentIcons, ...scenes.flatMap((s) => (s.visual?.icons ?? []).map(iconKey))]))}]
+    : timings
+        .map((t, i) => ({from: t.startFrame, durationInFrames: t.baseFrames, used: (scenes[i]?.visual?.icons ?? []).map(iconKey)}))
+        .filter((r) => r.used.length > 0);
 
   // Build the series as a flat array: sequence, transition, sequence, ...
   const items: React.ReactNode[] = [];
@@ -112,14 +142,30 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, accent, c
     const manifestScene = manifest?.scenes.find((s) => s.id === timing.id);
     const audioSrc = manifestScene ? voiceoverUrl(videoId, manifestScene.file) : undefined;
     const chart = scene?.visual?.type === 'chart' ? scene.visual.chart : undefined;
+    const icons = scene?.visual?.type === 'icons' ? scene.visual.icons : undefined;
+    const sceneBackground = scene?.visual?.background ?? effectiveBackground;
 
-    const content = isEnd && endCard ? (
-      <EndCard headline={endCard.headline} cta={endCard.cta} handle={endCard.handle} accent={accent} webglExtras={webglExtras} />
+    const body = isEnd && endCard ? (
+      <EndCard headline={endCard.headline} cta={endCard.cta} handle={endCard.handle} background={effectiveBackground} webglExtras={webglExtras} />
     ) : chart ? (
-      <InfographicScene scene={scene} chart={chart} audioSrc={audioSrc} accent={accent} index={i} pacing={resolvedPacing} webglExtras={webglExtras} />
+      <InfographicScene scene={scene} chart={chart} audioSrc={audioSrc} index={i} pacing={resolvedPacing} background={scene.visual?.background ?? preset.dataBackground} webglExtras={webglExtras} />
+    ) : icons && icons.length > 0 ? (
+      <IconScene scene={scene} icons={icons} audioSrc={audioSrc} index={i} pacing={resolvedPacing} background={sceneBackground} />
     ) : (
-      <VoiceoverScene scene={scene} audioSrc={audioSrc} accent={accent} index={i} pacing={resolvedPacing} webglExtras={webglExtras} />
+      <VoiceoverScene scene={scene} audioSrc={audioSrc} index={i} pacing={resolvedPacing} background={sceneBackground} grade={effectiveGrade} webglExtras={webglExtras} />
     );
+
+    const content =
+      !isEnd && scene?.speaker ? (
+        <>
+          {body}
+          <Sequence from={fr(10, fps)} durationInFrames={Math.max(1, timing.baseFrames - fr(10, fps))} layout="none" name={`Lower third ${scene.speaker.name}`}>
+            <LowerThird name={scene.speaker.name} role={scene.speaker.role} durationInFrames={Math.max(1, timing.baseFrames - fr(10, fps))} />
+          </Sequence>
+        </>
+      ) : (
+        body
+      );
 
     items.push(
       <TransitionSeries.Sequence key={`seq-${timing.id}`} durationInFrames={timing.sequenceFrames} name={isEnd ? 'End card' : `Scene ${scene.id}`} premountFor={fr(20, fps)}>
@@ -139,14 +185,21 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, accent, c
   });
 
   return (
+    <ThemeProvider value={theme}>
     <AbsoluteFill style={{backgroundColor: '#000'}}>
-      <Graded name={effectiveGrade as never}>
+      <Graded name={effectiveGrade}>
         <TransitionSeries>{items}</TransitionSeries>
       </Graded>
 
-      {captionStyle !== 'none' && captions.length > 0 ? <CaptionLayer captions={captions} style={captionStyle} accent={accent} /> : null}
+      {effectiveCaptionStyle !== 'none' && captions.length > 0 ? <CaptionLayer captions={captions} style={effectiveCaptionStyle} accent={accent} /> : null}
 
       {effectiveLogo && (effectiveLogo.src || effectiveLogo.text) ? <LogoBadge src={effectiveLogo.src ? staticFile(effectiveLogo.src) : undefined} text={effectiveLogo.text ?? undefined} corner={effectiveLogo.corner ?? 'top-left'} accent={accent} /> : null}
+
+      {attributionRanges.map((r) => (
+        <Sequence key={`credit-${r.from}`} from={r.from} durationInFrames={r.durationInFrames} layout="none" name="Logo credit">
+          <AttributionBar used={r.used} />
+        </Sequence>
+      ))}
 
       {effectiveMusic ? <MusicBed src={staticFile(effectiveMusic.src)} segments={voiceSegments} musicLevel={effectiveMusic.level} duckedLevel={effectiveMusic.level * 0.4} /> : null}
 
@@ -169,5 +222,6 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, accent, c
 
       <SafeArea debug={showSafeArea} />
     </AbsoluteFill>
+    </ThemeProvider>
   );
 };

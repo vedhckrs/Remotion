@@ -9,9 +9,9 @@
       "expectations": [
         "A script JSON exists under public/script/ with a videoId, a voice block and scenes that each have id, headline, voiceover",
         "The first scene's headline or voiceover is a hook shorter than 12 words",
-        "Root.tsx registers a 1080x1920 composition at 30 fps",
+        "Root.tsx registers a 1080x1920 composition at 60 fps",
         "Captions are rendered with the CaptionLayer component or createTikTokStyleCaptions",
-        "remotion.config.ts enables the angle OpenGL renderer",
+        "remotion.config.ts selects the WebGL backend by platform (angle on macOS, swangle on Linux/CI)",
         "npx tsc --noEmit passes in the created project",
         "The final message tells the user which command renders the Short and mentions the ELEVENLABS_API_KEY requirement"
       ]
@@ -53,6 +53,21 @@
         "Both renders use the 4K flag and the compositions are 60 fps",
         "The dashboard was started (npm run dashboard) and its URL reported",
         "Concurrency reflects the 50 percent budget rather than all cores"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "start Remotion. Set up the daily autopilot in ./channel: 2 Shorts and 1 long video every day about AI design tools, midnight-neon style, my handle @vedstudio, slots 9am / 1pm / 7pm India time, uploads scheduled to YouTube, Instagram and Facebook. Use real logos of the tools mentioned (Figma, Adobe, Canva) with proper credit, make thumbnails, and give me the per-platform titles and descriptions. Do not upload anything yet, just dry-run the publishing.",
+      "expected_output": "A scaffolded project with automation/queue.json (timezone Asia/Kolkata, slots 09:00/19:00 short and 13:00 long, handle, style rotation), topics.md seeded with AI design tool topics, at least one script with an icons scene using Simple Icons slugs figma/adobe/canva and an seo block, icons fetched with credits.json, thumbnails rendered into out/<id>/, a publish pack with youtube/youtube-shorts/instagram/facebook JSON and titles.md, publish.mjs run with --dry-run for each platform, and the launchd install command reported (not necessarily run).",
+      "files": [],
+      "expectations": [
+        "automation/queue.json exists with timezone Asia/Kolkata, short slots 09:00 and 19:00, long slot 13:00 and handle @vedstudio",
+        "A script JSON contains a scene with visual.type 'icons' naming figma, adobe and canva, and an seo block with titles, description, hashtags and thumbnailText",
+        "public/icons/credits.json lists the fetched brand marks with license and source",
+        "Thumbnail JPEGs exist under out/<id>/ and are under 2 MB",
+        "out/<id>/publish/ contains youtube.json, youtube-shorts.json, instagram.json, facebook.json and the descriptions end with the logo credit line",
+        "publish.mjs was invoked with --dry-run and nothing was uploaded",
+        "The final message explains where API keys go (.env) and how to install the nightly launchd job"
       ]
     }
   ]

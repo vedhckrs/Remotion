@@ -115,6 +115,11 @@
 
   <div>
     <section>
+      <h2>Autopilot <span><button class="small" id="ap-plan">Plan tomorrow</button> <button class="small" id="ap-run">Produce now</button> <button class="small" id="ap-due">Publish due</button></span></h2>
+      <div class="list" id="autopilot"></div>
+      <small class="muted">2 Shorts + 1 long per day from <span class="kbd">automation/topics.md</span>; scripts by Claude Code headless, uploads scheduled per platform. Install the nightly job with <span class="kbd">npm run autopilot:install</span>.</small>
+    </section>
+    <section>
       <h2>Outputs <span><button class="small" id="refresh-out">Refresh</button></span></h2>
       <div class="list" id="outputs"></div>
     </section>
@@ -179,6 +184,10 @@ function renderScripts() {
         <button class="small" data-task="voiceover-macos" data-id="${esc(s.id)}">Voice: macOS draft</button>
         <button class="small" data-task="captions" data-id="${esc(s.id)}">Captions: Whisper</button>
         <button class="small" data-task="music" data-id="${esc(s.id)}">Music</button>
+        <button class="small" data-task="icons" data-id="${esc(s.id)}">Icons</button>
+        <button class="small" data-task="thumbnails" data-id="${esc(s.id)}">Thumbnails</button>
+        <button class="small" data-task="pack" data-id="${esc(s.id)}">Publish pack</button>
+        <button class="small" data-task="publish" data-id="${esc(s.id)}">Publish…</button>
       </div>
     </div>`).join('') || '<small class="muted">No scripts in public/script. Use "New from text".</small>';
   document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEditor(b.dataset.edit));
@@ -188,6 +197,15 @@ function renderScripts() {
     else if (t === 'voiceover-macos') api('/api/tasks','POST',{task:'voiceover', options:{videoId:id, provider:'macos'}});
     else if (t === 'captions') api('/api/tasks','POST',{task:'captions', options:{videoId:id, provider:'whisper'}});
     else if (t === 'music') { const mood = prompt('Mood: energetic-tech, hype, corporate, cinematic, lofi, ambient, luxury', 'energetic-tech'); if (mood) api('/api/tasks','POST',{task:'music', options:{videoId:id, mood}}); }
+    else if (t === 'icons') api('/api/tasks','POST',{task:'icons', options:{videoId:id}});
+    else if (t === 'thumbnails') { const text = prompt('Thumbnail text (blank = script.seo.thumbnailText). Use A|B for two variants.', ''); api('/api/tasks','POST',{task:'thumbnails', options: text && text.includes('|') ? {videoId:id, variants:text} : {videoId:id, text: text || undefined}}); }
+    else if (t === 'pack') api('/api/tasks','POST',{task:'pack', options:{videoId:id, handle: S.queue?.handle}});
+    else if (t === 'publish') {
+      const platform = prompt('Platform: youtube, youtube-shorts, instagram, facebook, facebook-video', 'youtube-shorts'); if (!platform) return;
+      const when = prompt('Schedule (ISO, e.g. 2026-09-28T09:00:00+05:30). Blank = publish now.', '');
+      const dryRun = confirm('Dry run first? OK = only print the plan, Cancel = really upload.');
+      api('/api/tasks','POST',{task:'publish', options:{videoId:id, platform, when: when || undefined, dryRun}});
+    }
   });
 }
 function renderJobs() {
@@ -207,13 +225,26 @@ function renderJobs() {
 function renderOutputs() {
   $('#outputs').innerHTML = S.outputs.slice(0, 12).map(o => `
     <div class="item">
-      ${/\.(mp4|mov|webm)$/i.test(o.file) ? `<video controls preload="metadata" src="/out/${encodeURIComponent(o.file)}"></video>` : /\.png$/i.test(o.file) ? `<img src="/out/${encodeURIComponent(o.file)}" style="width:100%;border-radius:8px" />` : ''}
+      ${/\.(mp4|mov|webm)$/i.test(o.file) ? `<video controls preload="metadata" src="/out/${encodeURIComponent(o.file)}"></video>` : /\.(png|jpg)$/i.test(o.file) ? `<img src="/out/${encodeURIComponent(o.file)}" style="width:100%;border-radius:8px" />` : ''}
       <div class="top" style="margin-top:6px"><b style="font-size:12px;word-break:break-all">${esc(o.file)}</b></div>
       <small>${fmtBytes(o.size)} · ${new Date(o.mtime).toLocaleString()}</small>
       <div class="row" style="margin:6px 0 0"><button class="small" data-reveal="${esc(o.file)}">Reveal in Finder</button><a class="small" href="/out/${encodeURIComponent(o.file)}" download><button class="small">Download</button></a><button class="small danger" data-del="${esc(o.file)}">Delete</button></div>
     </div>`).join('') || '<small class="muted">No renders yet.</small>';
   document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => api('/api/reveal','POST',{file:b.dataset.reveal}));
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (confirm('Delete '+b.dataset.del+'?')) { const r = await api('/api/outputs/'+encodeURIComponent(b.dataset.del),'DELETE'); S.outputs = r.outputs; renderOutputs(); } });
+}
+function renderAutopilot() {
+  const q = S.queue;
+  if (!q) { $('#autopilot').innerHTML = '<small class="muted">No automation/queue.json yet. Click "Plan tomorrow" or run <span class="kbd">npm run autopilot -- plan</span>.</small>'; return; }
+  const items = (q.items || []).slice().reverse();
+  $('#autopilot').innerHTML = `<small class="muted">${esc(q.timezone||'')} · shorts ${esc((q.slots?.short||[]).join('/'))} · long ${esc((q.slots?.long||[]).join('/'))} · writer ${esc(q.writer||'')} · budget ${q.budget||50}%</small>` + (items.map(i => {
+    const plats = Object.entries(i.platforms||{}).map(([p,st]) => `<span class="pill ${['scheduled','published'].includes(st.status)?'ok':''}" title="${esc(st.url||'')}">${esc(p)}: ${esc(st.status)}</span>`).join('');
+    const steps = Object.entries(i.steps||{}).map(([n,st]) => `${esc(n)} ${st.status==='done'?'✓':st.status==='failed'?'✗':'·'}`).join(' ');
+    return `<div class="item"><div class="top"><b>${esc(i.id)}</b><span><span class="status ${i.status==='failed'||i.status==='publish-failed'?'failed':['scheduled','published'].includes(i.status)?'done':''}">${esc(i.status)}</span> <button class="small" data-ap-run="${esc(i.id)}">run</button></span></div>
+      <small>${esc(i.kind)} · ${esc(i.topic||'(needs topic)')} · publish ${esc(String(i.publishAt||'').replace('T',' ').slice(0,16))} · style ${esc(i.style||'')}</small>
+      <div style="margin-top:4px">${plats}</div><small class="muted">${steps}</small></div>`;
+  }).join('') || '<small class="muted">Queue empty.</small>');
+  document.querySelectorAll('[data-ap-run]').forEach(b => b.onclick = () => api('/api/tasks','POST',{task:'autopilot-run', options:{id:b.dataset.apRun}}));
 }
 function renderStudio() {
   $('#studio-btn').textContent = S.studio.running ? 'Stop' : 'Start';
@@ -225,7 +256,7 @@ function appendLog(e) {
   while (el.children.length > 400) el.removeChild(el.firstChild);
   if (atBottom) el.scrollTop = el.scrollHeight;
 }
-function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderStudio(); }
+function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderAutopilot(); renderStudio(); }
 
 async function openEditor(id) {
   const res = await fetch('/api/scripts/'+encodeURIComponent(id)); const text = await res.text();
@@ -261,17 +292,20 @@ $('#budget').oninput = () => $('#t-budget').textContent = $('#budget').value+'%'
 $('#budget').onchange = async () => { const r = await api('/api/settings','POST',{budget:Number($('#budget').value)}); S.settings = r.settings; S.machine = r.machine; renderMachine(); renderSettings(); };
 $('#hw').onchange = async () => { const r = await api('/api/settings','POST',{hw:$('#hw').checked}); S.settings = r.settings; renderSettings(); };
 $('#fourk').onchange = async () => { const r = await api('/api/settings','POST',{fourK:$('#fourk').checked}); S.settings = r.settings; renderSettings(); };
+$('#ap-plan').onclick = () => api('/api/tasks','POST',{task:'autopilot-plan', options:{}});
+$('#ap-run').onclick = () => { if (confirm('Produce the next queued videos now (voice, render, publish pack, scheduled uploads)?')) api('/api/tasks','POST',{task:'autopilot-run', options:{}}); };
+$('#ap-due').onclick = () => api('/api/tasks','POST',{task:'autopilot-publish-due', options:{}});
 $('#studio-btn').onclick = async () => { const r = await api('/api/studio','POST',{action: S.studio.running ? 'stop' : 'start'}); S.studio = r; renderStudio(); };
 
 async function refresh() { S = await api('/api/state'); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); }
 const es = new EventSource('/api/events');
 es.addEventListener('state', (e) => { S = JSON.parse(e.data); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); });
 es.addEventListener('machine', (e) => { S.machine = JSON.parse(e.data); renderMachine(); });
-es.addEventListener('jobs', (e) => { S.jobs = JSON.parse(e.data); renderJobs(); });
+es.addEventListener('jobs', (e) => { S.jobs = JSON.parse(e.data); renderJobs(); if (S.jobs.some(j => j.kind === 'task' && ['done','failed'].includes(j.status))) refreshScriptsSoon(); });
 es.addEventListener('outputs', (e) => { S.outputs = JSON.parse(e.data); renderOutputs(); refreshScriptsSoon(); });
 es.addEventListener('studio', (e) => { S.studio = JSON.parse(e.data); renderStudio(); });
 es.addEventListener('log', (e) => appendLog(JSON.parse(e.data)));
-let scriptsTimer; function refreshScriptsSoon() { clearTimeout(scriptsTimer); scriptsTimer = setTimeout(async () => { const st = await api('/api/state'); S.scripts = st.scripts; S.compositions = st.compositions; renderScripts(); renderComps(); }, 800); }
+let scriptsTimer; function refreshScriptsSoon() { clearTimeout(scriptsTimer); scriptsTimer = setTimeout(async () => { const st = await api('/api/state'); S.scripts = st.scripts; S.compositions = st.compositions; S.queue = st.queue; renderScripts(); renderComps(); renderAutopilot(); }, 800); }
 </script>
 </body>
 </html>

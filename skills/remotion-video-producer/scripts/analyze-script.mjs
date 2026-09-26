@@ -15,7 +15,15 @@
  *   > subline text               becomes the supporting line
  *   - Label: 42%                 three or more such lines in a scene become a bar chart
  *   [neon] / [image: path] / [video: path] at the start of a scene picks the visual
+ *   [icons: youtube, instagram, logos:react, lucide:zap]   brand/UI icon scene (default set simple-icons)
+ *   [speaker: Ada Lovelace | Founder, Analytical Engines]  lower third for that scene
+ *   [bg: aurora]                 per-scene background system
  *   (delivery: excited)          per-scene delivery hint for TTS
+ *   --style <preset>             midnight-neon | clean-corporate | hype-bold | luxury-noir | warm-editorial | tech-grid
+ *   --keywords "a, b"            seeds the seo block (titles, hashtags, description skeleton) for the publish pack
+ *
+ *   node scripts/analyze-script.mjs --check public/script/<videoId>.json
+ *                                validates a hand-written JSON script (schema, hook length, timing, seo) and exits 1 on errors
  *
  * Everything else in the scene is the voiceover text. Output: public/script/<videoId>.json plus a
  * timing summary (words per scene, estimated seconds at the pacing's words-per-minute).
@@ -26,6 +34,48 @@ import {parseArgs} from './lib/env.mjs';
 import {validateScript, writeJson} from './lib/script-schema.mjs';
 
 const args = parseArgs(process.argv.slice(2));
+
+if (args.check) {
+  const file = typeof args.check === 'string' ? args.check : args._[0];
+  if (!file || !fs.existsSync(file)) {
+    console.error('Usage: node scripts/analyze-script.mjs --check public/script/<videoId>.json');
+    process.exit(1);
+  }
+  const script = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const problems = [];
+  try {
+    validateScript(script);
+  } catch (error) {
+    problems.push(...error.message.split('\n').slice(1).map((l) => l.replace(/^ - /, '')));
+  }
+  const wpm = {fast: 185, medium: 165, calm: 145}[script.pacing] || 165;
+  const gap = {fast: 0.35, medium: 0.6, calm: 0.9}[script.pacing] || 0.6;
+  let total = 0;
+  for (const scene of script.scenes || []) {
+    const words = String(scene.voiceover || '').trim().split(/\s+/).filter(Boolean).length;
+    total += Math.max(scene.minSeconds || 0, 0.6 + (words * 60) / wpm + gap);
+    if (words > 40) problems.push(`${scene.id}: ${words} words in one scene; split it (one idea per scene)`);
+    if (String(scene.headline || '').split(/\s+/).length > 12) problems.push(`${scene.id}: headline over 12 words`);
+  }
+  const hook = script.scenes?.[0];
+  if (hook && String(hook.headline).split(/\s+/).length > 12) problems.push('scene 1 (hook) headline should be under 12 words');
+  const seo = script.seo || {};
+  if (!seo.titles?.length) problems.push('seo.titles missing (3 options, under 70 chars)');
+  (seo.titles || []).forEach((t, i) => t.length > 100 && problems.push(`seo.titles[${i}] over 100 chars (YouTube limit)`));
+  if (!seo.description) problems.push('seo.description missing');
+  if (!seo.thumbnailText) problems.push('seo.thumbnailText missing (3 to 5 words)');
+  else if (seo.thumbnailText.split(/\s+/).length > 6) problems.push('seo.thumbnailText over 6 words; thumbnails need 3 to 5');
+  if (!seo.hashtags?.length) problems.push('seo.hashtags missing');
+  const kinds = (script.scenes || []).map((s) => s.visual?.type || 'gradient');
+  console.log(`${file}: ${script.scenes?.length || 0} scenes, ~${Math.round(total)} s at ${script.pacing || 'medium'} pacing, style ${script.style || '(default)'}, visuals ${Array.from(new Set(kinds)).join('/')}`);
+  if (problems.length) {
+    console.log(`Problems:\n - ${problems.join('\n - ')}`);
+    process.exit(1);
+  }
+  console.log('OK');
+  process.exit(0);
+}
+
 const input = args._[0];
 if (!input || !fs.existsSync(input) || !args.id) {
   console.error('Usage: node scripts/analyze-script.mjs <script.md> --id <videoId> [--pacing fast|medium|calm] [--voice-preset young-male-pro]');
@@ -93,14 +143,36 @@ const scenes = blocks.map((block, i) => {
   let delivery;
   let subline;
   let highlight;
+  let speaker;
+  let background;
   const dataLines = [];
   const voiceLines = [];
 
   for (let line of block.lines) {
-    const tag = line.match(/^\s*\[(neon|image|video)(?::\s*([^\]]+))?\]\s*/i);
+    const tag = line.match(/^\s*\[(neon|image|video|icons|logos)(?::\s*([^\]]+))?\]\s*/i);
     if (tag) {
-      visual = tag[1].toLowerCase() === 'neon' ? {type: 'neon'} : {type: tag[1].toLowerCase(), src: (tag[2] || '').trim()};
+      const kind = tag[1].toLowerCase();
+      if (kind === 'neon') visual = {type: 'neon'};
+      else if (kind === 'icons' || kind === 'logos') {
+        const icons = (tag[2] || '').split(',').map((s) => s.trim()).filter(Boolean).map((token) => {
+          const [a, b] = token.split(':').map((x) => x.trim());
+          const spec = b ? {set: a, name: b} : {set: kind === 'logos' ? 'logos' : 'simple-icons', name: a};
+          spec.label = spec.name.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+          return spec;
+        });
+        visual = {type: 'icons', icons};
+      } else visual = {type: kind, src: (tag[2] || '').trim()};
       line = line.slice(tag[0].length);
+    }
+    const sp = line.match(/\[speaker:\s*([^\]|]+)(?:\|\s*([^\]]+))?\]/i);
+    if (sp) {
+      speaker = {name: sp[1].trim(), ...(sp[2] ? {role: sp[2].trim()} : {})};
+      line = line.replace(sp[0], '');
+    }
+    const bg = line.match(/\[bg:\s*([a-z]+)\]/i);
+    if (bg) {
+      background = bg[1].toLowerCase();
+      line = line.replace(bg[0], '');
     }
     const del = line.match(/\(delivery:\s*([^)]+)\)/i);
     if (del) {
@@ -138,9 +210,11 @@ const scenes = blocks.map((block, i) => {
 
   const words = voiceover.split(/\s+/).filter(Boolean).length;
   const seconds = 0.6 + (words * 60) / WPM[pacing];
+  if (background) visual = {...visual, background};
   const scene = {id, headline, highlight, voiceover: voiceover || headline, visual};
   if (subline) scene.subline = subline;
   if (delivery) scene.delivery = delivery;
+  if (speaker) scene.speaker = speaker;
   if (i === 0) scene.minSeconds = pacing === 'fast' ? 2 : 2.5;
   return {scene, words, seconds};
 });
@@ -150,10 +224,26 @@ if (scenes.length === 0) {
   process.exit(1);
 }
 
+const keywords = args.keywords ? String(args.keywords).split(',').map((k) => k.trim()).filter(Boolean) : [];
+const highlights = scenes.map((s) => s.scene.highlight).filter(Boolean);
+const hook = scenes[0].scene.headline.replace(/[.!?]+$/, '');
+const seo = {
+  titles: [title || hook, hook, `${hook} (${keywords[0] || 'explained'})`].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 3),
+  description: `${title || hook}. ${scenes.slice(0, 2).map((s) => s.scene.voiceover.split(/(?<=[.!?])\s+/)[0]).join(' ')}`.slice(0, 300),
+  keywords: [...keywords, ...highlights.map((h) => String(h).toLowerCase())].filter((v, i, a) => a.indexOf(v) === i).slice(0, 12),
+  hashtags: [...keywords, ...highlights].map((k) => '#' + String(k).toLowerCase().replace(/[^a-z0-9]/g, '')).filter((h) => h.length > 2).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
+  category: args.category || 'Education',
+  cta: 'Follow for part two.',
+  thumbnailText: hook.split(/\s+/).slice(0, 4).join(' '),
+  language: 'en',
+};
+
 const script = {
   videoId,
   title: title || videoId,
   pacing,
+  style: args.style || undefined,
+  seo,
   grade: args.grade || 'none',
   logo: args.logo ? {text: String(args.logo), corner: 'top-left'} : null,
   music: args['music-mood'] ? {mood: String(args['music-mood']), level: 0.18} : null,
@@ -174,7 +264,7 @@ const totalWords = scenes.reduce((s, x) => s + x.words, 0);
 const totalSeconds = scenes.reduce((s, x) => s + x.seconds, 0) + scenes.length * (pacing === 'fast' ? 0.35 : pacing === 'calm' ? 0.9 : 0.6);
 console.log(`Wrote ${out}: ${scenes.length} scenes, ${totalWords} words, about ${totalSeconds.toFixed(0)} s at ${pacing} pacing (${WPM[pacing]} wpm)`);
 scenes.forEach(({scene, words, seconds}) => {
-  const kind = scene.visual.type === 'chart' ? `chart:${scene.visual.chart.kind}` : scene.visual.type;
+  const kind = scene.visual.type === 'chart' ? `chart:${scene.visual.chart.kind}` : scene.visual.type === 'icons' ? `icons:${scene.visual.icons.length}` : scene.visual.type;
   console.log(`  ${scene.id}  ${String(words).padStart(3)} w  ${seconds.toFixed(1).padStart(5)} s  ${kind.padEnd(11)} ${scene.headline}${scene.highlight ? `  [${scene.highlight}]` : ''}`);
 });
 if (totalSeconds > 60 && pacing === 'fast') console.log('Note: over 60 s. Shorts/Reels perform best under 45 s; cut scenes or split into parts.');

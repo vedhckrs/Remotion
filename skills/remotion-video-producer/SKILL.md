@@ -1,6 +1,6 @@
 ---
 name: remotion-video-producer
-description: End-to-end pipeline for high-end programmatic video with Remotion (the React video framework) that builds 4K 60 fps masters for YouTube long-form and Shorts, Instagram Reels / Feed / Stories and Facebook Reels / Feed entirely with code, no AI video generation. Covers script analysis, ElevenLabs voiceover with frame-accurate word sync, viral caption styles, cinematic motion design (springs, kinetic type, 3D camera rig, neon glow, transitions, effects), animated infographics, grades and LUTs, logo safe slots, music beds with ducking, a local render dashboard and machine-budgeted rendering on a laptop. ALWAYS use this skill when the user says 'start Remotion', mentions Remotion, or wants to make, edit, animate, caption, voice or render any video with code (reel, Short, explainer, promo, ad, intro, trailer, lower third, product demo, infographic, 'video from this script'), even if Remotion is never named. Also use it to add voiceover, captions, charts or motion graphics to an existing Remotion project.
+description: End-to-end pipeline for high-end programmatic video with Remotion (the React video framework): 4K 60 fps masters for YouTube long-form and Shorts, Instagram Reels / Feed and Facebook Reels / Feed, all code, no AI video generation. Covers script analysis, ElevenLabs voiceover with word sync, viral captions, cinematic motion design (springs, kinetic type, 3D camera, neon, transitions, animated backgrounds), style presets, animated infographics, real brand logos and SVG icons with credits, grades and LUTs, music beds, thumbnails, per-platform SEO upload packs, scheduled publishing to YouTube / Instagram / Facebook, a daily autopilot (2 Shorts + 1 long video) and a local render dashboard on a machine budget. ALWAYS use this skill when the user says 'start Remotion', mentions Remotion, or wants to make, edit, animate, caption, voice, render, thumbnail, schedule or auto-publish any video with code (reel, Short, explainer, promo, ad, infographic, 'video from this script'), even if Remotion is never named.
 ---
 
 # Remotion Video Producer
@@ -25,7 +25,7 @@ Pick the production lane:
 | Footage / stills + a plan | Edit lane: `TransitionSeries` of clips, grades, overlays, captions, music |
 | An existing Remotion project | Respect its structure; add only what is asked; never overwrite user edits |
 
-Defaults when the brief is silent: 60 fps, 1080-class composition captured at scale 2 for a 4K master, `fast` pacing for Shorts/Reels and `medium` for long-form, ElevenLabs `young-male-pro` voice, Hormozi captions, Inter / Montserrat / Anton, 20 to 45 s for Shorts/Reels, 3 to 8 min for long-form.
+Defaults when the brief is silent: 60 fps, 1080-class composition captured at scale 2 for a 4K master, `fast` pacing for Shorts/Reels and `medium` for long-form, ElevenLabs `young-male-pro` voice, the `midnight-neon` style preset (which sets fonts, palette, Hormozi captions, grade and background system), 20 to 45 s for Shorts/Reels, 3 to 8 min for long-form.
 
 ## Local machine profile and budget
 
@@ -35,21 +35,26 @@ Target machine: fanless Apple Silicon laptop (MacBook Air M5, 10 CPU cores, 8 GP
 
 ### Phase 1 - Project
 
-If no Remotion project exists, run `scripts/scaffold.sh <dir> [package-manager]`. It creates a blank project with `create-video`, installs the packages this skill uses, copies `assets/templates/` into place, writes `remotion.config.ts`, installs the local dashboard into `tools/dashboard`, generates the LUT set into `public/luts`, and adds npm scripts (`dashboard`, `machine-check`, `analyze`, `voice`, `captions`, `music`, `luts`, `render`). If a project exists, only `npx remotion add <pkg>` what is missing. Check versions with `npx remotion versions`.
+If no Remotion project exists, run `scripts/scaffold.sh <dir> [package-manager]`. It creates a blank project with `create-video`, installs the packages this skill uses (plus `simple-icons`), copies `assets/templates/` into place, writes `remotion.config.ts`, installs the local dashboard into `tools/dashboard`, generates the LUT set into `public/luts`, fetches the example icons, seeds `automation/` (queue, topic backlog, writer prompt), and adds npm scripts (`dashboard`, `machine-check`, `analyze`, `check`, `voice`, `captions`, `music`, `luts`, `render`, `icons`, `thumbs`, `pack`, `publish`, `auth-youtube`, `autopilot`, `autopilot:install`). If a project exists, only `npx remotion add <pkg>` what is missing. Check versions with `npx remotion versions`.
 
 Compositions are registered per platform in `src/Root.tsx` inside `<Folder>`s at 60 fps; the same scene components render at every size. Never hardcode positions that assume one aspect ratio: use `src/lib/platforms.ts` (safe rect, logo slot, caption band, `unit` scale).
 
-Start the control room with `npm run dashboard` (http://localhost:4545). It shows machine load and thermals, the budget slider, scripts with their voice / caption / music status, queued renders with real progress and cancel, outputs with preview, and Studio start / stop. See `references/dashboard.md`.
+Start the control room with `npm run dashboard` (http://localhost:4545). It shows machine load and thermals, the budget slider, scripts with their voice / caption / music status and one-click icons / thumbnails / publish pack / publish, queued renders with real progress and cancel, the autopilot queue, outputs with preview, and Studio start / stop. See `references/dashboard.md`.
 
 ### Phase 2 - Script and scene plan
 
-Write the script as Markdown: `# Title`, one `## Headline` per scene, the voiceover sentences under it, `**word**` for the emphasized word, `> subline`, `- Label: 42%` lines (three or more) for a chart, `[neon]` / `[image: path]` / `[video: path]` for the visual, `(delivery: excited)` for a TTS hint. Then:
+Write the script as Markdown: `# Title`, one `## Headline` per scene, the voiceover sentences under it, `**word**` for the emphasized word, `> subline`, `- Label: 42%` lines (three or more) for a chart, `[neon]` / `[image: path]` / `[video: path]` / `[icons: youtube, logos:react, lucide:zap]` for the visual, `[speaker: Name | Role]` for a lower third, `[bg: aurora]` for a per-scene background, `(delivery: excited)` for a TTS hint. Then:
 
 ```bash
-npm run analyze -- script.md --id <videoId> --pacing fast --voice-preset young-male-pro [--logo "brand"] [--grade teal-orange] [--music-mood energetic-tech]
+npm run analyze -- script.md --id <videoId> --pacing fast --style midnight-neon --keywords "a, b" [--logo "brand"] [--music-mood energetic-tech]
+npm run check -- public/script/<videoId>.json        # validates a hand-written JSON (schema, hook, timing, seo)
 ```
 
-It writes `public/script/<videoId>.json` (schema in `scripts/lib/script-schema.mjs`) with headlines, highlights, chart specs, pacing, voice settings and an estimated duration, and this file drives voiceover, `calculateMetadata` and captions, so the whole video re-times itself when a line changes. Hand-editing the JSON (or the dashboard editor) is fine.
+It writes `public/script/<videoId>.json` (schema in `scripts/lib/script-schema.mjs`) with headlines, highlights, chart and icon specs, style, pacing, voice settings, an `seo` block (titles, description, keywords, hashtags, thumbnail text: rewrite it, the analyzer only seeds it) and an estimated duration. This file drives voiceover, `calculateMetadata`, captions, thumbnails and the publish pack, so the whole video re-times itself when a line changes. Hand-editing the JSON (or the dashboard editor) is fine.
+
+Style and concept: pick one preset per channel from `src/lib/styles.ts` (`midnight-neon`, `clean-corporate`, `hype-bold`, `luxury-noir`, `warm-editorial`, `tech-grid`) and set `"style"` in the script; it fixes fonts, palette, caption style, grade, the animated background systems (one for talking scenes, a quieter one for data) and the thumbnail treatment, so every video of a channel looks like one series while each concept keeps its own accent and visuals. Add a preset when a client needs its own system; never restyle components ad hoc.
+
+Brand marks and icons: name real tools and platforms with their real logos (`visual.type: "icons"`; Simple Icons slugs in official colors, SVG Logos for multicolor marks, Lucide / Tabler for UI icons, Fluent flat emoji for reactions). `npm run icons -- --from-script public/script/<videoId>.json` fetches them with licenses and brand hex into `public/icons/`. A small ownership line ("Logos ... are trademarks of their respective owners · Icons via Simple Icons (CC0)") is rendered while marks are on screen and repeated in every upload description. Rules in `references/icons-and-logos.md`.
 
 Pacing rules: Shorts / Reels hook in the first 1.5 s, a new visual beat every 2 to 4 s, no scene over 6 s, end on a loop or CTA. Long-form: chapters of 45 to 90 s, a pattern interrupt at least every 15 s. Voiceover sets the clock: scene duration = voice + 0.35 s (fast), 0.6 s (medium) or 0.9 s (calm).
 
@@ -65,9 +70,11 @@ ElevenLabs runs through the with-timestamps endpoint, so every word's start and 
 
 ### Phase 4 - Build scenes
 
-Scenes come from the script automatically: `VoiceoverScene` (gradient, image, video or neon 3D stage), `InfographicScene` (bar, line, donut, stat), and the end card, assembled by `SocialVideo` with pacing-aware transitions (`pickTransition`: zoom punch / push cut / whip pan / glitch for fast, fades for calm), impact flashes on fast cuts, the grade wrapper, the logo badge and the music bed. Custom scenes are ordinary React files under `src/scenes/` registered as their own compositions for Studio.
+Scenes come from the script automatically: `VoiceoverScene` (animated background, image, LUT-graded video or neon 3D stage), `InfographicScene` (bar, line, donut, stat), `IconScene` (hero mark, VS comparison, logo grid), lower thirds from `scene.speaker`, and the end card, assembled by `SocialVideo` inside a `ThemeProvider` built from the style preset, with pacing-aware transitions (`pickTransition`: zoom punch / push cut / whip pan / glitch for fast, fades for calm), impact flashes on fast cuts, the grade wrapper, the logo badge, the logo credit line and the music bed. Props `style`, `accent`, `captionStyle`, `grade`, `background` default to `auto` (preset) and can be overridden per composition. Custom scenes are ordinary React files under `src/scenes/` registered as their own compositions for Studio.
 
-Component vocabulary in `src/components/`: `KineticTitle`, `NeonText`, `Camera3D` + `Layer` + `Card3D`, `charts/BarChart | LineChart | DonutChart`, `Counter`, `LowerThird`, `KenBurnsImage`, `LutVideo` / `LutImage`, `GradientBackground`, `LightLeakOverlay`, `ImpactFlash`, `LogoBadge`, `MusicBed`, `CaptionLayer`, `EndCard`, `SafeArea`. Libraries: `lib/motion.ts` (EASE, SPRING, PACING, `fr()` frame scaling), `lib/grades.tsx` (CSS + effect + LUT grades), `lib/transitions.tsx`, `lib/platforms.ts`, `lib/theme.ts`, `lib/script.ts`.
+Backgrounds are motion graphics, never flat: `Background kind=` `gradient` (drifting blobs), `mesh`, `grid` (perspective floor), `particles`, `aurora`, `rays`, `waves`, `dots` (pulse matrix), `streaks` (speed lines), `solid`; all CSS/SVG, deterministic, themed. Presets choose one for talking scenes and a quieter one for data; a scene overrides with `visual.background`.
+
+Component vocabulary in `src/components/`: `KineticTitle`, `NeonText`, `Camera3D` + `Layer` + `Card3D`, `charts/BarChart | LineChart | DonutChart`, `Counter`, `LowerThird`, `Icon` / `BrandLogo` / `AttributionBar`, `Background` / `GradientBackground`, `KenBurnsImage`, `LutVideo` / `LutImage`, `LightLeakOverlay`, `ImpactFlash`, `LogoBadge`, `MusicBed`, `CaptionLayer`, `EndCard`, `SafeArea`. Libraries: `lib/motion.ts` (EASE, SPRING, PACING, `fr()` frame scaling), `lib/styles.ts` (presets), `lib/theme.ts` (`ThemeProvider`, `useTheme`, fonts), `lib/grades.tsx` (CSS + effect + LUT grades), `lib/transitions.tsx`, `lib/platforms.ts`, `lib/script.ts`. Every component reads colors and fonts from `useTheme()`; never hardcode a brand color in a component.
 
 The motion bar is in `references/motion-design.md`: every element enters with a spring or ease-out over 8 to 15 frames (at 30 fps; `fr()` scales to 60), siblings stagger 2 to 4 frames, scale uses `perceptual-scale`, nothing linear, the camera drifts or pushes so no shot is static, transitions are short and motivated, an exit precedes every entrance. Frame constants are authored at 30 fps and passed through `fr(n, fps)`.
 
@@ -98,7 +105,28 @@ npm run render -- YouTube youtube-1080p --4k --hw          # 3840x2160 @ 60 fps,
 npm run render -- Reels reels --4k --budget 80             # more of the machine when you step away
 ```
 
-Or queue from the dashboard ("All platforms"). Presets set H.264, CRF 16 to 18 (or 12 to 60 Mbps in hardware mode), BT.709, `yuv420p`, AAC 256 to 320 kbps. `--4k` captures at scale 2 and halves concurrency; `--hw` is for long-form and repeated drafts; `--background` (macOS) runs on efficiency cores for overnight batches. Outputs are `out/<Composition>_<preset>_<WxH>_4k.mp4`. Deliver every platform from the same project; never re-author scenes per platform. Full flags, Lambda and cloud in `references/rendering.md`.
+Or queue from the dashboard ("All platforms"). Presets set H.264, CRF 16 to 18 (or 12 to 60 Mbps in hardware mode), BT.709, `yuv420p`, AAC 256 to 320 kbps. `--4k` captures at scale 2 and halves concurrency; `--hw` is for long-form and repeated drafts; `--background` (macOS) runs on efficiency cores for overnight batches. Outputs are `out/<Composition>_<preset>_<WxH>_4k.mp4` (or `--out out/<videoId>/<videoId>_shorts.mp4`, the layout autopilot uses). Render a different script with `--props='{"videoId":"<id>"}'`. Deliver every platform from the same project; never re-author scenes per platform. Full flags, Lambda and cloud in `references/rendering.md`.
+
+### Phase 9 - Thumbnails, upload copy, publishing
+
+```bash
+npm run thumbs -- --video <videoId> [--variants "TEXT A|TEXT B"] [--image public/hero.jpg]   # 1280x720 + 1080x1920 cover + square, JPEG < 2 MB
+npm run pack -- --video <videoId> --handle @you                                              # out/<id>/publish/{youtube,youtube-shorts,instagram,facebook}.json + titles.md
+npm run publish -- --video <videoId> --platform youtube-shorts --when 2026-09-28T09:00:00+05:30 --dry-run
+```
+
+Thumbnails are `Still` compositions (`Thumbnail`, `Cover`, `SquareCover`) styled by the preset: 3 to 5 words from `seo.thumbnailText`, an accent block on the key word, the real brand marks from the script, the channel badge, the credit line. The publish pack shapes the `seo` block per platform (title under 70 characters, keyword in the first sentence, `#Shorts` first on Shorts only, chapters only when YouTube's 3 x 10 s rule holds, tags under 500 characters, 3 to 8 Instagram hashtags, 1 to 2 on Facebook, credits appended). `publish.mjs` uploads with scheduling: YouTube `private` + `publishAt`, Facebook Reels `SCHEDULED`, Instagram published at the slot by autopilot (no API scheduling). Credentials once via `npm run auth-youtube` and the Meta steps in `references/publishing-seo.md`; keys stay in `.env`.
+
+### Phase 10 - Autopilot (2 Shorts + 1 long video a day)
+
+```bash
+npm run autopilot -- plan            # tomorrow's 3 items from automation/topics.md, slots 09:00 / 13:00 / 19:00, styles rotated
+npm run autopilot -- run             # script (Claude Code headless) -> icons -> voice -> captions -> music -> thumbs -> 4K60 render -> pack -> scheduled uploads
+npm run autopilot -- publish-due     # Instagram at its slot, retries
+npm run autopilot:install            # launchd: nightly produce under caffeinate, publish-due every 30 min
+```
+
+Everything is idempotent and logged per item; `writer: "manual"` makes the queue wait for scripts you write in an interactive session instead of `claude -p`. Keep the backlog stocked and review `out/<id>/` in the dashboard for the first weeks. Details, limits and quotas in `references/automation.md`.
 
 ## Non-negotiable Remotion rules
 
@@ -122,13 +150,20 @@ Scripts (`scripts/`, Node 20+, no build step):
 - `transcribe-whisper.mjs` / `transcribe-cloud.mjs` - captions from local Whisper.cpp (shared cache) or OpenAI / ElevenLabs Scribe.
 - `generate-music.mjs` - ElevenLabs Music bed of exact length, or the free-library list.
 - `make-lut.mjs` - seven `.cube` LUTs matching the CSS grades.
+- `fetch-icons.mjs` - real brand logos and SVG icon sets into `public/icons/` with `credits.json`.
+- `make-thumbnails.mjs` - thumbnail, cover and square stills, JPEG under 2 MB, A/B variants.
+- `make-publish-pack.mjs` - per-platform titles, descriptions, tags, hashtags, chapters, credits.
+- `publish.mjs` / `auth-youtube.mjs` - scheduled uploads to YouTube, Instagram, Facebook; one-time OAuth.
+- `autopilot.mjs` / `install-autopilot.sh` - daily plan / produce / publish queue and its launchd agents.
 - `render-preset.sh` - platform presets with `--4k`, `--hw`, `--budget`, `--background`, `nice`.
 - `machine-check.sh` - machine profile, recommended settings, GL render test.
 - `lib/` - alignment, env, media, script schema helpers.
 
 Dashboard (`assets/dashboard/`): `server.mjs` + `index.html`, copied to `tools/dashboard/` by the scaffold. See `references/dashboard.md`.
 
-Templates (`assets/templates/`): `remotion.config.ts`, `public/script/example.json`, `src/lib/*`, `src/components/*`, `src/scenes/*`, `src/compositions/SocialVideo.tsx`, `src/Root.example.tsx`. They type-check, lint and render against Remotion 4.0.529 at 60 fps on `angle` and `swangle`. Copy, then adapt; do not import from the skill directory.
+Automation (`assets/automation/`): `queue.example.json`, `topics.example.md`, `writer-prompt.md`, copied to `automation/` by the scaffold.
+
+Templates (`assets/templates/`): `remotion.config.ts`, `public/script/example.json`, `src/lib/*` (incl. `styles.ts`, `theme.ts`), `src/components/*`, `src/scenes/*`, `src/compositions/SocialVideo.tsx` + `Thumbnail.tsx`, `src/Root.example.tsx`. They type-check, lint and render against Remotion 4.0.529 at 60 fps on `angle` and `swangle`. Copy, then adapt; do not import from the skill directory.
 
 References (`references/`), read when:
 - `remotion-api.md` - always, on first use in a session: API cheat sheet and determinism rules.
@@ -137,7 +172,10 @@ References (`references/`), read when:
 - `ecosystem.md` - choosing plugins and sources: component libraries, caption research, transitions, voices, LUTs, music libraries, render servers.
 - `platform-specs.md` - sizes, safe zones, logo slots, durations, bitrates per platform.
 - `motion-design.md` - designing any animation: easing, kinetic type, camera and 3D rig, transitions, effects, neon, infographics.
-- `visual-design.md` - typography, color, grades and LUTs, backgrounds, footage treatment, brand systems.
+- `visual-design.md` - typography, color, grades and LUTs, backgrounds, footage treatment, brand systems, style presets.
+- `icons-and-logos.md` - brand marks and icon sets, the icon scene, trademark rules and the credit line.
+- `publishing-seo.md` - thumbnails, per-platform copy rules, scheduling, API credentials and limits.
+- `automation.md` - the daily autopilot: queue, writer, launchd, consistency, scaling.
 - `audio-voiceover.md` - voice presets and direction, music and ducking, SFX, loudness.
 - `captions.md` - caption sources, the six styles, sync fixes, SRT export.
 - `rendering.md` - flags, presets, 4K60, stills, GIFs, alpha, Lambda and cloud.

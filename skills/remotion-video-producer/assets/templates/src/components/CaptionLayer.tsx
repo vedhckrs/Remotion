@@ -3,7 +3,7 @@ import {createTikTokStyleCaptions, type Caption, type TikTokPage} from '@remotio
 import {AbsoluteFill, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {SPRING, fr} from '../lib/motion';
 import {getCaptionBand, usePlatformLayout, type PlatformId} from '../lib/platforms';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Word-highlighted captions inside the platform caption band. Six looks, researched from the
@@ -39,8 +39,10 @@ export const CaptionLayer: React.FC<{
   /** 0..1 vertical anchor inside the caption band (0 = top of band). */
   readonly anchorY?: number;
   readonly maxWidthRatio?: number;
-  readonly maxWordsPerPage?: number;
-}> = ({captions, style = 'hormozi', platform, accent = theme.colors.accent, highlight = theme.colors.highlight, fontSize, combineMs, breakOnSilenceMs = 400, uppercase, anchorY = 0.35, maxWidthRatio = 0.92}) => {
+}> = ({captions, style = 'hormozi', platform, accent: accentProp, highlight: highlightProp, fontSize, combineMs, breakOnSilenceMs = 400, uppercase, anchorY = 0.35, maxWidthRatio = 0.92}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
+  const highlight = highlightProp ?? theme.colors.highlight;
   const {fps, width, height} = useVideoConfig();
   const {unit, isVertical} = usePlatformLayout(platform);
   const defaults = STYLE_DEFAULTS[style];
@@ -88,6 +90,7 @@ const CaptionPage: React.FC<{
   readonly maxWidth: number;
   readonly unit: number;
 }> = ({page, style, accent, highlight, fontSize, font, weight, uppercase, centerX, y, maxWidth, unit}) => {
+  const theme = useTheme();
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;

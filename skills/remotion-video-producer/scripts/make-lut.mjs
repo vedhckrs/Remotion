@@ -18,7 +18,6 @@ const size = Math.max(9, Math.min(65, Number(args.size || 33)));
 const only = args.only ? String(args.only).split(',').map((s) => s.trim()) : null;
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
-const lerp = (a, b, t) => a + (b - a) * t;
 const luma = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 const hex = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
 
@@ -77,4 +76,3 @@ for (const name of names) {
   console.log(`  ${name}.cube  (${size}^3, ${(fs.statSync(file).size / 1024).toFixed(0)} KB)`);
 }
 console.log(`Wrote ${names.length} LUTs to ${path.relative(process.cwd(), outDir) || '.'}. Use <LutVideo grade="teal-orange"> or lut({content}) from @remotion/effects.`);
-void lerp;

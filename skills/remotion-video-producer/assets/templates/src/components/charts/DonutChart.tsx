@@ -1,7 +1,7 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../../lib/motion';
-import {theme} from '../../lib/theme';
+import {useTheme} from '../../lib/theme';
 
 export type DonutSegment = {readonly label: string; readonly value: number; readonly color?: string};
 
@@ -18,7 +18,9 @@ export const DonutChart: React.FC<{
   readonly accent?: string;
   readonly centerLabel?: string;
   readonly showPercent?: boolean;
-}> = ({segments, size, thickness, delay = 0, sweepFrames = 45, accent = theme.colors.accent, centerLabel, showPercent = true}) => {
+}> = ({segments, size, thickness, delay = 0, sweepFrames = 45, accent: accentProp, centerLabel, showPercent = true}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const stroke = thickness ?? size * 0.11;

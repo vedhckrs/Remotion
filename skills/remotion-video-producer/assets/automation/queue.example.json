@@ -1,0 +1,18 @@
+{
+  "timezone": "Asia/Kolkata",
+  "slots": {"short": ["09:00", "19:00"], "long": ["13:00"]},
+  "perDay": {"short": 2, "long": 1},
+  "platforms": {"short": ["youtube-shorts", "instagram", "facebook"], "long": ["youtube", "facebook-video"]},
+  "styleRotation": ["midnight-neon", "tech-grid", "hype-bold", "clean-corporate"],
+  "voicePreset": "young-male-pro",
+  "voiceProvider": "elevenlabs",
+  "music": "energetic-tech",
+  "captions": "manifest",
+  "writer": "claude",
+  "handle": "@yourhandle",
+  "site": "",
+  "budget": 50,
+  "leadDays": 1,
+  "targetSeconds": {"short": 45, "long": 420},
+  "items": []
+}

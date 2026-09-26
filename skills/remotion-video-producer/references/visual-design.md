@@ -40,7 +40,7 @@ Defaults when the brief gives nothing: near-black background `#0B0B0F`, off-whit
 
 ## 4. Backgrounds and texture
 
-Never a flat, static background for more than a second. Choose one:
+Never a flat, static background for more than a second. `<Background kind=...>` ships ten deterministic, themed systems: `gradient` (drifting blobs, `GradientBackground`), `mesh` (four soft blobs, premium), `grid` (perspective floor rushing at the camera, tech), `particles` (bokeh depth), `aurora` (blurred ribbons, neon / music), `rays` (rotating light with vignette, luxury / reveal), `waves` (layered sines, editorial / calm), `dots` (matrix with a travelling pulse, data / corporate), `streaks` (diagonal speed lines, hype / sports), `solid` (brand color + vignette). The style preset picks one for talking scenes and one for data; a scene overrides with `visual.background`. Other options:
 - `GradientBackground` template: two blurred blobs moved by noise over a base gradient, plus optional grain.
 - `<Solid>` with `@remotion/effects` generators: `linearGradient`, `waves`, `contourLines`, `halftoneLinearGradient`, `dotGrid`, `gridlines`, `paper`, animated by passing `frame`-derived params.
 - Looping footage (`<Video loop>`) heavily graded and darkened under a gradient overlay.
@@ -62,6 +62,7 @@ Treatment:
 ## 6. Brand systems and logos
 
 - Logo as SVG whenever possible; animate with `evolvePath` (draw-on), staggered `Interactive.Path` opacity, or a mask wipe. Keep the final held logo pixel-identical to the brand file (no skew, no color shift).
+- Third-party marks (tools, platforms, competitors) come from Simple Icons / SVG Logos through `fetch-icons.mjs`, render with `BrandLogo` in official colors, and always carry the `AttributionBar` credit line. Trademark rules in `icons-and-logos.md`.
 - Lockup rules: clear space equal to the logo mark height; never smaller than 120 px wide on vertical.
 - End cards: logo, one line, CTA, and 1.5 to 2.5 s of hold; a Shorts end card also includes a "follow" or "part 2" cue inside the safe zone.
 - Watermark: 60 to 70 percent opacity, inside the safe zone, top-left or top-right.
@@ -85,4 +86,8 @@ Multi-format: write layouts with `useVideoConfig()` and the platform token. A he
 
 ## 8. Thumbnails and covers
 
-Render a `<Still>` composition from the same theme: face or hero at 55 to 65 percent height, 3 to 4 words at 140 px plus, high contrast, a color block behind the text. YouTube 1280x720, Reels cover 1080x1920 (grid crop is the central 4:5, keep the subject there). Export PNG for editing, JPG under 2 MB for upload: `npx remotion still Thumbnail out/thumb.png`.
+`src/compositions/Thumbnail.tsx` renders three `<Still>`s from the same preset (`Thumbnail` 1280x720, `Cover` 1080x1920, `SquareCover` 1080x1080): the preset's thumbnail font and case, 3 to 5 words from `seo.thumbnailText` with the key word in an accent block, up to three real brand marks from the script, the channel badge, a frozen frame of the animated background, and the logo credit line. `npm run thumbs -- --video <id> [--image public/hero.jpg] [--variants "A|B"]` writes JPEGs under 2 MB. Rules: face or hero at 55 to 65 percent height when you have one (the image gets a scrim so text still reads), high contrast, text in the left 60 percent at 16:9, nothing in the bottom-right corner (duration badge), keep the Reels cover's subject in the central 4:5 (grid crop). More in `publishing-seo.md`.
+
+## 9. Style presets
+
+`src/lib/styles.ts` holds one object per look: theme (colors, fonts, radius, shadows), caption style, grade, background system for talking scenes, a quieter one for data, pacing bias and the thumbnail treatment. `SocialVideo` wraps everything in `ThemeProvider` with the preset named by the script (`"style"`), so components never carry brand colors; they call `useTheme()`. Shipped: `midnight-neon` (tech, gaming, opinions), `clean-corporate` (SaaS, finance, B2B), `hype-bold` (sports, drops, motivation), `luxury-noir` (premium, real estate), `warm-editorial` (storytelling, education), `tech-grid` (AI, dev tools). Add a preset per client; keep the shape identical. Consistency across a channel comes from one preset plus the same logo, voice and CTA; variety across concepts comes from the accent override, the visual mix (charts, icons, neon, footage) and per-scene backgrounds.

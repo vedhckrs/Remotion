@@ -112,6 +112,10 @@ Fast moves without motion blur look like PowerPoint. Options:
 - `ImpactFlash at={[0, 45]}`: accent or white flash plus a 2 to 3 percent scale bump on beats; the composition adds one on every cut in `fast` pacing.
 - `pickTransition(pacing, index)` in `lib/transitions.tsx` cycles zoom punch / push cut with flash / whip pan / glitch slam for fast, slide / fade / soft zoom for medium, fades for calm. All CSS; shader presentations can be swapped in with `webglExtras`.
 
+## 8c. Animated backgrounds (template `Background`)
+
+Ten systems, all frame-driven and themed, in `components/Background.tsx`: gradient, mesh, grid, particles, aurora, rays, waves, dots, streaks, solid. Speed is in real seconds (`speed` multiplies), intensity scales opacity, and every system fades toward a vignette so text stays legible. Pair energy with pacing: streaks / grid / aurora for fast, mesh / waves / rays for calm, dots / particles behind data. Never stack two busy systems; one background, one subject, one accent.
+
 ## 9. Shapes, paths, particles, data
 
 - `@remotion/shapes` for clean geometry: `<Rect>`, `<Circle>`, `<Star>`, `<Pie progress>` (radial progress), `<Arrow>`, `<Spark>`.

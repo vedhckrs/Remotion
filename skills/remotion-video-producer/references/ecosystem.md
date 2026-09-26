@@ -115,6 +115,27 @@ progress) and never the right rail (like / comment / share). On YouTube 16:9 avo
 in `getLogoSlot()` and rendered by `LogoBadge` (image or text mark, pill background optional,
 watermark opacity).
 
+## 6b. SVG icons and real brand logos
+
+- [Simple Icons](https://simpleicons.org) (npm `simple-icons`, CC0): 3 300+ monochrome brand marks with the official hex, source URL and guidelines link per icon; the pipeline's primary logo source.
+- [SVG Logos](https://github.com/gilbarbara/logos) via Iconify `logos` (CC0): full-color brand logos.
+- [Iconify](https://iconify.design) API and `@iconify-json/*` packages: 200 000+ icons across sets; used here for `logos`, `lucide` (ISC), `tabler` (MIT), `fluent-emoji-flat` (MIT).
+- Remotion-side: `@remotion/paths` (`evolvePath` draw-on), `@remotion/shapes`; the template `Icon` component does draw-on with `pathLength`.
+- Rejected: icon fonts (blurry at 4K, no per-path animation), raster logo scrapes (wrong colors, no license), Font Awesome brands (CC BY 4.0 needs attribution in the video and lacks brand hex).
+
+## 6c. Publishing and scheduling APIs
+
+- YouTube Data API v3: `videos.insert` (resumable, 1 600 units), `thumbnails.set`, `captions.insert`; scheduling via `status.privacyStatus=private` + `status.publishAt`. Quota 10 000 units per day by default.
+- Instagram Graph API (v25): Reels via resumable container upload (`media?media_type=REELS&upload_type=resumable`, rupload endpoint, `media_publish`); 100 API posts per day; no scheduling, which is why autopilot has `publish-due`.
+- Facebook Reels API: `video_reels` start / upload / finish with `video_state=SCHEDULED` (10 min to 29 days). Page videos: `/videos` with `scheduled_publish_time`.
+- Alternatives when you outgrow scripts: Postiz (open source, self-hosted scheduler with API), Mixpost (self-hosted), Buffer / Metricool (hosted). They add TikTok, LinkedIn and X; the publish pack JSON maps onto their fields.
+
+## 6d. Automation runners
+
+- launchd on macOS (this skill's `install-autopilot.sh`), with `caffeinate` for lid-closed renders; cron on Linux.
+- Claude Code headless: `claude -p "<prompt>" --allowedTools ...` writes scripts; `--output-format json` gives structured results. Known: occasional hang without a TTY under launchd (timeout + retry handles it).
+- n8n / Node-RED for people who want a visual flow around the same scripts; the dashboard's `/api/tasks` endpoint accepts the same task names.
+
 ## 7. Neon, glow, 2.5D / 3D and camera
 
 - `NeonText`: layered text-shadow glow, deterministic tube-ignition flicker, breathing pulse,

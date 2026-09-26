@@ -3,6 +3,21 @@ import {staticFile} from 'remotion';
 import type {GradeName} from './grades';
 import type {Pacing} from './motion';
 import type {LogoCorner} from './platforms';
+import type {BackgroundKind} from './styles';
+
+export type IconSpec = {readonly set?: 'simple-icons' | 'logos' | 'lucide' | 'tabler' | 'fluent-emoji-flat' | 'custom'; readonly name: string; readonly label?: string; readonly color?: string};
+
+/** Publishing metadata; Claude fills it, make-publish-pack.mjs turns it into per-platform files. */
+export type SeoSpec = {
+  readonly titles?: readonly string[];
+  readonly description?: string;
+  readonly keywords?: readonly string[];
+  readonly hashtags?: readonly string[];
+  readonly category?: string;
+  readonly cta?: string;
+  readonly thumbnailText?: string;
+  readonly language?: string;
+};
 
 /** Data for an infographic scene. */
 export type ChartSpec = {
@@ -22,11 +37,16 @@ export type ScriptScene = {
   readonly voiceover: string;
   /** Visual intent for this scene. */
   readonly visual?: {
-    readonly type: 'gradient' | 'image' | 'video' | 'chart' | 'neon';
+    readonly type: 'gradient' | 'image' | 'video' | 'chart' | 'neon' | 'icons';
     readonly src?: string;
     readonly focal?: readonly [number, number];
     readonly chart?: ChartSpec;
+    readonly icons?: readonly IconSpec[];
+    /** Per-scene background system override. */
+    readonly background?: BackgroundKind;
   };
+  /** Lower third for a talking-head or quoted person. */
+  readonly speaker?: {readonly name: string; readonly role?: string};
   /** Minimum on-screen seconds even when the voice line is shorter. */
   readonly minSeconds?: number;
   /** Per-scene delivery hint for TTS (v3 audio tag or instruction). */
@@ -37,9 +57,14 @@ export type VideoScript = {
   readonly videoId: string;
   readonly title?: string;
   readonly pacing?: Pacing;
+  /** Style preset id from src/lib/styles.ts; sets fonts, colors, captions, grade, background. */
+  readonly style?: string;
+  readonly background?: BackgroundKind;
   readonly grade?: GradeName;
-  readonly logo?: {readonly src?: string; readonly text?: string; readonly corner?: LogoCorner} | null;
-  readonly music?: {readonly src?: string; readonly mood?: string; readonly level?: number} | null;
+  readonly seo?: SeoSpec;
+  readonly logo?: {readonly src?: string; readonly text?: string; readonly corner?: LogoCorner; readonly icon?: IconSpec} | null;
+  /** `credit` and `license` go into every description the publish pack writes. */
+  readonly music?: {readonly src?: string; readonly mood?: string; readonly level?: number; readonly credit?: string; readonly license?: string} | null;
   readonly voice?: {
     readonly provider: 'elevenlabs' | 'openai' | 'macos';
     readonly voiceId?: string;

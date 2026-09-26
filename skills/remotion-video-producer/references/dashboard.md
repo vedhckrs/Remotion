@@ -16,6 +16,8 @@ runs under `nice -n 10` so Chrome and FFmpeg it spawns yield to your foreground 
   in place (validated against the schema on save); create a new script from Markdown text through
   the analyzer; run voiceover (ElevenLabs or macOS draft), Whisper captions and music generation as
   queued tasks with live logs.
+- Per script: Icons, Thumbnails, Publish pack and Publish… buttons (publish asks platform, schedule time and dry-run).
+- Autopilot panel: queue with per-item status, steps and per-platform publish state; Plan tomorrow / Produce now / Publish due buttons; per-item run.
 - Render: pick a composition, preset (shorts, reels, stories, facebook, feed, youtube-1080p,
   preview), optional frame range, queue one or all platforms. Renders run in-process with
   `renderMedia()` so progress (rendered / encoded frames, percent, ETA), stage and cancel are real.
@@ -39,7 +41,7 @@ runs under `nice -n 10` so Chrome and FFmpeg it spawns yield to your foreground 
 ## API (for automation from Claude Code or scripts)
 
 ```
-GET  /api/state                          machine, settings, compositions, scripts, jobs, outputs, log
+GET  /api/state                          machine, settings, compositions, scripts, jobs, outputs, queue (autopilot), log
 GET  /api/events                         SSE: state, machine, jobs, outputs, studio, log
 POST /api/settings                       {budget, hw, fourK, gl}
 POST /api/compositions/refresh
@@ -47,9 +49,10 @@ GET  /api/scripts/:id                    script JSON
 PUT  /api/scripts/:id                    save (validated)
 PUT  /api/scripts/:id.md                 raw Markdown for the analyzer (returns its path)
 POST /api/render                         {compositionId, preset, frames?, hw?, fourK?, budget?, inputProps?}
-POST /api/tasks                          {task: analyze|voiceover|captions|music|luts|machine-check, options}
+POST /api/tasks                          {task: analyze|voiceover|captions|music|luts|machine-check|icons|thumbnails|pack|publish|autopilot-plan|autopilot-run|autopilot-publish-due, options}
+                                         publish options: {videoId, platform, when?, dryRun?, file?}; autopilot-run: {id?, limit?, dryRun?}
 POST /api/jobs/:id/cancel
-GET  /out/<file>                         stream an output (range requests supported)
+GET  /out/<file>                         stream an output (range requests supported; out/<videoId>/... paths allowed)
 DELETE /api/outputs/<file>
 POST /api/reveal                         {file}  -> open -R on macOS
 POST /api/studio                         {action: start|stop}

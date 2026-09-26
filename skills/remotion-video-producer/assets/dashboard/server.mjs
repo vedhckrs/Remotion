@@ -149,15 +149,27 @@ const listScripts = () => {
     });
 };
 
-const listOutputs = () =>
-  fs
-    .readdirSync(outDir)
-    .filter((f) => /\.(mp4|mov|webm|gif|png|srt)$/i.test(f))
-    .map((f) => {
-      const st = fs.statSync(path.join(outDir, f));
-      return {file: f, size: st.size, mtime: st.mtimeMs};
-    })
-    .sort((a, b) => b.mtime - a.mtime);
+/** Resolve a path under out/ (one level of subfolders allowed), refusing anything that escapes it. */
+const safeOut = (rel) => {
+  const full = path.resolve(outDir, String(rel || ''));
+  return full.startsWith(outDir + path.sep) ? full : null;
+};
+
+// out/*.mp4 from the render panel plus out/<videoId>/ folders written by autopilot and the thumbnail script.
+const listOutputs = () => {
+  const rows = [];
+  const add = (rel) => {
+    const st = fs.statSync(path.join(outDir, rel));
+    rows.push({file: rel, size: st.size, mtime: st.mtimeMs});
+  };
+  for (const f of fs.readdirSync(outDir)) {
+    const full = path.join(outDir, f);
+    if (fs.statSync(full).isDirectory()) {
+      for (const g of fs.readdirSync(full)) if (/\.(mp4|mov|webm|gif|png|jpg|srt)$/i.test(g)) add(path.join(f, g));
+    } else if (/\.(mp4|mov|webm|gif|png|jpg|srt)$/i.test(f)) add(f);
+  }
+  return rows.sort((a, b) => b.mtime - a.mtime);
+};
 
 let compositions = [];
 let compositionsError = null;
@@ -300,6 +312,24 @@ const TASKS = {
   music: (o) => ['scripts/generate-music.mjs', '--id', o.videoId, '--mood', o.mood || 'energetic-tech', ...(o.seconds ? ['--seconds', String(o.seconds)] : [])],
   luts: () => ['scripts/make-lut.mjs', '--out', 'public/luts'],
   'machine-check': (o) => ['scripts/machine-check.sh', '--render-test', o.compositionId || compositions[0] || 'Shorts'],
+  icons: (o) => ['scripts/fetch-icons.mjs', '--from-script', `public/script/${o.videoId}.json`, ...(o.brands ? ['--brands', o.brands] : []), ...(o.lucide ? ['--lucide', o.lucide] : [])],
+  thumbnails: (o) => ['scripts/make-thumbnails.mjs', '--video', o.videoId, ...(o.text ? ['--text', o.text] : []), ...(o.variants ? ['--variants', o.variants] : [])],
+  pack: (o) => ['scripts/make-publish-pack.mjs', '--video', o.videoId, ...(o.handle ? ['--handle', o.handle] : [])],
+  publish: (o) => ['scripts/publish.mjs', '--video', o.videoId, '--platform', o.platform || 'youtube-shorts', ...(o.when ? ['--when', o.when] : []), ...(o.dryRun ? ['--dry-run'] : []), ...(o.file ? ['--file', o.file] : [])],
+  'autopilot-plan': (o) => ['scripts/autopilot.mjs', 'plan', ...(o.days ? ['--days', String(o.days)] : [])],
+  'autopilot-run': (o) => ['scripts/autopilot.mjs', 'run', ...(o.limit ? ['--limit', String(o.limit)] : []), ...(o.id ? ['--id', o.id] : []), ...(o.dryRun ? ['--dry-run'] : [])],
+  'autopilot-publish-due': () => ['scripts/autopilot.mjs', 'publish-due'],
+};
+
+const readQueue = () => {
+  const file = path.join(cwd, 'automation', 'queue.json');
+  if (!fs.existsSync(file)) return null;
+  try {
+    const q = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return {timezone: q.timezone, slots: q.slots, writer: q.writer, budget: q.budget, items: (q.items || []).slice().sort((a, b) => String(a.publishAt).localeCompare(String(b.publishAt))).slice(-30)};
+  } catch {
+    return null;
+  }
 };
 
 const runTask = (job) =>
@@ -317,7 +347,7 @@ const runTask = (job) =>
     cancelSignals.set(job.id, {cancel: () => child.kill('SIGTERM')});
     child.on('close', (code) => {
       cancelSignals.delete(job.id);
-      if (code === 0 || (job.task === 'music' && code === 2)) resolve();
+      if (code === 0 || (job.task === 'music' && code === 2) || (job.task === 'publish' && code === 3) || (job.task === 'icons' && code === 2)) resolve();
       else reject(new Error(`${job.task} exited with code ${code}`));
     });
   });
@@ -397,7 +427,7 @@ const readBody = (req) =>
     });
   });
 
-const state = () => ({machine: machine(), settings, compositions, compositionsError, scripts: listScripts(), jobs, outputs: listOutputs(), studio: {running: Boolean(studio), url: studioUrl}, skillDir: SKILL_DIR, project: path.basename(cwd), entryPoint: entryPoint ? path.relative(cwd, entryPoint) : null, log: logLines.slice(-80)});
+const state = () => ({machine: machine(), settings, compositions, compositionsError, scripts: listScripts(), jobs, outputs: listOutputs(), queue: readQueue(), studio: {running: Boolean(studio), url: studioUrl}, skillDir: SKILL_DIR, project: path.basename(cwd), entryPoint: entryPoint ? path.relative(cwd, entryPoint) : null, log: logLines.slice(-80)});
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -487,16 +517,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/reveal') {
       const body = await readBody(req);
-      const file = path.join(outDir, path.basename(body.file || ''));
-      if (!fs.existsSync(file)) return json(res, 404, {error: 'not found'});
+      const file = safeOut(body.file);
+      if (!file || !fs.existsSync(file)) return json(res, 404, {error: 'not found'});
       if (isMac) spawn('open', ['-R', file]);
       else if (process.platform === 'win32') spawn('explorer', ['/select,', file]);
       else spawn('xdg-open', [outDir]);
       return json(res, 200, {ok: true});
     }
     if (req.method === 'DELETE' && p.startsWith('/api/outputs/')) {
-      const file = path.join(outDir, path.basename(decodeURIComponent(p.split('/')[3])));
-      if (fs.existsSync(file)) fs.unlinkSync(file);
+      const file = safeOut(decodeURIComponent(p.slice('/api/outputs/'.length)));
+      if (file && fs.existsSync(file) && !fs.statSync(file).isDirectory()) fs.unlinkSync(file);
       return json(res, 200, {outputs: listOutputs()});
     }
     if (req.method === 'POST' && p === '/api/studio') {
@@ -506,13 +536,13 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {running: Boolean(studio), url: studioUrl});
     }
     if (req.method === 'GET' && p.startsWith('/out/')) {
-      const file = path.join(outDir, path.basename(decodeURIComponent(p.slice(5))));
-      if (!fs.existsSync(file)) {
+      const file = safeOut(decodeURIComponent(p.slice(5)));
+      if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
         res.writeHead(404);
         return res.end();
       }
       const st = fs.statSync(file);
-      const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.mov') ? 'video/quicktime' : file.endsWith('.srt') ? 'text/plain' : 'video/mp4';
+      const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg' : file.endsWith('.mov') ? 'video/quicktime' : file.endsWith('.srt') ? 'text/plain' : 'video/mp4';
       const range = req.headers.range;
       if (range) {
         const [startStr, endStr] = range.replace('bytes=', '').split('-');

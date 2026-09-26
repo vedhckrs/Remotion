@@ -43,8 +43,11 @@ $RUNX remotion add @remotion/media @remotion/transitions @remotion/google-fonts 
   @remotion/shapes @remotion/paths @remotion/noise @remotion/layout-utils @remotion/media-utils @remotion/sfx \
   @remotion/zod-types @remotion/motion-blur @remotion/fonts @remotion/install-whisper-cpp zod
 
+echo "Adding icon and logo sources (simple-icons: 3000+ brand marks with official colors)"
+$INSTALL simple-icons >/dev/null 2>&1 || npm install simple-icons >/dev/null 2>&1 || echo "  simple-icons install skipped (fetch-icons.mjs falls back to jsDelivr)"
+
 echo "Copying templates"
-mkdir -p src public/script public/voiceover public/music public/media public/captions out
+mkdir -p src public/script public/voiceover public/music public/media public/captions public/icons out automation
 cp -R "$TEMPLATES/src/." src/
 cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
 
@@ -67,6 +70,14 @@ mkdir -p tools/dashboard public/luts
 cp -R "$SKILL_DIR/assets/dashboard/." tools/dashboard/
 node "$SKILL_DIR/scripts/make-lut.mjs" --out public/luts >/dev/null && echo "  7 LUTs written"
 
+echo "Automation files (automation/): queue.json, topics.md, writer-prompt.md"
+[ -f automation/queue.json ] || cp "$SKILL_DIR/assets/automation/queue.example.json" automation/queue.json
+[ -f automation/topics.md ] || cp "$SKILL_DIR/assets/automation/topics.example.md" automation/topics.md
+[ -f automation/writer-prompt.md ] || cp "$SKILL_DIR/assets/automation/writer-prompt.md" automation/writer-prompt.md
+
+echo "Example icons for the sample script"
+node "$SKILL_DIR/scripts/fetch-icons.mjs" --from-script public/script/example.json >/dev/null 2>&1 && echo "  public/icons ready" || echo "  icon fetch skipped (offline?); run: npm run icons -- --from-script public/script/example.json"
+
 # npm scripts that point at the skill's scripts (absolute path, so the project stays thin).
 node -e '
 const fs = require("fs");
@@ -81,10 +92,18 @@ pkg.scripts = Object.assign({}, pkg.scripts, {
   music: `node "${skill}/scripts/generate-music.mjs"`,
   luts: `node "${skill}/scripts/make-lut.mjs"`,
   render: `bash "${skill}/scripts/render-preset.sh"`,
+  icons: `node "${skill}/scripts/fetch-icons.mjs"`,
+  thumbs: `node "${skill}/scripts/make-thumbnails.mjs"`,
+  pack: `node "${skill}/scripts/make-publish-pack.mjs"`,
+  publish: `node "${skill}/scripts/publish.mjs"`,
+  "auth-youtube": `node "${skill}/scripts/auth-youtube.mjs"`,
+  autopilot: `node "${skill}/scripts/autopilot.mjs"`,
+  "autopilot:install": `bash "${skill}/scripts/install-autopilot.sh"`,
+  check: `node "${skill}/scripts/analyze-script.mjs" --check`,
 });
 fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
 ' "$SKILL_DIR"
-echo "  npm scripts added: dashboard, machine-check, analyze, voice, captions, music, luts, render"
+echo "  npm scripts added: dashboard, machine-check, analyze, check, voice, captions, music, luts, render, icons, thumbs, pack, publish, auth-youtube, autopilot, autopilot:install"
 
 if [ "$KEEP_ROOT" -eq 0 ]; then
   mv -f src/Root.example.tsx src/Root.tsx
@@ -96,10 +115,10 @@ fi
 
 # Keep secrets and large generated files out of git.
 touch .gitignore
-for line in ".env" "out/" "whisper.cpp/" "public/voiceover/**/*.16k.wav"; do
+for line in ".env" "out/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
   grep -qxF "$line" .gitignore || echo "$line" >> .gitignore
 done
-[ -f .env ] || printf '# ELEVENLABS_API_KEY=\n# OPENAI_API_KEY=\n' > .env
+[ -f .env ] || printf '# ELEVENLABS_API_KEY=\n# OPENAI_API_KEY=\n# YouTube (scripts/auth-youtube.mjs): YT_CLIENT_ID= YT_CLIENT_SECRET= YT_REFRESH_TOKEN=\n# Meta: IG_USER_ID= META_ACCESS_TOKEN= META_PAGE_ID= META_PAGE_TOKEN=\n' > .env
 
 echo
 echo "Type check:"
@@ -114,3 +133,5 @@ echo "  1. npm run dashboard                           # local control room at h
 echo "  2. npm run analyze -- script.md --id <videoId> # or edit public/script/<videoId>.json by hand"
 echo "  3. npm run voice -- --script public/script/<videoId>.json"
 echo "  4. npm run render -- Shorts shorts --4k        # 4K60 master, 50% machine budget"
+echo "  5. npm run thumbs -- --video <videoId> && npm run pack -- --video <videoId>   # thumbnails + per-platform upload copy"
+echo "  6. npm run autopilot -- plan && npm run autopilot -- run                       # or npm run autopilot:install for the nightly job"

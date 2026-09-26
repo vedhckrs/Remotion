@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE} from '../lib/motion';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Full-bleed still with a slow scale and drift toward a focal point, graded with the theme.
@@ -15,7 +15,9 @@ export const KenBurnsImage: React.FC<{
   readonly drift?: number;
   readonly scrim?: number;
   readonly grade?: string;
-}> = ({src, fromScale = 1.08, toScale = 1.16, focal = [0.5, 0.5], drift = 0.03, scrim = 0.35, grade = theme.grade}) => {
+}> = ({src, fromScale = 1.08, toScale = 1.16, focal = [0.5, 0.5], drift = 0.03, scrim = 0.35, grade: gradeProp}) => {
+  const theme = useTheme();
+  const grade = gradeProp ?? theme.grade;
   const frame = useCurrentFrame();
   const {durationInFrames, width, height} = useVideoConfig();
 

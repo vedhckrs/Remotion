@@ -2,7 +2,7 @@ import React from 'react';
 import {Img, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {SPRING, fr, idleFloat} from '../lib/motion';
 import {getLogoSlot, type LogoCorner, type PlatformId} from '../lib/platforms';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Logo or watermark placed in the platform-safe logo slot (see platforms.ts getLogoSlot):
@@ -20,7 +20,9 @@ export const LogoBadge: React.FC<{
   readonly delay?: number;
   readonly accent?: string;
   readonly pill?: boolean;
-}> = ({src, text, corner = 'top-left', platform, scale = 1, opacity = 0.92, delay = 6, accent = theme.colors.accent, pill = true}) => {
+}> = ({src, text, corner = 'top-left', platform, scale = 1, opacity = 0.92, delay = 6, accent: accentProp, pill = true}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps, width, height} = useVideoConfig();
   const slot = getLogoSlot(width, height, corner, platform, scale);

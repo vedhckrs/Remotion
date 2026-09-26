@@ -1,15 +1,19 @@
 import React from 'react';
 import {Audio, Video} from '@remotion/media';
 import {AbsoluteFill, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {Background} from '../components/Background';
 import {Camera3D, Layer} from '../components/Camera3D';
 import {GradientBackground} from '../components/GradientBackground';
 import {KenBurnsImage} from '../components/KenBurnsImage';
 import {KineticTitle} from '../components/KineticTitle';
+import {LutVideo} from '../components/LutMedia';
 import {NeonText} from '../components/NeonText';
+import type {GradeName} from '../lib/grades';
 import {PACING, SPRING, cameraPush, fr, type Pacing} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
 import type {ScriptScene} from '../lib/script';
-import {theme} from '../lib/theme';
+import type {BackgroundKind} from '../lib/styles';
+import {useTheme} from '../lib/theme';
 
 /**
  * Generic narrated scene: background (gradient, Ken Burns still, graded footage, or a neon 3D
@@ -22,9 +26,15 @@ export const VoiceoverScene: React.FC<{
   readonly accent?: string;
   readonly index?: number;
   readonly pacing?: Pacing;
-  /** Enable WebGL-only polish (film grain). Requires --gl=angle or swangle. */
+  /** Background system for gradient/neon scenes (from the style preset unless the scene overrides it). */
+  readonly background?: BackgroundKind;
+  /** Grade name; with webglExtras, footage is graded through its LUT (exact), otherwise via the parent <Graded>. */
+  readonly grade?: GradeName;
+  /** Enable WebGL-only polish (film grain, LUT on footage). Requires --gl=angle or swangle. */
   readonly webglExtras?: boolean;
-}> = ({scene, audioSrc, accent = theme.colors.accent, index = 0, pacing = 'medium', webglExtras = false}) => {
+}> = ({scene, audioSrc, accent: accentProp, index = 0, pacing = 'medium', background: backgroundKind = 'gradient', grade = 'none', webglExtras = false}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {durationInFrames, fps} = useVideoConfig();
   const {safe, unit, isVertical, isHorizontal} = usePlatformLayout();
@@ -47,11 +57,17 @@ export const VoiceoverScene: React.FC<{
       <KenBurnsImage src={staticFile(visual.src)} focal={visual.focal} />
     ) : visual.type === 'video' && visual.src ? (
       <AbsoluteFill>
-        <Video src={staticFile(visual.src)} muted objectFit="cover" style={{width: '100%', height: '100%', filter: theme.grade}} name="Footage" />
+        {webglExtras && grade !== 'none' ? (
+          <LutVideo src={staticFile(visual.src)} grade={grade} />
+        ) : (
+          <Video src={staticFile(visual.src)} muted objectFit="cover" style={{width: '100%', height: '100%', filter: theme.grade}} name="Footage" />
+        )}
         <AbsoluteFill style={{background: `linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.6) 100%)`}} />
       </AbsoluteFill>
+    ) : isNeon ? (
+      <GradientBackground seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} colors={[theme.colors.bg, theme.colors.surface]} blobs={[accent, theme.colors.accent2]} />
     ) : (
-      <GradientBackground seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} colors={isNeon ? ['#05040A', '#120B2A'] : undefined} blobs={isNeon ? [accent, '#FF2BD6'] : undefined} />
+      <Background kind={backgroundKind} seed={`scene-${index}`} grain={webglExtras ? 0.06 : 0} />
     );
 
   const copy = (

@@ -1,7 +1,7 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../../lib/motion';
-import {theme} from '../../lib/theme';
+import {useTheme} from '../../lib/theme';
 
 export type BarDatum = {readonly label: string; readonly value: number; readonly color?: string};
 
@@ -22,7 +22,9 @@ export const BarChart: React.FC<{
   readonly labelSize?: number;
   readonly showValues?: boolean;
   readonly decimals?: number;
-}> = ({data, width, height, horizontal = false, maxValue, unit = '', delay = 0, stagger = 4, accent = theme.colors.accent, labelSize = 28, showValues = true, decimals = 0}) => {
+}> = ({data, width, height, horizontal = false, maxValue, unit = '', delay = 0, stagger = 4, accent: accentProp, labelSize = 28, showValues = true, decimals = 0}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const max = maxValue ?? Math.max(...data.map((d) => d.value)) * 1.08;

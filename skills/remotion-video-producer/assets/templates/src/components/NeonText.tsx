@@ -1,7 +1,7 @@
 import React from 'react';
 import {interpolate, random, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {SPRING, fr} from '../lib/motion';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Neon sign typography: layered glow, a deterministic "tube ignition" flicker on entry,
@@ -22,7 +22,9 @@ export const NeonText: React.FC<{
   readonly seed?: string;
   readonly uppercase?: boolean;
   readonly style?: React.CSSProperties;
-}> = ({text, color = '#FFFFFF', glow = theme.colors.accent, fontSize = 120, font = 'display', intensity = 1, flickerFrames = 18, extrude = 0, extrudeColor = 'rgba(0,0,0,0.55)', delay = 0, seed = 'neon', uppercase = false, style}) => {
+}> = ({text, color = '#FFFFFF', glow: glowProp, fontSize = 120, font = 'display', intensity = 1, flickerFrames = 18, extrude = 0, extrudeColor = 'rgba(0,0,0,0.55)', delay = 0, seed = 'neon', uppercase = false, style}) => {
+  const theme = useTheme();
+  const glow = glowProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const local = frame - fr(delay, fps);

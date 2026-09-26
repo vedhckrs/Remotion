@@ -2,7 +2,7 @@ import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, SPRING, fr} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
-import {theme} from '../lib/theme';
+import {useTheme} from '../lib/theme';
 
 /**
  * Broadcast-style lower third: accent bar grows, name and role rise out of a mask,
@@ -14,7 +14,9 @@ export const LowerThird: React.FC<{
   readonly accent?: string;
   readonly durationInFrames: number;
   readonly side?: 'left' | 'right';
-}> = ({name, role, accent = theme.colors.accent, durationInFrames, side = 'left'}) => {
+}> = ({name, role, accent: accentProp, durationInFrames, side = 'left'}) => {
+  const theme = useTheme();
+  const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const {safe, unit, isVertical} = usePlatformLayout();

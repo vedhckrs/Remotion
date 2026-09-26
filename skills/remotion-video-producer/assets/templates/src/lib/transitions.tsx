@@ -85,7 +85,7 @@ const GlitchSlamComponent: React.FC<TransitionPresentationComponentProps<GlitchS
     <AbsoluteFill style={{opacity}}>
       {split > 0.5 ? (
         <>
-          <AbsoluteFill style={{translate: `${-split}px 0px`, mixBlendMode: 'screen', filter: 'url(#none)', opacity: 0.6}}>
+          <AbsoluteFill style={{translate: `${-split}px 0px`, mixBlendMode: 'screen', opacity: 0.6}}>
             <AbsoluteFill style={{filter: 'sepia(1) saturate(6) hue-rotate(-50deg)'}}>{children}</AbsoluteFill>
           </AbsoluteFill>
           <AbsoluteFill style={{translate: `${split}px 0px`, mixBlendMode: 'screen', opacity: 0.6}}>

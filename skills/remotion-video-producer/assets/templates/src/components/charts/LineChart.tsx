@@ -3,7 +3,7 @@ import {createSmoothSvgPath} from '@remotion/media-utils';
 import {evolvePath, getLength, getPointAtLength} from '@remotion/paths';
 import {interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {EASE, fr} from '../../lib/motion';
-import {theme} from '../../lib/theme';
+import {useTheme} from '../../lib/theme';
 
 /**
  * Line chart that draws itself on: smooth path via createSmoothSvgPath, stroke revealed with
@@ -21,7 +21,9 @@ export const LineChart: React.FC<{
   readonly unit?: string;
   readonly strokeWidth?: number;
   readonly labelSize?: number;
-}> = ({values, labels, width, height, color = theme.colors.accent, delay = 0, drawFrames = 50, area = true, unit = '', strokeWidth = 8, labelSize = 28}) => {
+}> = ({values, labels, width, height, color: colorProp, delay = 0, drawFrames = 50, area = true, unit = '', strokeWidth = 8, labelSize = 28}) => {
+  const theme = useTheme();
+  const color = colorProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const pad = {l: 24, r: labelSize * 3.5, t: labelSize * 1.6, b: labels ? labelSize * 1.8 : 24};
