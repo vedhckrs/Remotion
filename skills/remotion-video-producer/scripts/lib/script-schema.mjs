@@ -7,7 +7,7 @@ import path from 'node:path';
  * {
  *   videoId: string,
  *   title?: string,
- *   voice?: { provider: 'elevenlabs' | 'openai', voiceId?, model?, instructions?, settings? },
+ *   voice?: { provider: 'elevenlabs' | 'openai' | 'macos', voiceId?, model?, instructions?, settings? },
  *   scenes: [{ id, headline, highlight?, subline?, voiceover, visual?, minSeconds? }]
  * }
  */
@@ -34,7 +34,7 @@ export const validateScript = (script) => {
     if (typeof scene.voiceover !== 'string' || !scene.voiceover.trim()) errors.push(`${where}.voiceover is required`);
     if (scene.visual && ['gradient', 'image', 'video'].indexOf(scene.visual.type) === -1) errors.push(`${where}.visual.type must be gradient | image | video`);
   });
-  if (script.voice && ['elevenlabs', 'openai'].indexOf(script.voice.provider) === -1) errors.push('voice.provider must be elevenlabs | openai');
+  if (script.voice && ['elevenlabs', 'openai', 'macos'].indexOf(script.voice.provider) === -1) errors.push('voice.provider must be elevenlabs | openai | macos');
   if (errors.length) throw new Error(`Invalid script:\n - ${errors.join('\n - ')}`);
 };
 

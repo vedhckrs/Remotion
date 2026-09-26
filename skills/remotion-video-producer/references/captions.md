@@ -23,14 +23,14 @@ type Caption = { text: string; startMs: number; endMs: number; timestampMs: numb
 | Source | Command | When |
 |---|---|---|
 | ElevenLabs TTS alignment | produced by `generate-voiceover.mjs` | Voice was generated with ElevenLabs. Exact timing, no ASR errors. |
-| Local Whisper.cpp | `node scripts/transcribe-whisper.mjs public/voiceover/<id> --model medium.en` | Any audio, free, offline. First run downloads Whisper.cpp and the model. Audio is converted to 16 kHz WAV automatically. |
+| Local Whisper.cpp | `node scripts/transcribe-whisper.mjs public/voiceover/<id> --model medium.en` | Any audio, free, offline. First run downloads Whisper.cpp and the model into the shared `~/.cache/remotion-whisper` (about 1.6 GB, once for all projects). On Apple Silicon it runs on Metal, faster than real time. Audio is converted to 16 kHz WAV automatically. |
 | OpenAI Whisper API | `node scripts/transcribe-cloud.mjs --provider openai <audio or folder>` | Fast, punctuation kept by `openAiWhisperApiToCaptions`. |
 | ElevenLabs Scribe | `node scripts/transcribe-cloud.mjs --provider elevenlabs <audio or folder>` | Multilingual, speaker labels; uses `elevenLabsTranscriptToCaptions`. |
 | Existing SRT | `parseSrt({input})` in the component | Client-supplied subtitles. |
 
 All scripts write one `captions.json` per folder with timestamps offset to the composition timeline when a `manifest.json` is present (each scene's captions shifted by the sum of previous scene durations plus gaps). Pass `--gap 0.6` to match the value used in `calculateMetadata`.
 
-Model choice for Whisper.cpp: `medium.en` or `large-v3-turbo` for English quality; `medium` for other languages. Always `tokenLevelTimestamps: true`.
+Model choice for Whisper.cpp: `medium.en` for English (default, works with whisper.cpp 1.5.5 and plain `make`); `large-v3-turbo` for the best accuracy or accents (needs whisper.cpp 1.7.x, which the script selects automatically, plus `cmake` from Homebrew); `medium` or `large-v3` for other languages; `small.en` when drafting on battery. Always `tokenLevelTimestamps: true`.
 
 ## 3. Pages and word highlighting
 

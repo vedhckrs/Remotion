@@ -23,7 +23,7 @@ export type VideoScript = {
   readonly videoId: string;
   readonly title?: string;
   readonly voice?: {
-    readonly provider: 'elevenlabs' | 'openai';
+    readonly provider: 'elevenlabs' | 'openai' | 'macos';
     readonly voiceId?: string;
     readonly model?: string;
     readonly instructions?: string;

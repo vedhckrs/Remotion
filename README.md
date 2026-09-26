@@ -13,6 +13,7 @@ skills/remotion-video-producer/
 │   ├── audio-voiceover.md   TTS providers, voice direction, music ducking, SFX, loudness
 │   ├── captions.md          transcription sources, TikTok-style pages, styling, SRT export
 │   ├── rendering.md         CLI flags, presets, stills, GIF, alpha, Lambda and cloud
+│   ├── local-machine.md     Apple Silicon laptop profile: GL, concurrency, thermals, storage, local Whisper/TTS
 │   └── troubleshooting.md   flicker, fonts, WebGL, media, timeouts
 ├── scripts/                 Node 20+ scripts, no build step
 │   ├── scaffold.sh          new project + packages + templates + config
@@ -20,7 +21,8 @@ skills/remotion-video-producer/
 │   ├── audio-durations.mjs  manifest for voiceover you already have
 │   ├── transcribe-whisper.mjs   local Whisper.cpp to captions
 │   ├── transcribe-cloud.mjs OpenAI Whisper API or ElevenLabs Scribe to captions
-│   ├── render-preset.sh     platform render presets
+│   ├── render-preset.sh     platform render presets, memory-aware concurrency, --hw hardware encoding
+│   ├── machine-check.sh     machine profile, recommended settings, GL render test
 │   └── lib/                 alignment, env, media, script schema helpers
 ├── assets/templates/        starter components that compile against Remotion 4.0.529
 │   ├── remotion.config.ts
@@ -54,6 +56,10 @@ Say `start Remotion` or simply describe the video:
 
 The agent scaffolds a project (`scripts/scaffold.sh`), writes `public/script/<id>.json`, generates voiceover (`ELEVENLABS_API_KEY` or `OPENAI_API_KEY` in `.env`), builds scenes from the templates, adds captions and music, checks safe zones, and renders with `scripts/render-preset.sh`.
 
+## Tuned for
+
+A MacBook Air M5 (10 CPU cores, 8 GPU cores, 16 GB, 512 GB). The config picks ANGLE on Metal for WebGL, 4 render tabs at 1080p and 2 at 4K, software x264 for short finals and VideoToolbox (`--hw`) for long-form, a shared Whisper cache, and a free macOS voice for timing drafts. `scripts/machine-check.sh --render-test Shorts` confirms the profile on any machine; Linux and CI fall back to `swangle` automatically.
+
 ## Requirements
 
-Node 20+, npm (or pnpm / bun / yarn), Chrome is downloaded by Remotion on first render. FFmpeg and FFprobe ship with Remotion. A TTS key for voiceover; none for local Whisper captions.
+Node 20+, npm (or pnpm / bun / yarn). Chrome is downloaded by Remotion on first render. FFmpeg and FFprobe ship with Remotion. A TTS key for the final voiceover (none for macOS `say` drafts); nothing for local Whisper captions; `cmake` only for `large-v3-turbo`.

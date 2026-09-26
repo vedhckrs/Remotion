@@ -85,6 +85,7 @@ echo "Compositions:"
 $RUNX remotion compositions 2>/dev/null | tail -n +1 || true
 echo
 echo "Next:"
+echo "  0. bash $SKILL_DIR/scripts/machine-check.sh --render-test Shorts   # confirm GL backend and concurrency on this machine"
 echo "  1. Edit public/script/<videoId>.json (start from example.json)"
 echo "  2. node $SKILL_DIR/scripts/generate-voiceover.mjs --script public/script/<videoId>.json"
 echo "  3. $RUNX remotion studio --no-open"

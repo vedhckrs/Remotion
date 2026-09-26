@@ -5,7 +5,10 @@
  *   node scripts/generate-voiceover.mjs --script public/script/<videoId>.json [options]
  *
  * Options
- *   --provider elevenlabs|openai   default: script.voice.provider or elevenlabs
+ *   --provider elevenlabs|openai|macos   default: script.voice.provider or elevenlabs
+ *                                  macos = the built-in `say` command (free, offline, macOS only).
+ *                                  Use it to lock timing and pacing before spending TTS credits;
+ *                                  swap to elevenlabs for the final. `say -v '?'` lists voices.
  *   --voice <id>                   override voice id / name
  *   --model <id>                   override model id
  *   --gap 0.6                      seconds of air after each line (must match the composition)
@@ -16,12 +19,13 @@
  *   --dry-run                      print what would be generated
  *
  * Output: <out>/<sceneId>.mp3, <out>/manifest.json, <out>/captions.json (when word timing is available)
- * Env: ELEVENLABS_API_KEY or OPENAI_API_KEY (read from .env in the project root).
+ * Env: ELEVENLABS_API_KEY or OPENAI_API_KEY (read from .env in the project root). None for macos.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {loadEnv, parseArgs, requireEnv} from './lib/env.mjs';
-import {getDurationSeconds, trimSilence} from './lib/media.mjs';
+import {ffmpeg, getDurationSeconds, trimSilence} from './lib/media.mjs';
 import {loadScript, readManifest, sceneStarts, writeJson} from './lib/script-schema.mjs';
 import {elevenLabsAlignmentToCaptions, shiftCaptions} from './lib/alignment.mjs';
 
@@ -29,7 +33,7 @@ loadEnv();
 const args = parseArgs(process.argv.slice(2));
 
 if (!args.script) {
-  console.error('Usage: node scripts/generate-voiceover.mjs --script public/script/<videoId>.json [--provider elevenlabs|openai] [--only scene-01] [--gap 0.6] [--trim]');
+  console.error('Usage: node scripts/generate-voiceover.mjs --script public/script/<videoId>.json [--provider elevenlabs|openai|macos] [--only scene-01] [--gap 0.6] [--trim]');
   process.exit(1);
 }
 
@@ -55,6 +59,11 @@ const DEFAULTS = {
     model: 'gpt-4o-mini-tts',
     instructions: 'Confident, warm creator voice. Conversational pace, crisp consonants, natural emphasis on key words, no vocal fry.',
   },
+  macos: {
+    voiceId: 'Samantha', // Download "Enhanced"/"Premium" voices in System Settings > Accessibility > Spoken Content for better quality (e.g. Ava, Zoe, Evan).
+    model: 'say',
+    rate: 180, // words per minute; 170-190 reads like a creator voice
+  },
 };
 
 const voiceId = args.voice || script.voice?.voiceId || DEFAULTS[provider].voiceId;
@@ -69,6 +78,8 @@ const withRetry = async (fn, label) => {
       return await fn();
     } catch (error) {
       lastError = error;
+      // Auth, quota-config and validation errors do not fix themselves; surface them immediately.
+      if (/\b(400|401|402|403|404|422)\b|only works on macOS/.test(error.message)) throw error;
       const wait = 1500 * attempt;
       console.warn(`  ${label}: attempt ${attempt} failed (${error.message}). Retrying in ${wait} ms`);
       await sleep(wait);
@@ -118,11 +129,37 @@ const generateOpenAI = async (scene) => {
   return {audio: Buffer.from(await res.arrayBuffer()), captions: null, extension: 'mp3'};
 };
 
-const generators = {elevenlabs: generateElevenLabs, openai: generateOpenAI};
+const generateMacOS = async (scene) => {
+  if (process.platform !== 'darwin') {
+    throw new Error('The macos provider uses the built-in `say` command and only works on macOS. Use --provider elevenlabs or openai here.');
+  }
+  const rate = Number(args.rate ?? script.voice?.settings?.rate ?? DEFAULTS.macos.rate);
+  const aiff = path.join(outDir, `${scene.id}.tmp.aiff`);
+  const mp3 = path.join(outDir, `${scene.id}.tmp.mp3`);
+  const say = spawnSync('say', ['-v', voiceId, '-r', String(rate), '-o', aiff, scene.voiceover], {encoding: 'utf8'});
+  if (say.status !== 0) throw new Error(`say failed (voice "${voiceId}"?): ${say.stderr || say.stdout}. List voices with: say -v '?'`);
+  const enc = ffmpeg(['-y', '-i', aiff, '-ar', '44100', '-codec:a', 'libmp3lame', '-q:a', '2', mp3]);
+  if (enc.status !== 0) throw new Error(`ffmpeg failed to encode ${aiff}: ${enc.stderr}`);
+  const audio = fs.readFileSync(mp3);
+  fs.unlinkSync(aiff);
+  fs.unlinkSync(mp3);
+  return {audio, captions: null, extension: 'mp3'};
+};
+
+const generators = {elevenlabs: generateElevenLabs, openai: generateOpenAI, macos: generateMacOS};
 if (!generators[provider]) {
-  console.error(`Unknown provider "${provider}". Use elevenlabs or openai, or add a generator in this file.`);
+  console.error(`Unknown provider "${provider}". Use elevenlabs, openai or macos, or add a generator in this file.`);
   process.exit(1);
 }
+if (provider === 'macos' && process.platform !== 'darwin' && !args['dry-run']) {
+  console.error('The macos provider uses the built-in `say` command and only works on macOS. Use --provider elevenlabs or openai here.');
+  process.exit(1);
+}
+process.on('unhandledRejection', (error) => {
+  console.error(`\nVoiceover failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error('Fix the cause and rerun; scenes already written are kept and can be skipped with --only <ids>.');
+  process.exit(1);
+});
 
 console.log(`Voiceover for "${script.videoId}" via ${provider} (voice ${voiceId}, model ${model}) -> ${path.relative(process.cwd(), outDir)}`);
 
@@ -168,7 +205,8 @@ if (manifestScenes.every((s) => s.captions)) {
   writeJson(path.join(outDir, 'captions.json'), all);
   console.log(`Wrote captions.json (${all.length} words)`);
 } else if (!args['dry-run']) {
-  console.log('No word timing from this provider. Run scripts/transcribe-whisper.mjs or transcribe-cloud.mjs on the output folder for captions.');
+  console.log(`No word timing from ${provider}. For captions run: node scripts/transcribe-whisper.mjs ${path.relative(process.cwd(), outDir)}`);
+  if (provider === 'macos') console.log('macos voices are for timing drafts; regenerate with --provider elevenlabs for the final.');
 }
 
 const total = manifestScenes.reduce((sum, s) => sum + s.durationSeconds + gap, 0);

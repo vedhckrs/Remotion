@@ -12,13 +12,14 @@ Table of contents
 
 ## 1. Presets
 
-`scripts/render-preset.sh <composition-id> <preset> [extra flags]` wraps `npx remotion render`:
+`scripts/render-preset.sh <composition-id> <preset> [--hw] [extra flags]` wraps `npx remotion render`, adds `--concurrency` from the machine's cores and memory (4 on a 16 GB laptop, 2 for 4K), and with `--hw` replaces CRF with `--hardware-acceleration=if-possible --video-bitrate` (VideoToolbox on macOS, NVENC on NVIDIA):
 
 | Preset | Flags | Output |
 |---|---|---|
-| `youtube-1080p` | `--codec=h264 --crf=16 --color-space=bt709 --pixel-format=yuv420p --audio-codec=aac --audio-bitrate=320k --x264-preset=slow` | `out/<id>_youtube_1920x1080.mp4` |
-| `youtube-4k` | as above plus `--scale=2` when the composition is 1080p, `--crf=17` | `out/<id>_youtube_3840x2160.mp4` |
-| `shorts` / `reels` / `facebook` | `--codec=h264 --crf=17 --color-space=bt709 --pixel-format=yuv420p --audio-codec=aac --audio-bitrate=256k --x264-preset=medium` | `out/<id>_<platform>_1080x1920.mp4` |
+| `youtube-1080p` | `--codec=h264 --crf=16 --x264-preset=slow --color-space=bt709 --pixel-format=yuv420p --audio-codec=aac --audio-bitrate=320k`; `--hw`: 16 Mbps | `out/<id>_youtube_1920x1080.mp4` |
+| `youtube-4k` | as above plus `--scale=2`, `--crf=17`, half concurrency; `--hw`: 60 Mbps | `out/<id>_youtube_3840x2160.mp4` |
+| `shorts` / `reels` / `stories` / `facebook` | `--codec=h264 --crf=17 --x264-preset=medium ... --audio-bitrate=256k`; `--hw`: 14 Mbps | `out/<id>_<platform>_1080x1920.mp4` |
+| `feed` | same at 1080x1350; `--hw`: 12 Mbps | `out/<id>_feed_1080x1350.mp4` |
 | `preview` | `--crf=28 --scale=0.5 --x264-preset=ultrafast --jpeg-quality=70` | quick check |
 | `prores` | `--codec=prores --prores-profile=4444 --image-format=png --pixel-format=yuva444p10le` | editor handoff / alpha |
 
@@ -60,6 +61,8 @@ npx remotion render <id> <out> \
 - `--color-space=bt709` keeps Studio colors and the MP4 identical; without it Remotion tags BT.601 and reds shift. Pair with `--image-format=png` when exact color matters (slower).
 - `yuv420p` is required for compatibility everywhere; only use 4:2:2 / 4:4:4 or 10-bit for ProRes handoffs.
 - `--scale=2` on a 1080p composition gives a true 4K capture (text stays crisp) at roughly 3 to 4 times render time.
+- Hardware encoding (`--hardware-acceleration=if-possible`): VideoToolbox on macOS, NVENC on Linux/Windows with NVIDIA, for H.264, H.265 and ProRes. CRF cannot be combined with it, so set `--video-bitrate` (8 Mbps matches software file sizes at 1080p; the presets use 14 to 16 Mbps for headroom, 60 Mbps for 4K). Files are larger and compression slightly less efficient, but encoding stops being the bottleneck and the CPU stays cool on a laptop. Not available on Lambda or Cloud Run. Verify with `--log=verbose` ("hardware accelerated: true").
+- Concurrency: memory bound. Chrome tabs each hold a frame plus media; on 16 GB use 4 for 1080p and 2 for 4K or heavy WebGL. The config template computes `min(cores / 2, memoryGB / 4)`.
 - Audio: AAC-LC 48 kHz, 256 to 320 kbps stereo.
 - HDR: Remotion renders SDR from the browser; deliver SDR. For an HDR mezzanine use ProRes and grade externally.
 - H.265 / AV1: smaller files, slower encodes, some upload pipelines reject them. Deliver H.264 unless asked.
@@ -108,7 +111,7 @@ Alternatives: Cloud Run (GCP, `@remotion/cloudrun`, longer renders), Vercel sand
 
 ## 7. Performance
 
-- Concurrency: default is half the CPU cores; raise to `--concurrency=100%` on a render box, lower when the machine swaps.
+- Concurrency: Remotion's default is half the CPU cores, which overcommits memory on a 16 GB laptop; the config template caps it by memory. Raise toward `--concurrency=100%` only on a render box with 4 GB or more per core, lower when the machine swaps.
 - Video-heavy compositions: `<Video>` from `@remotion/media` decodes with Mediabunny (fast); avoid many simultaneous 4K sources; downscale sources to the canvas size.
 - WebGL effects and `HtmlInCanvas` cost 2 to 5 times; motion blur multiplies by `samples`.
 - Fonts: load once at module level; do not load in every scene.

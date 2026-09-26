@@ -25,6 +25,10 @@ Pick the production lane:
 
 Confirm the brief items you cannot infer, but do not block on them. Reasonable defaults: 30 fps, 1080x1920 for vertical, 1920x1080 for horizontal, ElevenLabs for voice, Inter or a brand font, 20 to 45 s for Shorts/Reels, 3 to 8 min for long-form.
 
+## Local machine profile
+
+The default target is a fanless Apple Silicon laptop (MacBook Air M5, 10 CPU cores, 8 GPU cores, 16 GB unified memory, 512 GB SSD). The config template detects the machine at startup and sets `angle` (ANGLE on Metal) for WebGL and a concurrency of `min(cores / 2, memoryGB / 4)`, which is 4 tabs on 16 GB. Run `scripts/machine-check.sh --render-test <composition>` once per project to confirm the backend and timing on the real hardware. Memory, not cores, is the limit: quit Studio during finals, use 2 tabs for 4K, and prefer the `--hw` VideoToolbox mode of the preset script for long-form so the CPU stays cool. Whisper models and binaries live in a shared cache under `~/.cache/remotion-whisper` so projects stay small on the 512 GB drive. Details, storage budget and time estimates are in `references/local-machine.md`.
+
 ## The pipeline
 
 ### Phase 1 - Project
@@ -44,7 +48,7 @@ Pacing rules that separate professional cuts from amateur ones:
 
 ### Phase 3 - Voiceover
 
-Run `scripts/generate-voiceover.mjs --script public/script/<id>.json --provider elevenlabs|openai`. It writes one MP3 per scene to `public/voiceover/<id>/`, a `manifest.json` with durations in seconds, and (ElevenLabs) word-level `captions.json` from the timestamp alignment, so no transcription step is needed. Requires `ELEVENLABS_API_KEY` or `OPENAI_API_KEY` in `.env`; never paste keys into chat or code.
+Run `scripts/generate-voiceover.mjs --script public/script/<id>.json --provider elevenlabs|openai|macos`. `macos` uses the free system voice to lock timing before spending credits; regenerate with ElevenLabs for the final. It writes one MP3 per scene to `public/voiceover/<id>/`, a `manifest.json` with durations in seconds, and (ElevenLabs) word-level `captions.json` from the timestamp alignment, so no transcription step is needed. Requires `ELEVENLABS_API_KEY` or `OPENAI_API_KEY` in `.env`; never paste keys into chat or code.
 
 Voice direction matters as much as the model: pick the voice by genre (see `references/audio-voiceover.md`), set `stability` around 0.4 to 0.55 for narration, and write the script with punctuation that produces natural pauses. Regenerate a single scene with `--only scene-03`.
 
@@ -87,7 +91,7 @@ Run through this list before rendering; each item is a common reason a client re
 
 ### Phase 8 - Render and deliver
 
-Use `scripts/render-preset.sh <composition-id> <preset>` with presets `youtube-1080p`, `youtube-4k`, `shorts`, `reels`, `stories`, `facebook`, `feed`, `preview`, `prores`. Presets set codec H.264, CRF 16 to 18, `--color-space=bt709`, AAC 256 to 320 kbps, `yuv420p`. Export `REMOTION_GL=swangle` first on any machine without a GPU (Docker, CI, cloud sandboxes); the config file and the script both honor it. Full flag reference and Lambda / cloud rendering are in `references/rendering.md`. Deliver every requested format from the same project; do not re-author scenes per platform.
+Use `scripts/render-preset.sh <composition-id> <preset> [--hw]` with presets `youtube-1080p`, `youtube-4k`, `shorts`, `reels`, `stories`, `facebook`, `feed`, `preview`, `prores`. Presets set codec H.264, CRF 16 to 18, `--color-space=bt709`, AAC 256 to 320 kbps, `yuv420p`, and pick concurrency from the machine's memory. `--hw` switches to VideoToolbox hardware encoding with a bitrate, the right choice for long-form and repeated drafts on the laptop; software CRF stays the choice for short finals. Export `REMOTION_GL=swangle` first on any machine without a GPU (Docker, CI, cloud sandboxes); the config file and the script both honor it. Full flag reference and Lambda / cloud rendering are in `references/rendering.md`. Deliver every requested format from the same project; do not re-author scenes per platform.
 
 Name outputs `<video-id>_<platform>_<WxH>.mp4` in `out/`. Also render a 1280x720 or 1080x1920 thumbnail still if the platform benefits from one (YouTube always does).
 
@@ -111,7 +115,8 @@ Scripts (`scripts/`, Node 20+, no build step):
 - `audio-durations.mjs` - durations manifest for voiceover you were given.
 - `transcribe-whisper.mjs` - local Whisper.cpp to `Caption[]` JSON.
 - `transcribe-cloud.mjs` - OpenAI Whisper API or ElevenLabs Scribe to `Caption[]` JSON.
-- `render-preset.sh` - platform render presets.
+- `render-preset.sh` - platform render presets with machine-aware concurrency and a `--hw` hardware-encoding mode.
+- `machine-check.sh` - prints the machine profile and recommended settings; `--render-test <id>` proves the GL backend.
 - `lib/alignment.mjs`, `lib/script-schema.mjs` - shared helpers.
 
 Templates (`assets/templates/`): `remotion.config.ts`, `src/lib/platforms.ts`, `src/lib/motion.ts`, `src/components/*.tsx`, `src/scenes/*.tsx`, `src/compositions/SocialVideo.tsx`, `src/Root.example.tsx`, `public/script/example.json`. They type-check, lint and render against Remotion 4.0.529 (verified with `npx remotion render` on `angle` and `swangle`). Copy, then adapt; do not import from the skill directory.
@@ -124,6 +129,7 @@ References (`references/`), read when:
 - `audio-voiceover.md` - TTS provider choice and settings, music, ducking, SFX, audio visualization, loudness.
 - `captions.md` - transcription options, caption styling, sync fixes.
 - `rendering.md` - CLI flags, quality presets, stills, GIFs, transparent video, Lambda and other cloud renders.
+- `local-machine.md` - Apple Silicon laptop profile: GL, concurrency, hardware encoding, memory, thermals, storage budget, local Whisper and TTS.
 - `troubleshooting.md` - flicker, fonts, WebGL, media decode errors, timeouts, Studio quirks.
 
 If a Remotion API is not covered here, fetch the current doc page as Markdown by appending `.md` to its URL (for example `https://www.remotion.dev/docs/spring.md`) instead of trusting memory. The API moves fast.

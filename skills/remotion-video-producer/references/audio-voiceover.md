@@ -13,6 +13,7 @@ Table of contents
 
 ## 1. Script -> voiceover workflow
 
+0. On a laptop with no keys handy, draft first: `--provider macos` produces a full timed voiceover in seconds so layout and pacing can be built; the final ElevenLabs pass swaps the audio and adds word alignment without touching the scenes.
 1. Write `public/script/<video-id>.json` (schema in `scripts/lib/script-schema.mjs`, example in `assets/templates/public/script/example.json`): `{ videoId, voice: {provider, voiceId, model, settings}, scenes: [{id, headline, voiceover, visual, minSeconds}] }`.
 2. `node scripts/generate-voiceover.mjs --script public/script/<video-id>.json` (defaults to ElevenLabs). Output in `public/voiceover/<video-id>/`:
    - `scene-01.mp3`, `scene-02.mp3`, ...
@@ -31,7 +32,8 @@ If voiceover was recorded by a human: drop the files in `public/voiceover/<video
 | OpenAI | Fast, cheap, good "instructable" delivery | `gpt-4o-mini-tts` (accepts `instructions` for tone, accent, pace), `tts-1-hd` | No (transcribe afterwards with Whisper) | `OPENAI_API_KEY`; voices `alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse, marin, cedar` |
 | Google Cloud TTS / Gemini TTS | Many languages, SSML control | `gemini-2.5-pro-tts`, Neural2, Journey | SSML marks only | Add a provider in `generate-voiceover.mjs` following the OpenAI branch |
 | Azure Neural | Enterprise, SSML, many Indian languages | `en-IN-*`, `hi-IN-*` Neural voices | Word boundary events via SDK | Same |
-| Local (Kokoro, Piper, XTTS) | Offline, free | varies | No | Run locally, output WAV, then `audio-durations.mjs` |
+| macOS `say` (built in) | Free, instant timing drafts on a Mac | any installed system voice (`say -v '?'`); Enhanced/Premium voices downloadable in System Settings | No (transcribe or regenerate with ElevenLabs) | `--provider macos`; lock pacing and scene lengths before spending credits |
+| Local neural (Kokoro via mlx-audio, Piper, XTTS) | Offline, free, runs well on Apple Silicon | varies | No | Output WAV named by scene id, then `audio-durations.mjs` |
 
 Any provider works as long as it produces one audio file per scene.
 

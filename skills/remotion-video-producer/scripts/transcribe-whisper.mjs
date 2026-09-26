@@ -3,15 +3,22 @@
  * Transcribe audio locally with Whisper.cpp into Remotion Caption[] JSON.
  *
  *   node scripts/transcribe-whisper.mjs <file-or-folder> [--model medium.en] [--gap 0.6] [--offset -40] [--replace "remotion=Remotion,ai=AI"]
+ *                                       [--whisper-dir ~/.cache/remotion-whisper] [--whisper-version 1.5.5]
+ *
+ * Whisper.cpp and models live in ONE shared cache (default ~/.cache/remotion-whisper, or WHISPER_DIR)
+ * instead of every project, which matters on a 512 GB laptop: medium.en alone is ~1.5 GB.
+ * On Apple Silicon whisper.cpp uses Metal automatically; medium.en runs faster than real time.
+ * Models: tiny/base/small/medium (+ .en variants), large-v3, large-v3-turbo (needs whisper.cpp >= 1.7.x and cmake).
  *
  * - A folder with manifest.json: every scene is transcribed, per-scene captions are stored in the
  *   manifest and an absolute captions.json is written using the manifest gap.
  * - A single file: writes <file>.captions.json next to it.
  *
  * Requires @remotion/install-whisper-cpp in the project: npx remotion add @remotion/install-whisper-cpp
- * First run downloads Whisper.cpp and the model into ./whisper.cpp (gitignore it).
+ * First run downloads Whisper.cpp and the model into the shared cache; later runs reuse them.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {parseArgs} from './lib/env.mjs';
@@ -36,8 +43,10 @@ try {
 }
 
 const model = args.model || 'medium.en';
-const version = '1.7.4';
-const whisperPath = path.join(process.cwd(), 'whisper.cpp');
+// 1.5.5 builds with plain make everywhere; large-v3-turbo needs a newer whisper.cpp, which needs cmake (brew install cmake).
+const version = args['whisper-version'] || (model.indexOf('large-v3-turbo') === 0 ? '1.7.4' : '1.5.5');
+const whisperPath = path.resolve(args['whisper-dir'] || process.env.WHISPER_DIR || path.join(os.homedir(), '.cache', 'remotion-whisper'));
+fs.mkdirSync(whisperPath, {recursive: true});
 const offsetMs = Number(args.offset ?? 0);
 const replacements = {};
 if (args.replace) {
@@ -47,7 +56,7 @@ if (args.replace) {
   }
 }
 
-console.log(`Installing Whisper.cpp ${version} and model ${model} (cached after the first run)...`);
+console.log(`Whisper.cpp ${version} + model ${model} in ${whisperPath} (downloaded once, shared by all projects)...`);
 await whisper.installWhisperCpp({to: whisperPath, version});
 await whisper.downloadWhisperModel({model, folder: whisperPath});
 

@@ -59,7 +59,17 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 - `npx remotion versions` shows the mismatch; fix with `npx remotion upgrade` or align all packages to one exact version. Always add packages with `npx remotion add`.
 
 ## Slow renders
-- Reduce `samples` on motion blur, avoid full-frame `HtmlInCanvas` when CSS suffices, downscale source media, render at `--scale=0.5` for previews, increase `--concurrency` on machines with RAM to spare, and use Lambda for anything over a few minutes of 1080p.
+- Reduce `samples` on motion blur, avoid full-frame `HtmlInCanvas` when CSS suffices, downscale source media, render at `--scale=0.5` for previews, increase `--concurrency` only on machines with RAM to spare, and use Lambda for anything over a few minutes of 1080p.
+- On a 16 GB laptop the render gets slower when concurrency goes above 4, not faster: Chrome tabs start swapping. Check Activity Monitor memory pressure; drop to 3, add `--disallow-parallel-encoding`, quit Studio.
+- Fanless MacBook Air: a render that starts fast and slows after 10 minutes is thermal throttling. Plug in, use `--hw` (VideoToolbox) or `--x264-preset=medium`, and prefer several shorter renders over one long one.
+
+## `--hw` / hardware acceleration produced a large file or was ignored
+- Hardware encoders take a bitrate, not CRF; the preset script sets 12 to 16 Mbps for 1080p and 60 Mbps for 4K. Lower with `--video-bitrate=8M` if size matters more than headroom.
+- "hardware accelerated: false" in `--log=verbose` means the codec or platform is unsupported (Lambda, Cloud Run); the render falls back to software with `if-possible`.
+- On Linux or Windows without an NVIDIA GPU, `--hardware-acceleration=if-possible` still selects `h264_nvenc` and FFmpeg then fails with "Error while opening encoder". The preset script checks for `nvidia-smi` and drops `--hw` on such machines; when calling `npx remotion render` directly, omit the flag there. macOS always has VideoToolbox.
+
+## Disk full on a 512 GB laptop
+- `out/` masters, `node_modules/.cache`, per-project Whisper installs and duplicate headless Chrome copies are the usual culprits. Move the Whisper cache to `~/.cache/remotion-whisper` (the transcribe script's default), delete `out/*.mp4` after upload, and archive 4K masters to an external SSD. Keep 30 GB free.
 
 ## ElevenLabs / OpenAI script errors
 - 401: key missing from `.env` (`ELEVENLABS_API_KEY`, `OPENAI_API_KEY`); the scripts read `.env` from the project root.
