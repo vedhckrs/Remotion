@@ -24,13 +24,15 @@ const gl: Gl =
   (process.env.CI ? 'swangle' : process.platform === 'linux' ? 'swangle' : 'angle');
 Config.setChromiumOpenGlRenderer(gl);
 
-// ---- Concurrency ---------------------------------------------------------------------------
-// Each Chrome tab holds a full frame plus decoded media; on 16 GB, 4 tabs at 1080p is the sweet
-// spot (more tabs swap and get slower, not faster). Rule: min(cores / 2, memory GB / 4).
+// ---- Concurrency and performance budget ------------------------------------------------------
+// REMOTION_BUDGET is the share of the machine a render may take (default 50%), so other work stays
+// responsive. Chrome tabs = cores * budget, capped by memory (each tab holds a frame plus decoded
+// media; on 16 GB, 4 tabs at 1080p is the practical ceiling). 50% on 10 cores / 16 GB = 4 tabs.
 // Override with REMOTION_CONCURRENCY=n or --concurrency=n. Use 2 for 4K or heavy WebGL scenes.
 const cores = os.cpus().length || 4;
 const memoryGb = os.totalmem() / 1024 ** 3;
-const recommendedConcurrency = Math.max(1, Math.min(Math.floor(cores / 2), Math.floor(memoryGb / 4)));
+const budget = Math.min(100, Math.max(10, Number(process.env.REMOTION_BUDGET) || 50)) / 100;
+const recommendedConcurrency = Math.max(1, Math.min(Math.floor(cores * budget), Math.floor(memoryGb / 4)));
 Config.setConcurrency(Number(process.env.REMOTION_CONCURRENCY) || recommendedConcurrency);
 
 // ---- Color and capture ---------------------------------------------------------------------

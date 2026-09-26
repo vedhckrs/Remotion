@@ -1,5 +1,16 @@
 import type {Caption} from '@remotion/captions';
 import {staticFile} from 'remotion';
+import type {GradeName} from './grades';
+import type {Pacing} from './motion';
+import type {LogoCorner} from './platforms';
+
+/** Data for an infographic scene. */
+export type ChartSpec = {
+  readonly kind: 'bar' | 'line' | 'donut' | 'stat';
+  readonly title?: string;
+  readonly unit?: string;
+  readonly data: readonly {readonly label: string; readonly value: number; readonly color?: string}[];
+};
 
 /** One scene of the script. Mirrors scripts/lib/script-schema.mjs. */
 export type ScriptScene = {
@@ -11,20 +22,28 @@ export type ScriptScene = {
   readonly voiceover: string;
   /** Visual intent for this scene. */
   readonly visual?: {
-    readonly type: 'gradient' | 'image' | 'video';
+    readonly type: 'gradient' | 'image' | 'video' | 'chart' | 'neon';
     readonly src?: string;
     readonly focal?: readonly [number, number];
+    readonly chart?: ChartSpec;
   };
   /** Minimum on-screen seconds even when the voice line is shorter. */
   readonly minSeconds?: number;
+  /** Per-scene delivery hint for TTS (v3 audio tag or instruction). */
+  readonly delivery?: string;
 };
 
 export type VideoScript = {
   readonly videoId: string;
   readonly title?: string;
+  readonly pacing?: Pacing;
+  readonly grade?: GradeName;
+  readonly logo?: {readonly src?: string; readonly text?: string; readonly corner?: LogoCorner} | null;
+  readonly music?: {readonly src?: string; readonly mood?: string; readonly level?: number} | null;
   readonly voice?: {
     readonly provider: 'elevenlabs' | 'openai' | 'macos';
     readonly voiceId?: string;
+    readonly preset?: string;
     readonly model?: string;
     readonly instructions?: string;
     readonly settings?: Record<string, number | boolean>;

@@ -12,7 +12,7 @@ Table of contents
 
 ## 1. Presets
 
-`scripts/render-preset.sh <composition-id> <preset> [--hw] [extra flags]` wraps `npx remotion render`, adds `--concurrency` from the machine's cores and memory (4 on a 16 GB laptop, 2 for 4K), and with `--hw` replaces CRF with `--hardware-acceleration=if-possible --video-bitrate` (VideoToolbox on macOS, NVENC on NVIDIA):
+`scripts/render-preset.sh <composition-id> <preset> [--4k] [--hw] [--budget 50] [--background] [extra flags]` wraps `npx remotion render`. `--budget` (default 50 percent) sets `--concurrency` = cores x budget capped by memory / 4 and runs the render under `nice -n 10`; `--4k` captures at scale 2 (the default master: 2160x3840 vertical, 3840x2160 horizontal at the composition's 60 fps) and halves concurrency; `--hw` replaces CRF with `--hardware-acceleration=if-possible --video-bitrate` (VideoToolbox on macOS, NVENC on NVIDIA); `--background` (macOS) adds `taskpolicy -b`. The dashboard queues the same presets through the Node API with live progress:
 
 | Preset | Flags | Output |
 |---|---|---|

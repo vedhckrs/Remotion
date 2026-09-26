@@ -1,6 +1,6 @@
 # Remotion Video Producer skill
 
-An agent skill for building high-end programmatic video with [Remotion](https://www.remotion.dev): YouTube long-form and Shorts, Instagram Reels / Feed / Stories, Facebook Reels / Feed. It gives Claude Code (or any agent that reads `SKILL.md` files) a full production pipeline: brief to script, AI voiceover, motion design, word-level captions, music ducking, platform safe zones, multi-format rendering and a QA pass.
+An agent skill for building high-end programmatic video with [Remotion](https://www.remotion.dev): YouTube long-form and Shorts, Instagram Reels / Feed / Stories, Facebook Reels / Feed, delivered as 4K 60 fps masters from one project. It gives Claude Code (or any agent that reads `SKILL.md` files) a full production pipeline: Markdown script to scene JSON, ElevenLabs voiceover with frame-accurate word sync, viral caption styles, kinetic typography, a 3D camera rig and neon looks, animated infographics, color grades and LUTs, logo safe slots, music beds with ducking, and a local dashboard that renders on a 50 percent machine budget so you keep working. Everything is code: no AI video generation.
 
 ```
 skills/remotion-video-producer/
@@ -12,22 +12,28 @@ skills/remotion-video-producer/
 │   ├── visual-design.md     typography, color, backgrounds, footage and AI-asset treatment
 │   ├── audio-voiceover.md   TTS providers, voice direction, music ducking, SFX, loudness
 │   ├── captions.md          transcription sources, TikTok-style pages, styling, SRT export
-│   ├── rendering.md         CLI flags, presets, stills, GIF, alpha, Lambda and cloud
-│   ├── local-machine.md     Apple Silicon laptop profile: GL, concurrency, thermals, storage, local Whisper/TTS
+│   ├── rendering.md         CLI flags, presets, 4K60, stills, GIF, alpha, Lambda and cloud
+│   ├── local-machine.md     Apple Silicon laptop profile: 50% budget, GL, thermals, storage, local Whisper/TTS
+│   ├── dashboard.md         the local control room and its API
+│   ├── ecosystem.md         researched plugins and sources: libraries, captions, transitions, voices, LUTs, music
 │   └── troubleshooting.md   flicker, fonts, WebGL, media, timeouts
 ├── scripts/                 Node 20+ scripts, no build step
 │   ├── scaffold.sh          new project + packages + templates + config
-│   ├── generate-voiceover.mjs   ElevenLabs (with word timestamps) or OpenAI TTS per scene
+│   ├── analyze-script.mjs   Markdown script to scene JSON (headlines, highlights, charts, pacing)
+│   ├── generate-voiceover.mjs   ElevenLabs (word timestamps, voice presets) / OpenAI / macOS say per scene
+│   ├── generate-music.mjs   ElevenLabs Music bed of exact length, or free-library guidance
+│   ├── make-lut.mjs         seven .cube LUTs matching the CSS grades
 │   ├── audio-durations.mjs  manifest for voiceover you already have
 │   ├── transcribe-whisper.mjs   local Whisper.cpp to captions
 │   ├── transcribe-cloud.mjs OpenAI Whisper API or ElevenLabs Scribe to captions
-│   ├── render-preset.sh     platform render presets, memory-aware concurrency, --hw hardware encoding
+│   ├── render-preset.sh     platform presets: --4k masters, --hw encoding, --budget, nice
 │   ├── machine-check.sh     machine profile, recommended settings, GL render test
 │   └── lib/                 alignment, env, media, script schema helpers
-├── assets/templates/        starter components that compile against Remotion 4.0.529
+├── assets/dashboard/        local control room (server.mjs + index.html), installed to tools/dashboard
+├── assets/templates/        starter components that compile and render against Remotion 4.0.529 at 60 fps
 │   ├── remotion.config.ts
 │   ├── public/script/example.json
-│   └── src/ (lib/platforms, lib/motion, lib/theme, lib/script, components/*, scenes/*, compositions/SocialVideo, Root.example)
+│   └── src/ (lib: platforms, motion, theme, script, grades, transitions; components incl. NeonText, Camera3D, charts, CaptionLayer, LogoBadge, LutMedia; scenes: VoiceoverScene, InfographicScene; compositions/SocialVideo; Root.example)
 └── evals/evals.json         test prompts for the skill-creator loop
 ```
 
@@ -54,11 +60,11 @@ Say `start Remotion` or simply describe the video:
 - "Turn this 6-minute explainer outline into a 16:9 YouTube video with chapter cards and a lower third for the host."
 - "Render this composition for Reels, Shorts and Facebook Feed with safe zones respected."
 
-The agent scaffolds a project (`scripts/scaffold.sh`), writes `public/script/<id>.json`, generates voiceover (`ELEVENLABS_API_KEY` or `OPENAI_API_KEY` in `.env`), builds scenes from the templates, adds captions and music, checks safe zones, and renders with `scripts/render-preset.sh`.
+The agent scaffolds a project (`scripts/scaffold.sh`), writes the script as Markdown and converts it with `npm run analyze`, generates voiceover (`ELEVENLABS_API_KEY` in `.env`, or the free macOS voice for drafts), builds scenes from the templates, adds captions and music, checks safe zones, and renders 4K60 masters with `npm run render -- <Composition> <preset> --4k` or from the dashboard at `npm run dashboard` (http://localhost:4545).
 
 ## Tuned for
 
-A MacBook Air M5 (10 CPU cores, 8 GPU cores, 16 GB, 512 GB). The config picks ANGLE on Metal for WebGL, 4 render tabs at 1080p and 2 at 4K, software x264 for short finals and VideoToolbox (`--hw`) for long-form, a shared Whisper cache, and a free macOS voice for timing drafts. `scripts/machine-check.sh --render-test Shorts` confirms the profile on any machine; Linux and CI fall back to `swangle` automatically.
+A MacBook Air M5 (10 CPU cores, 8 GPU cores, 16 GB, 512 GB) that keeps doing other work while it renders: a 50 percent machine budget by default (4 tabs at 1080p, 2 at 4K, `nice -n 10`), ANGLE on Metal for WebGL, software x264 for short finals and VideoToolbox (`--hw`) for long-form, a shared Whisper cache, and a free macOS voice for timing drafts. `npm run machine-check` confirms the profile on any machine; Linux and CI fall back to `swangle` automatically.
 
 ## Requirements
 

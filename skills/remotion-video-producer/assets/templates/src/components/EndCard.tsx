@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {EASE, SPRING, idleFloat} from '../lib/motion';
+import {EASE, SPRING, fr, idleFloat} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
 import {theme} from '../lib/theme';
 import {GradientBackground} from './GradientBackground';
@@ -19,9 +19,9 @@ export const EndCard: React.FC<{
   const {safe, unit, isVertical} = usePlatformLayout();
 
   const logo = spring({frame, fps, config: SPRING.heavy});
-  const title = spring({frame, fps, delay: 8, config: SPRING.soft});
-  const pill = spring({frame, fps, delay: 16, config: SPRING.bouncy});
-  const shimmer = interpolate(frame % 60, [0, 60], [-120, 220], {easing: EASE.inOut});
+  const title = spring({frame, fps, delay: fr(8, fps), config: SPRING.soft});
+  const pill = spring({frame, fps, delay: fr(16, fps), config: SPRING.bouncy});
+  const shimmer = interpolate(frame % fr(60, fps), [0, fr(60, fps)], [-120, 220], {easing: EASE.inOut});
 
   const titleSize = (isVertical ? 84 : 72) * unit;
 
@@ -46,7 +46,7 @@ export const EndCard: React.FC<{
         }}
       >
         {logoSrc ? (
-          <Img src={logoSrc} style={{width: 200 * unit, opacity: logo, scale: String(0.7 + logo * 0.3), translate: `0px ${idleFloat(frame, 6 * unit, 50)}px`}} />
+          <Img src={logoSrc} style={{width: 200 * unit, opacity: logo, scale: String(0.7 + logo * 0.3), translate: `0px ${idleFloat(frame, 6 * unit, 50, 0, fps)}px`}} />
         ) : null}
         <div style={{fontSize: titleSize, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1, maxWidth: safe.width * 0.9, opacity: title, translate: `0px ${(1 - title) * 40 * unit}px`, textShadow: theme.shadow.text}}>{headline}</div>
         <div

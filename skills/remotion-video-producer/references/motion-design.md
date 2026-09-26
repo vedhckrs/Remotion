@@ -105,13 +105,20 @@ Fast moves without motion blur look like PowerPoint. Options:
 - `zoomBlur` / `blur` effects ramped by `interpolate` on whip pans.
 - Cost: samples multiply render time. Use on hero moves only.
 
+## 8b. Neon, 3D camera rig, impact hits (template components)
+
+- `NeonText`: layered glow, deterministic tube-ignition flicker, breathing pulse, optional extrusion; `font="impact"` for Anton. Pair with `Camera3D` and a dark `GradientBackground` for a neon stage (script `visual.type: "neon"`).
+- `Camera3D` + `Layer depth` + `Card3D`: CSS perspective rig with pan / tilt / roll / dolly keyframes in seconds and `handheld` noise. Layers at negative depth move less (background), positive depth more (foreground). Oversize far layers (`style={{scale: '1.4'}}`) so rotation never reveals edges. Three layers is plenty.
+- `ImpactFlash at={[0, 45]}`: accent or white flash plus a 2 to 3 percent scale bump on beats; the composition adds one on every cut in `fast` pacing.
+- `pickTransition(pacing, index)` in `lib/transitions.tsx` cycles zoom punch / push cut with flash / whip pan / glitch slam for fast, slide / fade / soft zoom for medium, fades for calm. All CSS; shader presentations can be swapped in with `webglExtras`.
+
 ## 9. Shapes, paths, particles, data
 
 - `@remotion/shapes` for clean geometry: `<Rect>`, `<Circle>`, `<Star>`, `<Pie progress>` (radial progress), `<Arrow>`, `<Spark>`.
 - Draw-on lines and logos: `evolvePath(progress, d)` -> `strokeDasharray/offset` on an SVG path. Combine with `getPointAtLength` to move a dot along the line.
 - Morphing: `interpolatePaths(frame, [0, 30], [dA, dB])` inline on `<Interactive.Path>`.
 - Particles: 40 to 120 elements positioned with `random(i)` and animated by `frame`; keep them as absolutely positioned `div`s or one SVG. Do not exceed a few hundred DOM nodes.
-- Charts: build bars with `interpolate` per bar with a stagger, lines with `evolvePath`, counters for values. Match the platform text minimums.
+- Charts: `charts/BarChart` (staggered spring growth, leader highlighted, values count up), `charts/LineChart` (smooth path drawn on with `evolvePath`, glowing head dot, area fill, live value), `charts/DonutChart` (sweep, single progress or shares), `Counter` (tabular count-up). `InfographicScene` lays them out per platform from the script's `visual.chart`. Match the platform text minimums; title the chart with the takeaway.
 - Audio-reactive: `useWindowedAudioData` + `visualizeAudio` from `@remotion/media-utils` for bars, waveforms and bass-driven scale (see `audio-voiceover.md`).
 
 ## 10. 3D and depth

@@ -19,6 +19,10 @@ Good: single-frame speed (Chrome on the M5 renders 1080p frames fast), Metal-bac
 
 Limits: 16 GB is shared by Chrome tabs, the encoder, Studio, your browser and the OS, so parallelism is capped by memory rather than cores; no fan, so sustained full-CPU renders throttle after roughly 10 minutes; 512 GB fills quickly with node_modules, headless Chrome copies, Whisper models and 4K masters.
 
+## 1b. The 50 percent budget
+
+You keep working while it renders. `REMOTION_BUDGET` (default 50) caps Chrome tab concurrency at cores x budget, memory-capped (16 GB / 4 = 4 tabs), and every render runs under `nice -n 10`, so foreground apps win the CPU whenever they ask for it while the render takes everything left over. In practice a 50 percent budget on the M5 renders at 80 to 90 percent of full speed when the machine is otherwise idle and steps back instantly when you type, scrub Studio or run Claude Code. Raise the budget to 80 or 100 when you walk away; use `--background` for overnight batches on battery (efficiency cores, slowest, silent). The dashboard slider changes the same value live for the next job.
+
 ## 2. Settings the skill applies automatically
 
 `remotion.config.ts` (template) reads the machine at startup:
@@ -26,7 +30,7 @@ Limits: 16 GB is shared by Chrome tabs, the encoder, Studio, your browser and th
 | Setting | Value on this machine | Why |
 |---|---|---|
 | GL backend | `angle` (ANGLE on Metal) | Effects, light leaks, shader transitions and HtmlInCanvas all work on the GPU; no `swangle` needed on a Mac |
-| Concurrency | `min(10 / 2, 16 / 4)` = 4 tabs | 4 Chrome tabs at 1080p use about 4 to 6 GB; 5 or more start swapping and get slower |
+| Concurrency | `min(10 x 50%, 16 / 4)` = 4 tabs (5 at 100 percent) | 4 Chrome tabs at 1080p use about 4 to 6 GB; 5 or more start swapping and get slower |
 | 4K or WebGL-heavy | 2 tabs (`render-preset.sh youtube-4k` halves it) | Each 4K tab holds four times the pixels |
 | Encoder | software x264, CRF 17, preset `medium` | Best quality per megabyte; `--hw` switches to VideoToolbox |
 | Color | BT.709 | Matches Studio |
@@ -37,7 +41,7 @@ Overrides: `REMOTION_CONCURRENCY=n`, `REMOTION_GL=...`, `REMOTION_HW=1`, or the 
 
 - Short finals (under about 90 s): software x264 with the preset's CRF. The 10-core CPU handles `slow` for YouTube and `medium` for vertical in a few minutes, and the files are the smallest for the quality.
 - Long-form (3 min and up) or anything you will re-render several times: `scripts/render-preset.sh <id> youtube-1080p --hw`. VideoToolbox encodes at 16 Mbps for 1080p and 60 Mbps for 4K, runs cool, and frees the CPU for Chrome. Files are bigger; YouTube re-encodes anyway.
-- 4K: rendered by capturing at `--scale=2` from the 1080p composition, so text stays sharp. Expect roughly 3 to 4 times the 1080p time and use concurrency 2. Only do it for YouTube long-form where the higher bitrate ladder matters.
+- 4K60 masters are the default deliverable (`--4k`): captured at `--scale=2` from the 60 fps 1080-class composition, so text stays sharp. Expect roughly 3 to 4 times the 1080p time per frame and twice the frames of 30 fps, with concurrency 2. A 30 s vertical Short at 4K60 renders in roughly 6 to 15 minutes on the M5 at a 50 percent budget depending on effects; an 8 minute 16:9 long-form is an overnight job in software x264 or a couple of hours with `--hw`. Measure with `--frames=0-600` first.
 - Rough wall-clock guide at 1080p, 30 fps, moderate scenes: about 3 to 6 s of video per minute of render for software x264 at concurrency 4; WebGL effects and motion blur samples slow this down proportionally; hardware encoding removes most of the encode share. Measure once with `--frames=0-300` and extrapolate before committing to an overnight render.
 - Frame ranges for checks: `--frames=0-90` renders the hook only; `npx remotion still` for single frames.
 

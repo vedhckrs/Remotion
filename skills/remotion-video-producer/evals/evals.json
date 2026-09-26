@@ -41,6 +41,19 @@
         "The music track uses a volume function that lowers level during voice segments",
         "Captions use the karaoke style and are positioned inside the safe area"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "start Remotion. Here is my script in notes.md (a title, six ## sections, a few lines of stats under section 3). Make it a fast-paced Short and a 16:9 YouTube version: young male professional ElevenLabs voice, Hormozi captions, my logo text 'VEDSTUDIO' top-left, teal-orange grade, energetic tech music, and render both as 4K 60fps while I keep working on my Mac. Show me the dashboard.",
+      "expected_output": "analyze-script.mjs converts notes.md to public/script/<id>.json with pacing fast, a bar chart scene from the stats, logo, grade and music mood; voiceover via the young-male-pro preset; music via generate-music.mjs; the dashboard started on localhost:4545 with the budget at 50 percent; two renders queued with --4k (2160x3840 and 3840x2160 at 60 fps).",
+      "files": [],
+      "expectations": [
+        "The script JSON has pacing 'fast', a logo with text VEDSTUDIO, grade teal-orange and a chart scene",
+        "The voiceover command uses the ElevenLabs provider with the young-male-pro preset or a pinned voiceId",
+        "Both renders use the 4K flag and the compositions are 60 fps",
+        "The dashboard was started (npm run dashboard) and its URL reported",
+        "Concurrency reflects the 50 percent budget rather than all cores"
+      ]
     }
   ]
 }

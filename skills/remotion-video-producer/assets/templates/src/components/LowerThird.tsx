@@ -1,6 +1,6 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {EASE, SPRING} from '../lib/motion';
+import {EASE, SPRING, fr} from '../lib/motion';
 import {usePlatformLayout} from '../lib/platforms';
 import {theme} from '../lib/theme';
 
@@ -19,9 +19,9 @@ export const LowerThird: React.FC<{
   const {fps} = useVideoConfig();
   const {safe, unit, isVertical} = usePlatformLayout();
 
-  const bar = spring({frame, fps, config: SPRING.settle, durationInFrames: 14});
-  const textIn = spring({frame, fps, delay: 6, config: SPRING.soft});
-  const out = interpolate(frame, [durationInFrames - 12, durationInFrames - 2], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.in});
+  const bar = spring({frame, fps, config: SPRING.settle, durationInFrames: fr(14, fps)});
+  const textIn = spring({frame, fps, delay: fr(6, fps), config: SPRING.soft});
+  const out = interpolate(frame, [durationInFrames - fr(12, fps), durationInFrames - fr(2, fps)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.in});
 
   const nameSize = (isVertical ? 44 : 48) * unit;
   const roleSize = (isVertical ? 28 : 32) * unit;

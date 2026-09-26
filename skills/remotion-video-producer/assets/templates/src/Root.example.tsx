@@ -4,74 +4,49 @@ import {SocialVideo, calculateSocialVideoMetadata, socialVideoSchema} from './co
 import {PLATFORMS} from './lib/platforms';
 
 /**
- * One composition per delivery format, all pointing at the same scenes.
- * Duration is resolved by calculateMetadata from the voiceover manifest.
+ * One composition per delivery format, all pointing at the same scenes, authored at 60 fps.
+ * Render presets capture at --scale=2 for the 4K master (3840x2160 / 2160x3840 / 2160x2700).
+ * Duration is resolved by calculateMetadata from the script and the voiceover manifest.
  * Rename this file to Root.tsx in a fresh project (scaffold.sh does it).
  */
 const shared = {
   videoId: 'example',
+  fps: PLATFORMS.shorts.fps,
   accent: '#7C5CFF',
-  captionStyle: 'pop' as const,
+  pacing: 'auto' as const,
+  captionStyle: 'hormozi' as const,
+  grade: 'none' as const,
+  logo: null,
   music: null,
   endCard: {headline: 'Make it move.', cta: 'Follow for part 2', handle: '@yourhandle'},
-  gapSeconds: 0.6,
+  gapSeconds: null,
   showSafeArea: false,
   webglExtras: false,
 };
+
+const comp = (id: string, platform: keyof typeof PLATFORMS) => (
+  <Composition
+    id={id}
+    component={SocialVideo}
+    width={PLATFORMS[platform].width}
+    height={PLATFORMS[platform].height}
+    fps={PLATFORMS[platform].fps}
+    durationInFrames={1800}
+    schema={socialVideoSchema}
+    defaultProps={{...shared, platform}}
+    calculateMetadata={calculateSocialVideoMetadata}
+  />
+);
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Folder name="Vertical">
-        <Composition
-          id="Shorts"
-          component={SocialVideo}
-          width={PLATFORMS.shorts.width}
-          height={PLATFORMS.shorts.height}
-          fps={PLATFORMS.shorts.fps}
-          durationInFrames={900}
-          schema={socialVideoSchema}
-          defaultProps={{...shared, platform: 'shorts'}}
-          calculateMetadata={calculateSocialVideoMetadata}
-        />
-        <Composition
-          id="Reels"
-          component={SocialVideo}
-          width={PLATFORMS.reels.width}
-          height={PLATFORMS.reels.height}
-          fps={PLATFORMS.reels.fps}
-          durationInFrames={900}
-          schema={socialVideoSchema}
-          defaultProps={{...shared, platform: 'reels'}}
-          calculateMetadata={calculateSocialVideoMetadata}
-        />
+        {comp('Shorts', 'shorts')}
+        {comp('Reels', 'reels')}
       </Folder>
-      <Folder name="Horizontal">
-        <Composition
-          id="YouTube"
-          component={SocialVideo}
-          width={PLATFORMS.youtube.width}
-          height={PLATFORMS.youtube.height}
-          fps={PLATFORMS.youtube.fps}
-          durationInFrames={900}
-          schema={socialVideoSchema}
-          defaultProps={{...shared, platform: 'youtube'}}
-          calculateMetadata={calculateSocialVideoMetadata}
-        />
-      </Folder>
-      <Folder name="Square">
-        <Composition
-          id="Feed"
-          component={SocialVideo}
-          width={PLATFORMS.feed.width}
-          height={PLATFORMS.feed.height}
-          fps={PLATFORMS.feed.fps}
-          durationInFrames={900}
-          schema={socialVideoSchema}
-          defaultProps={{...shared, platform: 'feed'}}
-          calculateMetadata={calculateSocialVideoMetadata}
-        />
-      </Folder>
+      <Folder name="Horizontal">{comp('YouTube', 'youtube')}</Folder>
+      <Folder name="Square">{comp('Feed', 'feed')}</Folder>
     </>
   );
 };

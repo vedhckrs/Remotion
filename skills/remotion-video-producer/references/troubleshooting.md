@@ -68,6 +68,12 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 - "hardware accelerated: false" in `--log=verbose` means the codec or platform is unsupported (Lambda, Cloud Run); the render falls back to software with `if-possible`.
 - On Linux or Windows without an NVIDIA GPU, `--hardware-acceleration=if-possible` still selects `h264_nvenc` and FFmpeg then fails with "Error while opening encoder". The preset script checks for `nvidia-smi` and drops `--hw` on such machines; when calling `npx remotion render` directly, omit the flag there. macOS always has VideoToolbox.
 
+## Dashboard: compositions list is empty, or a render fails immediately
+- The server runs `npx remotion compositions` at start; behind a proxy certificate set `REMOTION_IGNORE_CERTS=1` before `npm run dashboard`. Click "Refresh compositions" after adding a composition.
+- "Missing public/script/<id>.json" means the composition's `videoId` has no script yet; run the analyzer or save one in the editor.
+- The Node API ignores `remotion.config.ts`; the dashboard mirrors the presets itself. If you change encoding defaults in the config, mirror them in `tools/dashboard/server.mjs` `PRESETS`.
+- Renders and tasks run one at a time on purpose; a queued job waits for Whisper to finish.
+
 ## Disk full on a 512 GB laptop
 - `out/` masters, `node_modules/.cache`, per-project Whisper installs and duplicate headless Chrome copies are the usual culprits. Move the Whisper cache to `~/.cache/remotion-whisper` (the transcribe script's default), delete `out/*.mp4` after upload, and archive 4K masters to an external SSD. Keep 30 GB free.
 

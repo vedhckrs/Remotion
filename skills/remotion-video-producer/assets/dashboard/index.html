@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Remotion Control Room</title>
+<style>
+  :root { --bg:#0b0b0f; --panel:#15151c; --panel2:#1c1c25; --line:#262633; --text:#f5f5f7; --muted:#9a9aa6; --accent:#7c5cff; --accent2:#22d3ee; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 -apple-system, Inter, system-ui, sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:16px; margin:0 12px 0 0; letter-spacing:-0.01em; }
+  header h1 span { color:var(--accent); }
+  .gauge { display:flex; flex-direction:column; min-width:110px; }
+  .gauge label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .bar { height:6px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:4px; }
+  .bar i { display:block; height:100%; background:var(--accent); transition:width .4s; }
+  .bar i.warn { background:var(--warn); } .bar i.bad { background:var(--bad); } .bar i.ok { background:var(--ok); }
+  .gauge b { font-weight:600; font-size:13px; }
+  main { display:grid; grid-template-columns: 360px 1fr 380px; gap:16px; padding:16px 20px; }
+  @media (max-width:1200px) { main { grid-template-columns:1fr; } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+  section h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+  button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 11px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.small { padding:4px 8px; font-size:12px; }
+  button.danger { color:var(--bad); }
+  select, input[type=text], input[type=number], textarea { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; width:100%; }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; min-height:260px; resize:vertical; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .row > * { flex:1; }
+  .row > button, .row > label.check { flex:0 0 auto; }
+  label.check { display:flex; gap:6px; align-items:center; color:var(--muted); font-size:13px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .chip { padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); cursor:pointer; font-size:12px; }
+  .chip.on { border-color:var(--accent); background:rgba(124,92,255,.18); }
+  .list { display:flex; flex-direction:column; gap:8px; }
+  .item { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .item .top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .item small { color:var(--muted); }
+  .status { font-size:11px; padding:2px 7px; border-radius:6px; background:var(--line); text-transform:uppercase; letter-spacing:.05em; }
+  .status.rendering, .status.running, .status.bundling, .status.selecting { background:rgba(124,92,255,.25); color:#c9bcff; }
+  .status.done { background:rgba(34,197,94,.2); color:#86efac; } .status.failed { background:rgba(239,68,68,.2); color:#fca5a5; } .status.cancelled { background:rgba(245,158,11,.2); color:#fcd34d; }
+  .progress { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:8px; }
+  .progress i { display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .3s; }
+  video { width:100%; border-radius:8px; background:#000; }
+  .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px; background:#07070a; border:1px solid var(--line); border-radius:10px; padding:10px; height:220px; overflow:auto; white-space:pre-wrap; color:#c8c8d0; }
+  .log .src { color:var(--accent2); }
+  .muted { color:var(--muted); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--line); font-size:11px; margin-right:4px; }
+  .pill.ok { background:rgba(34,197,94,.18); color:#86efac; }
+  .budget { display:flex; align-items:center; gap:8px; min-width:230px; }
+  .budget input[type=range] { flex:1; accent-color:var(--accent); }
+  a { color:var(--accent2); }
+  .kbd { font-family:ui-monospace, Menlo, monospace; background:var(--line); padding:1px 5px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>●</span> Remotion Control Room <small class="muted" id="project"></small></h1>
+  <div class="gauge"><label>CPU load</label><div class="bar"><i id="g-load"></i></div><b id="t-load">–</b></div>
+  <div class="gauge"><label>Memory free</label><div class="bar"><i id="g-mem"></i></div><b id="t-mem">–</b></div>
+  <div class="gauge"><label>Thermal</label><div class="bar"><i id="g-therm"></i></div><b id="t-therm">–</b></div>
+  <div class="gauge"><label>Disk free</label><b id="t-disk">–</b></div>
+  <div class="gauge budget"><label>Machine budget</label><div style="display:flex;gap:8px;align-items:center;width:100%"><input type="range" id="budget" min="10" max="100" step="5" /><b id="t-budget">50%</b></div><small class="muted" id="t-conc"></small></div>
+  <div class="gauge"><label>Encoder</label><label class="check"><input type="checkbox" id="hw" /> <span id="t-hw">hardware</span></label></div>
+  <div class="gauge"><label>Master</label><label class="check"><input type="checkbox" id="fourk" /> 4K (scale 2)</label></div>
+  <div class="gauge"><label>Studio</label><div class="row" style="margin:0"><button class="small" id="studio-btn">Start</button><a id="studio-link" href="#" target="_blank" style="display:none">open</a></div></div>
+</header>
+
+<main>
+  <div>
+    <section>
+      <h2>Scripts <button class="small" id="new-script">New from text</button></h2>
+      <div class="list" id="scripts"></div>
+    </section>
+    <section id="editor-section" style="display:none">
+      <h2>Edit <span id="editor-id" class="muted"></span> <span><button class="small" id="save-script">Save</button> <button class="small" id="close-editor">Close</button></span></h2>
+      <textarea id="editor"></textarea>
+      <small class="muted" id="editor-msg"></small>
+    </section>
+    <section id="analyze-section" style="display:none">
+      <h2>New script from text</h2>
+      <div class="row"><input type="text" id="an-id" placeholder="videoId (e.g. launch-teaser)" /><select id="an-pacing"><option value="fast">fast</option><option value="medium">medium</option><option value="calm">calm</option></select></div>
+      <div class="row"><input type="text" id="an-logo" placeholder="logo text (optional)" /><select id="an-voice"><option value="young-male-pro">young-male-pro</option><option value="young-male-hype">young-male-hype</option><option value="male-deep-narrator">male-deep-narrator</option><option value="female-warm">female-warm</option><option value="female-energetic">female-energetic</option></select></div>
+      <div class="row"><select id="an-grade"><option value="none">grade: none</option><option value="teal-orange">teal-orange</option><option value="warm-film">warm-film</option><option value="cool-noir">cool-noir</option><option value="vibrant-pop">vibrant-pop</option><option value="bleach-bypass">bleach-bypass</option><option value="matte-fade">matte-fade</option><option value="neon-night">neon-night</option></select><select id="an-music"><option value="">music: none</option><option value="energetic-tech">energetic-tech</option><option value="hype">hype</option><option value="corporate">corporate</option><option value="cinematic">cinematic</option><option value="lofi">lofi</option><option value="ambient">ambient</option><option value="luxury">luxury</option></select></div>
+      <textarea id="an-text" placeholder="# Title&#10;&#10;## Hook headline&#10;Voiceover sentence with a **highlight** word.&#10;&#10;## Data scene&#10;- Label: 42%&#10;- Other: 31%&#10;- Third: 27%&#10;&#10;[neon] A punchy one-liner. (delivery: excited)"></textarea>
+      <div class="row"><button class="primary" id="an-run">Analyze → script JSON</button><button id="an-close">Close</button></div>
+      <small class="muted">Runs scripts/analyze-script.mjs. Claude Code usually writes this text; paste it here or save it as a file and run <span class="kbd">npm run analyze -- file.md --id name</span>.</small>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Render <span><button class="small" id="refresh-comps">Refresh compositions</button></span></h2>
+      <div class="row"><select id="comp"></select><input type="text" id="frames" placeholder="frames e.g. 0-300 (blank = all)" /></div>
+      <div class="chips" id="presets"></div>
+      <div class="row">
+        <button class="primary" id="queue-render">Queue render</button>
+        <button id="queue-preview">Quick preview (half size, all frames)</button>
+        <button id="queue-all">All platforms</button>
+      </div>
+      <small class="muted" id="render-hint"></small>
+    </section>
+    <section>
+      <h2>Queue</h2>
+      <div class="list" id="jobs"></div>
+    </section>
+    <section>
+      <h2>Log</h2>
+      <div class="log" id="log"></div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Outputs <span><button class="small" id="refresh-out">Refresh</button></span></h2>
+      <div class="list" id="outputs"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let S = {settings:{}, machine:{}, compositions:[], scripts:[], jobs:[], outputs:[], studio:{}};
+let preset = 'shorts';
+const PRESET_LIST = ['shorts','reels','stories','facebook','feed','youtube-1080p','preview'];
+const PLATFORM_FOR_COMP = { Shorts:'shorts', Reels:'reels', Stories:'stories', Facebook:'facebook', Feed:'feed', YouTube:'youtube-1080p' };
+
+const api = async (path, method='GET', body) => {
+  const res = await fetch(path, {method, headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  return res.json();
+};
+const fmtBytes = (b) => b > 1e9 ? (b/1e9).toFixed(2)+' GB' : b > 1e6 ? (b/1e6).toFixed(1)+' MB' : Math.round(b/1e3)+' KB';
+const fmtTime = (s) => s == null ? '' : s > 3600 ? Math.round(s/360)/10+' h' : s > 90 ? Math.round(s/60)+' min' : s+' s';
+const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function renderMachine() {
+  const m = S.machine; if (!m.cores) return;
+  $('#project').textContent = ` ${S.project || ''} · ${m.chip || m.platform} · ${m.cores} cores · ${m.memoryGb} GB`;
+  const load = $('#g-load'); load.style.width = m.loadPercent+'%'; load.className = m.loadPercent > 85 ? 'bad' : m.loadPercent > 60 ? 'warn' : '';
+  $('#t-load').textContent = `${m.loadPercent}% (${m.load1})`;
+  const memPct = Math.round((m.freeMemoryGb / m.memoryGb) * 100);
+  const mem = $('#g-mem'); mem.style.width = memPct+'%'; mem.className = memPct < 12 ? 'bad' : memPct < 25 ? 'warn' : 'ok';
+  $('#t-mem').textContent = `${m.freeMemoryGb} GB`;
+  const th = $('#g-therm'); const lim = m.cpuSpeedLimit;
+  th.style.width = (lim ?? 100)+'%'; th.className = lim == null ? '' : lim < 70 ? 'bad' : lim < 100 ? 'warn' : 'ok';
+  $('#t-therm').textContent = lim == null ? 'n/a' : lim < 100 ? `throttled to ${lim}%` : 'full speed';
+  $('#t-disk').textContent = m.freeDiskGb == null ? '–' : `${m.freeDiskGb} GB` + (m.freeDiskGb < 30 ? ' ⚠' : '');
+  $('#t-conc').textContent = `${m.recommendedConcurrency} tabs 1080p · ${m.recommendedConcurrency4k} tabs 4K`;
+  $('#t-hw').textContent = m.hardwareEncoder ? `hardware (${m.hardwareEncoder})` : 'hardware (unavailable)';
+  $('#hw').disabled = !m.hardwareEncoder;
+}
+function renderSettings() {
+  $('#budget').value = S.settings.budget; $('#t-budget').textContent = S.settings.budget+'%';
+  $('#hw').checked = !!S.settings.hw; $('#fourk').checked = !!S.settings.fourK;
+  $('#render-hint').textContent = `Preset ${preset} · ${S.settings.fourK ? '4K master (scale 2)' : 'native size'} · ${S.settings.hw && S.machine.hardwareEncoder ? S.machine.hardwareEncoder + ' bitrate' : 'x264 CRF'} · gl=${S.settings.gl} · runs under nice -n 10`;
+}
+function renderComps() {
+  const sel = $('#comp'); const cur = sel.value;
+  sel.innerHTML = S.compositions.map(c => `<option ${c===cur?'selected':''}>${esc(c)}</option>`).join('') || '<option value="">(none: refresh)</option>';
+  if (S.compositionsError) $('#render-hint').textContent = 'compositions: ' + S.compositionsError;
+  $('#presets').innerHTML = PRESET_LIST.map(p => `<span class="chip ${p===preset?'on':''}" data-p="${p}">${p}</span>`).join('');
+  document.querySelectorAll('.chip[data-p]').forEach(el => el.onclick = () => { preset = el.dataset.p; renderComps(); renderSettings(); });
+}
+function renderScripts() {
+  $('#scripts').innerHTML = S.scripts.map(s => `
+    <div class="item">
+      <div class="top"><b>${esc(s.id)}</b><small>${s.scenes} scenes · ${esc(s.pacing||'')}</small></div>
+      <div style="margin:6px 0 8px">
+        <span class="pill ${s.voiceover?'ok':''}">${s.voiceover ? `voice ${s.voiceover.seconds}s · ${esc(s.voiceover.provider)}` : 'no voiceover'}</span>
+        <span class="pill ${s.captions?'ok':''}">${s.captions ? 'captions' : 'no captions'}</span>
+        <span class="pill ${s.music.length?'ok':''}">${s.music.length ? 'music' : 'no music'}</span>
+      </div>
+      <div class="row" style="margin:0">
+        <button class="small" data-edit="${esc(s.id)}">Edit</button>
+        <button class="small" data-task="voiceover" data-id="${esc(s.id)}">Voice: ElevenLabs</button>
+        <button class="small" data-task="voiceover-macos" data-id="${esc(s.id)}">Voice: macOS draft</button>
+        <button class="small" data-task="captions" data-id="${esc(s.id)}">Captions: Whisper</button>
+        <button class="small" data-task="music" data-id="${esc(s.id)}">Music</button>
+      </div>
+    </div>`).join('') || '<small class="muted">No scripts in public/script. Use "New from text".</small>';
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => openEditor(b.dataset.edit));
+  document.querySelectorAll('[data-task]').forEach(b => b.onclick = () => {
+    const id = b.dataset.id; const t = b.dataset.task;
+    if (t === 'voiceover') api('/api/tasks','POST',{task:'voiceover', options:{videoId:id, provider:'elevenlabs'}});
+    else if (t === 'voiceover-macos') api('/api/tasks','POST',{task:'voiceover', options:{videoId:id, provider:'macos'}});
+    else if (t === 'captions') api('/api/tasks','POST',{task:'captions', options:{videoId:id, provider:'whisper'}});
+    else if (t === 'music') { const mood = prompt('Mood: energetic-tech, hype, corporate, cinematic, lofi, ambient, luxury', 'energetic-tech'); if (mood) api('/api/tasks','POST',{task:'music', options:{videoId:id, mood}}); }
+  });
+}
+function renderJobs() {
+  $('#jobs').innerHTML = S.jobs.map(j => {
+    const pct = Math.round((j.progress||0)*100);
+    const title = j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
+    const meta = j.kind === 'render' ? [j.size, j.concurrency ? j.concurrency+' tabs' : '', j.encoder, j.renderedFrames!=null ? `${j.renderedFrames}/${j.totalFrames} rendered` : '', j.encodedFrames!=null ? `${j.encodedFrames} encoded` : '', j.etaSeconds!=null && j.status==='rendering' ? 'ETA '+fmtTime(j.etaSeconds) : '', j.bytes ? fmtBytes(j.bytes) : ''].filter(Boolean).join(' · ') : (j.error || '');
+    const active = ['queued','bundling','selecting','rendering','running'].includes(j.status);
+    return `<div class="item"><div class="top"><b>#${j.id} ${title}</b><span><span class="status ${j.status}">${j.status}</span> ${active ? `<button class="small danger" data-cancel="${j.id}">cancel</button>` : ''}</span></div>
+      <small>${esc(meta)}${j.error && j.kind==='render' ? ' · '+esc(j.error) : ''}</small>
+      ${j.kind==='render' && active ? `<div class="progress"><i style="width:${pct}%"></i></div><small>${pct}%${j.stage ? ' · '+j.stage : ''}</small>` : ''}
+      ${j.status==='done' && j.output ? `<div style="margin-top:6px"><a href="/out/${encodeURIComponent(j.output)}" target="_blank">${esc(j.output)}</a></div>` : ''}
+    </div>`;
+  }).join('') || '<small class="muted">Nothing queued.</small>';
+  document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => api(`/api/jobs/${b.dataset.cancel}/cancel`, 'POST'));
+}
+function renderOutputs() {
+  $('#outputs').innerHTML = S.outputs.slice(0, 12).map(o => `
+    <div class="item">
+      ${/\.(mp4|mov|webm)$/i.test(o.file) ? `<video controls preload="metadata" src="/out/${encodeURIComponent(o.file)}"></video>` : /\.png$/i.test(o.file) ? `<img src="/out/${encodeURIComponent(o.file)}" style="width:100%;border-radius:8px" />` : ''}
+      <div class="top" style="margin-top:6px"><b style="font-size:12px;word-break:break-all">${esc(o.file)}</b></div>
+      <small>${fmtBytes(o.size)} · ${new Date(o.mtime).toLocaleString()}</small>
+      <div class="row" style="margin:6px 0 0"><button class="small" data-reveal="${esc(o.file)}">Reveal in Finder</button><a class="small" href="/out/${encodeURIComponent(o.file)}" download><button class="small">Download</button></a><button class="small danger" data-del="${esc(o.file)}">Delete</button></div>
+    </div>`).join('') || '<small class="muted">No renders yet.</small>';
+  document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => api('/api/reveal','POST',{file:b.dataset.reveal}));
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (confirm('Delete '+b.dataset.del+'?')) { const r = await api('/api/outputs/'+encodeURIComponent(b.dataset.del),'DELETE'); S.outputs = r.outputs; renderOutputs(); } });
+}
+function renderStudio() {
+  $('#studio-btn').textContent = S.studio.running ? 'Stop' : 'Start';
+  const a = $('#studio-link'); if (S.studio.url) { a.href = S.studio.url; a.style.display = 'inline'; } else a.style.display = 'none';
+}
+function appendLog(e) {
+  const el = $('#log'); const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+  const div = document.createElement('div'); div.innerHTML = `<span class="src">${esc(e.source)}</span> ${esc(e.line)}`; el.appendChild(div);
+  while (el.children.length > 400) el.removeChild(el.firstChild);
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderStudio(); }
+
+async function openEditor(id) {
+  const res = await fetch('/api/scripts/'+encodeURIComponent(id)); const text = await res.text();
+  $('#editor').value = JSON.stringify(JSON.parse(text), null, 2); $('#editor-id').textContent = id; $('#editor-msg').textContent = ''; $('#editor-section').style.display = 'block';
+}
+$('#save-script').onclick = async () => {
+  const id = $('#editor-id').textContent; let body;
+  try { body = JSON.parse($('#editor').value); } catch (e) { $('#editor-msg').textContent = 'Invalid JSON: '+e.message; return; }
+  const r = await api('/api/scripts/'+encodeURIComponent(id), 'PUT', body);
+  $('#editor-msg').textContent = r.ok ? 'Saved. Studio and calculateMetadata pick it up on reload.' : r.error;
+  refresh();
+};
+$('#close-editor').onclick = () => $('#editor-section').style.display = 'none';
+$('#new-script').onclick = () => $('#analyze-section').style.display = 'block';
+$('#an-close').onclick = () => $('#analyze-section').style.display = 'none';
+$('#an-run').onclick = async () => {
+  const id = $('#an-id').value.trim(); const text = $('#an-text').value;
+  if (!id || !text.trim()) return alert('videoId and text are required');
+  // Save the text into public/script/<id>.md through the analyze task (server writes temp file).
+  await api('/api/tasks','POST',{task:'analyze', options:{videoId:id, pacing:$('#an-pacing').value, voicePreset:$('#an-voice').value, logo:$('#an-logo').value.trim(), grade:$('#an-grade').value, musicMood:$('#an-music').value, input: await saveText(id, text)}});
+};
+async function saveText(id, text) {
+  // The server stores the text as public/script/<id>.md and returns its path for the analyze task.
+  const r = await fetch('/api/scripts/'+encodeURIComponent(id)+'.md', {method:'PUT', headers:{'Content-Type':'text/plain'}, body: text});
+  const j = await r.json(); return j.path;
+}
+$('#refresh-comps').onclick = async () => { const r = await api('/api/compositions/refresh','POST'); S.compositions = r.compositions; S.compositionsError = r.compositionsError; renderComps(); };
+$('#refresh-out').onclick = refresh;
+$('#queue-render').onclick = () => api('/api/render','POST',{compositionId:$('#comp').value, preset, frames:$('#frames').value.trim() || null});
+$('#queue-preview').onclick = () => api('/api/render','POST',{compositionId:$('#comp').value, preset:'preview', fourK:false, hw:false});
+$('#queue-all').onclick = () => { for (const c of S.compositions) { const p = PLATFORM_FOR_COMP[c] || preset; api('/api/render','POST',{compositionId:c, preset:p, frames:$('#frames').value.trim() || null}); } };
+$('#budget').oninput = () => $('#t-budget').textContent = $('#budget').value+'%';
+$('#budget').onchange = async () => { const r = await api('/api/settings','POST',{budget:Number($('#budget').value)}); S.settings = r.settings; S.machine = r.machine; renderMachine(); renderSettings(); };
+$('#hw').onchange = async () => { const r = await api('/api/settings','POST',{hw:$('#hw').checked}); S.settings = r.settings; renderSettings(); };
+$('#fourk').onchange = async () => { const r = await api('/api/settings','POST',{fourK:$('#fourk').checked}); S.settings = r.settings; renderSettings(); };
+$('#studio-btn').onclick = async () => { const r = await api('/api/studio','POST',{action: S.studio.running ? 'stop' : 'start'}); S.studio = r; renderStudio(); };
+
+async function refresh() { S = await api('/api/state'); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); }
+const es = new EventSource('/api/events');
+es.addEventListener('state', (e) => { S = JSON.parse(e.data); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); });
+es.addEventListener('machine', (e) => { S.machine = JSON.parse(e.data); renderMachine(); });
+es.addEventListener('jobs', (e) => { S.jobs = JSON.parse(e.data); renderJobs(); });
+es.addEventListener('outputs', (e) => { S.outputs = JSON.parse(e.data); renderOutputs(); refreshScriptsSoon(); });
+es.addEventListener('studio', (e) => { S.studio = JSON.parse(e.data); renderStudio(); });
+es.addEventListener('log', (e) => appendLog(JSON.parse(e.data)));
+let scriptsTimer; function refreshScriptsSoon() { clearTimeout(scriptsTimer); scriptsTimer = setTimeout(async () => { const st = await api('/api/state'); S.scripts = st.scripts; S.compositions = st.compositions; renderScripts(); renderComps(); }, 800); }
+</script>
+</body>
+</html>

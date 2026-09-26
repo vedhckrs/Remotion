@@ -10,7 +10,15 @@
  *                                  Use it to lock timing and pacing before spending TTS credits;
  *                                  swap to elevenlabs for the final. `say -v '?'` lists voices.
  *   --voice <id>                   override voice id / name
- *   --model <id>                   override model id
+ *   --voice-preset <name>          pick a voice by character from your ElevenLabs library:
+ *                                  young-male-pro (default) | young-male-hype | male-deep-narrator |
+ *                                  female-warm | female-energetic. Resolved live via GET /v1/voices by
+ *                                  labels (gender, age, use case, description); falls back to a known
+ *                                  premade voice id. `--list-voices` prints what your account can use.
+ *   --model <id>                   override model id (eleven_multilingual_v2 default; eleven_v3 for
+ *                                  audio tags such as [excited] [pause]; eleven_flash_v2_5 for speed)
+ *   --tags                         with eleven_v3, prefix each line with a delivery tag derived from
+ *                                  pacing and the scene's `delivery` field
  *   --gap 0.6                      seconds of air after each line (must match the composition)
  *   --only scene-03[,scene-04]     regenerate only these scene ids
  *   --out <dir>                    default public/voiceover/<videoId>
@@ -66,8 +74,79 @@ const DEFAULTS = {
   },
 };
 
-const voiceId = args.voice || script.voice?.voiceId || DEFAULTS[provider].voiceId;
+/**
+ * Voice presets: label filters applied to the account's voice list, plus a premade fallback id.
+ * Premade ids are ElevenLabs' public defaults (verify with --list-voices; they can change).
+ */
+const VOICE_PRESETS = {
+  'young-male-pro': {fallback: 'TX3LPaxmHKxFdv7VOQHJ', fallbackName: 'Liam', match: (v) => v.gender === 'male' && /young|middle/.test(v.age) && /(narrat|social|conversational|informative|professional|energetic|confident)/.test(v.text), settings: {stability: 0.42, similarity_boost: 0.78, style: 0.35, use_speaker_boost: true, speed: 1.08}},
+  'young-male-hype': {fallback: 'bIHbv24MWmeRgasZH58o', fallbackName: 'Will', match: (v) => v.gender === 'male' && /young/.test(v.age) && /(energetic|excited|hype|upbeat|friendly|social)/.test(v.text), settings: {stability: 0.35, similarity_boost: 0.8, style: 0.5, use_speaker_boost: true, speed: 1.12}},
+  'male-deep-narrator': {fallback: 'nPczCjzI2devNBz1zQrb', fallbackName: 'Brian', match: (v) => v.gender === 'male' && /(deep|narrat|documentary|calm|authoritative)/.test(v.text), settings: {stability: 0.55, similarity_boost: 0.75, style: 0.2, use_speaker_boost: true, speed: 0.98}},
+  'female-warm': {fallback: 'EXAVITQu4vr4xnSDxMaL', fallbackName: 'Sarah', match: (v) => v.gender === 'female' && /(warm|soft|narrat|calm|friendly)/.test(v.text), settings: {stability: 0.5, similarity_boost: 0.75, style: 0.25, use_speaker_boost: true, speed: 1.0}},
+  'female-energetic': {fallback: 'cgSgspJ2msm6clMCkdW9', fallbackName: 'Jessica', match: (v) => v.gender === 'female' && /(energetic|upbeat|social|expressive|young)/.test(v.text), settings: {stability: 0.4, similarity_boost: 0.78, style: 0.4, use_speaker_boost: true, speed: 1.08}},
+};
+
+const fetchVoices = async () => {
+  const apiKey = requireEnv('ELEVENLABS_API_KEY');
+  const res = await fetch('https://api.elevenlabs.io/v1/voices', {headers: {'xi-api-key': apiKey}});
+  if (!res.ok) throw new Error(`ElevenLabs voices ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const json = await res.json();
+  return (json.voices || []).map((v) => {
+    const labels = v.labels || {};
+    return {
+      id: v.voice_id,
+      name: v.name,
+      category: v.category,
+      gender: String(labels.gender || '').toLowerCase(),
+      age: String(labels.age || '').toLowerCase(),
+      accent: String(labels.accent || '').toLowerCase(),
+      useCase: String(labels.use_case || labels['use case'] || '').toLowerCase(),
+      text: `${labels.description || ''} ${labels.use_case || ''} ${labels.descriptive || ''} ${v.description || ''} ${v.name}`.toLowerCase(),
+    };
+  });
+};
+
+if (args['list-voices']) {
+  const voices = await fetchVoices();
+  voices.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+  for (const v of voices) console.log(`${v.id}  ${v.name.padEnd(18)} ${(v.category || '').padEnd(12)} ${[v.gender, v.age, v.accent, v.useCase].filter(Boolean).join(' / ')}`);
+  console.log(`\n${voices.length} voices. Use --voice <id> or a preset: ${Object.keys(VOICE_PRESETS).join(', ')}`);
+  process.exit(0);
+}
+
+const presetName = args['voice-preset'] || script.voice?.preset;
+const preset = presetName ? VOICE_PRESETS[presetName] : null;
+if (presetName && !preset) {
+  console.error(`Unknown voice preset "${presetName}". Presets: ${Object.keys(VOICE_PRESETS).join(', ')}`);
+  process.exit(1);
+}
+
+let voiceId = args.voice || script.voice?.voiceId || DEFAULTS[provider].voiceId;
+if (!args.voice && !script.voice?.voiceId && preset && provider === 'elevenlabs' && !args['dry-run']) {
+  try {
+    const voices = await fetchVoices();
+    const owned = voices.filter((v) => v.category !== 'premade');
+    const pick = [...owned, ...voices].find((v) => preset.match(v)) || voices.find((v) => v.id === preset.fallback);
+    voiceId = pick ? pick.id : preset.fallback;
+    console.log(`Voice preset ${presetName}: ${pick ? `${pick.name} (${pick.category})` : `${preset.fallbackName} (fallback id)`}`);
+  } catch (error) {
+    console.warn(`Could not list voices (${error.message}); using ${preset.fallbackName} fallback id`);
+    voiceId = preset.fallback;
+  }
+} else if (!args.voice && !script.voice?.voiceId && preset) {
+  voiceId = preset.fallback;
+}
 const model = args.model || script.voice?.model || DEFAULTS[provider].model;
+const presetSettings = preset ? preset.settings : {};
+
+/** eleven_v3 audio tags derived from pacing / delivery hints. Only used with --tags. */
+const deliveryTag = (scene) => {
+  if (!args.tags || model.indexOf('eleven_v3') !== 0) return '';
+  const hint = String(scene.delivery || '').toLowerCase();
+  if (hint) return `[${hint.replace(/[^a-z ]/g, '').trim()}] `;
+  const pacing = script.pacing || 'medium';
+  return pacing === 'fast' ? '[excited] ' : pacing === 'calm' ? '[calm] ' : '';
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -93,9 +172,9 @@ const generateElevenLabs = async (scene) => {
   const format = args.format || DEFAULTS.elevenlabs.format;
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=${encodeURIComponent(format)}`;
   const body = {
-    text: scene.voiceover,
+    text: `${deliveryTag(scene)}${scene.voiceover}`,
     model_id: model,
-    voice_settings: {...DEFAULTS.elevenlabs.settings, ...(script.voice?.settings || {})},
+    voice_settings: {...DEFAULTS.elevenlabs.settings, ...presetSettings, ...(script.voice?.settings || {})},
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -190,6 +269,12 @@ for (const scene of script.scenes) {
 
   // Write incrementally so a failure midway keeps what was generated.
   writeJson(manifestFile, {videoId: script.videoId, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes});
+}
+
+if (args['dry-run']) {
+  const total = manifestScenes.reduce((sum, s) => sum + s.durationSeconds + gap, 0);
+  console.log(`Dry run: ${manifestScenes.length} scenes, about ${total.toFixed(1)} s estimated. Nothing written.`);
+  process.exit(0);
 }
 
 const manifest = {videoId: script.videoId, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes};

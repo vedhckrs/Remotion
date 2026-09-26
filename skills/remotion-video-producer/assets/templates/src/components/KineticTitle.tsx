@@ -1,6 +1,6 @@
 import React from 'react';
 import {interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {EASE, SPRING} from '../lib/motion';
+import {EASE, SPRING, fr} from '../lib/motion';
 import {theme} from '../lib/theme';
 
 /**
@@ -40,7 +40,7 @@ export const KineticTitle: React.FC<{
   const words = text.split(/\s+/).filter(Boolean);
   const highlightWords = highlight ? highlight.toLowerCase().split(/\s+/) : [];
 
-  const exit = exitAt === undefined ? 1 : interpolate(frame, [exitAt - 10, exitAt], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.in});
+  const exit = exitAt === undefined ? 1 : interpolate(frame, [exitAt - fr(10, fps), exitAt], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.in});
 
   return (
     <div
@@ -65,7 +65,7 @@ export const KineticTitle: React.FC<{
       }}
     >
       {words.map((word, i) => {
-        const progress = spring({frame, fps, delay: delay + i * stagger, config: SPRING.soft});
+        const progress = spring({frame, fps, delay: fr(delay + i * stagger, fps), config: SPRING.soft});
         const isHighlight = highlightWords.indexOf(word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')) !== -1;
         return (
           <span key={`${word}-${i}`} style={{display: 'inline-block', overflow: 'hidden', paddingBottom: fontSize * 0.12, marginBottom: -fontSize * 0.12}}>

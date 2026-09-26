@@ -1,11 +1,15 @@
 {
   "videoId": "example",
   "title": "3 habits of creators who grow",
+  "pacing": "fast",
+  "grade": "none",
+  "logo": {"text": "yourbrand", "corner": "top-left"},
+  "music": null,
   "voice": {
     "provider": "elevenlabs",
-    "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+    "preset": "young-male-pro",
     "model": "eleven_multilingual_v2",
-    "settings": {"stability": 0.45, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 1.04}
+    "settings": {"stability": 0.42, "similarity_boost": 0.78, "style": 0.35, "use_speaker_boost": true, "speed": 1.08}
   },
   "scenes": [
     {
@@ -14,7 +18,7 @@
       "highlight": "first second",
       "voiceover": "Nobody is watching your first second. So stop wasting it.",
       "visual": {"type": "gradient"},
-      "minSeconds": 2.5
+      "minSeconds": 2.2
     },
     {
       "id": "scene-02",
@@ -26,13 +30,32 @@
     },
     {
       "id": "scene-03",
-      "headline": "Habit two: one idea per video",
-      "highlight": "one idea",
-      "voiceover": "Habit two. One idea per video. Three ideas is a playlist, not a Short.",
-      "visual": {"type": "gradient"}
+      "headline": "Retention by hook type",
+      "highlight": "hook",
+      "voiceover": "Videos that open with the result keep almost twice as many viewers past three seconds.",
+      "visual": {
+        "type": "chart",
+        "chart": {
+          "kind": "bar",
+          "title": "Viewers still watching at 3 s",
+          "unit": "%",
+          "data": [
+            {"label": "Result first", "value": 71},
+            {"label": "Question", "value": 58},
+            {"label": "Setup first", "value": 39}
+          ]
+        }
+      }
     },
     {
       "id": "scene-04",
+      "headline": "One idea per video",
+      "highlight": "one",
+      "voiceover": "Habit two. One idea per video. Three ideas is a playlist, not a Short.",
+      "visual": {"type": "neon"}
+    },
+    {
+      "id": "scene-05",
       "headline": "Habit three: end on a loop",
       "highlight": "loop",
       "subline": "Your last frame is your next hook.",

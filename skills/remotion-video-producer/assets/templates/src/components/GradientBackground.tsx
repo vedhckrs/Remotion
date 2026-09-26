@@ -18,8 +18,8 @@ export const GradientBackground: React.FC<{
   readonly seed?: string;
 }> = ({colors = [theme.colors.bg, '#141428'], blobs = [theme.colors.accent, theme.colors.accent2], grain = 0, speed = 1, seed = 'bg'}) => {
   const frame = useCurrentFrame();
-  const {width, height, durationInFrames} = useVideoConfig();
-  const t = (frame / 90) * speed;
+  const {width, height, durationInFrames, fps} = useVideoConfig();
+  const t = (frame / (3 * fps)) * speed;
 
   const angle = interpolate(frame, [0, durationInFrames], [160, 200], {extrapolateRight: 'clamp'});
   const blobSize = Math.max(width, height) * 0.7;

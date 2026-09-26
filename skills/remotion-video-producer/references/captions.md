@@ -48,9 +48,14 @@ The `CaptionLayer` template implements this with three looks and a `platform` pr
 
 | Look | Description | Use |
 |---|---|---|
-| `karaoke` | All words visible in white, active word in accent color, slight scale 1.08 pop | Educational, talking head |
+| `hormozi` (default) | Montserrat 900 uppercase, white with 3.5 px black stroke and hard offset shadow, active word bright yellow with a punch and 1.5 degree tilt, 3 to 4 words per page | Business, education, talking head; the 2026 benchmark |
 | `pop` | Only the current page, each word pops in with a spring, active word larger with glow | Shorts hooks, hype, UGC |
 | `boxed` | Words in a rounded solid box (accent) that follows the active word, white text | Brand/ad content, high legibility over footage |
+| `karaoke` | All words visible in white, active word in accent color, slight scale 1.08 pop | Calm explainers |
+| `outline` | Anton condensed uppercase, 5 px stroke, active word yellow | Entertainment, MrBeast-style hits |
+| `minimal` | Inter 600 lowercase inside a translucent dark bar, unspoken words dimmed | Premium, editorial, luxury |
+
+Research behind these (Submagic, Ascynd, Blitzcut, Vidpal, Zapcap guides, 2026) is summarized in `ecosystem.md` section 3; fonts are Google Fonts loaded by `theme.ts` (Inter, Montserrat, Anton). TikTok Sans (OFL) is available if a client wants the native look.
 
 Typography: 900 weight, uppercase optional, 56 to 72 px on 1080x1920, 40 to 48 px on 1920x1080, `letterSpacing: -0.01em`, stroke via `WebkitTextStroke: '2px rgba(0,0,0,0.6)'` or a shadow stack for legibility over footage. Two lines maximum, 3 to 5 words per page vertical. Position: lower part of the safe box (y 1250 to 1480 at 1080x1920) and never overlapping the headline; when a headline occupies that region, move captions to the upper middle for that scene.
 

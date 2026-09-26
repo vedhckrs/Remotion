@@ -41,7 +41,7 @@ $INSTALL
 echo "Adding Remotion packages at the matching version"
 $RUNX remotion add @remotion/media @remotion/transitions @remotion/google-fonts @remotion/captions @remotion/effects \
   @remotion/shapes @remotion/paths @remotion/noise @remotion/layout-utils @remotion/media-utils @remotion/sfx \
-  @remotion/zod-types @remotion/motion-blur @remotion/fonts zod
+  @remotion/zod-types @remotion/motion-blur @remotion/fonts @remotion/install-whisper-cpp zod
 
 echo "Copying templates"
 mkdir -p src public/script public/voiceover public/music public/media public/captions out
@@ -61,6 +61,30 @@ fs.writeFileSync("remotion.config.ts", c);
   echo "Tailwind v4 detected: kept enabled in remotion.config.ts"
 fi
 [ -f public/script/example.json ] || cp "$TEMPLATES/public/script/example.json" public/script/example.json
+
+echo "Installing the local dashboard (tools/dashboard) and LUTs (public/luts)"
+mkdir -p tools/dashboard public/luts
+cp -R "$SKILL_DIR/assets/dashboard/." tools/dashboard/
+node "$SKILL_DIR/scripts/make-lut.mjs" --out public/luts >/dev/null && echo "  7 LUTs written"
+
+# npm scripts that point at the skill's scripts (absolute path, so the project stays thin).
+node -e '
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const skill = process.argv[1];
+pkg.scripts = Object.assign({}, pkg.scripts, {
+  dashboard: `nice -n 10 node tools/dashboard/server.mjs --skill "${skill}"`,
+  "machine-check": `bash "${skill}/scripts/machine-check.sh" --render-test Shorts`,
+  analyze: `node "${skill}/scripts/analyze-script.mjs"`,
+  voice: `node "${skill}/scripts/generate-voiceover.mjs"`,
+  captions: `node "${skill}/scripts/transcribe-whisper.mjs"`,
+  music: `node "${skill}/scripts/generate-music.mjs"`,
+  luts: `node "${skill}/scripts/make-lut.mjs"`,
+  render: `bash "${skill}/scripts/render-preset.sh"`,
+});
+fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+' "$SKILL_DIR"
+echo "  npm scripts added: dashboard, machine-check, analyze, voice, captions, music, luts, render"
 
 if [ "$KEEP_ROOT" -eq 0 ]; then
   mv -f src/Root.example.tsx src/Root.tsx
@@ -85,7 +109,8 @@ echo "Compositions:"
 $RUNX remotion compositions 2>/dev/null | tail -n +1 || true
 echo
 echo "Next:"
-echo "  0. bash $SKILL_DIR/scripts/machine-check.sh --render-test Shorts   # confirm GL backend and concurrency on this machine"
-echo "  1. Edit public/script/<videoId>.json (start from example.json)"
-echo "  2. node $SKILL_DIR/scripts/generate-voiceover.mjs --script public/script/<videoId>.json"
-echo "  3. $RUNX remotion studio --no-open"
+echo "  0. npm run machine-check                       # confirm GL backend and concurrency on this machine"
+echo "  1. npm run dashboard                           # local control room at http://localhost:4545"
+echo "  2. npm run analyze -- script.md --id <videoId> # or edit public/script/<videoId>.json by hand"
+echo "  3. npm run voice -- --script public/script/<videoId>.json"
+echo "  4. npm run render -- Shorts shorts --4k        # 4K60 master, 50% machine budget"
