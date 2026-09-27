@@ -23,8 +23,8 @@ export const EndCard: React.FC<{
   const {safe, unit, isVertical} = usePlatformLayout();
 
   const logo = spring({frame, fps, config: SPRING.silk});
-  const title = spring({frame, fps, delay: fr(8, fps), config: SPRING.fluid});
-  const pill = spring({frame, fps, delay: fr(16, fps), config: SPRING.snappy});
+  const title = spring({frame, fps, delay: fr(2, fps), config: SPRING.fluid}); // lands during the transition, no empty frame
+  const pill = spring({frame, fps, delay: fr(10, fps), config: SPRING.snappy});
   const shimmer = interpolate(frame % fr(60, fps), [0, fr(60, fps)], [-120, 220], {easing: EASE.inOut});
 
   const titleSize = (isVertical ? 112 : 84) * unit;

@@ -2,7 +2,7 @@ import React from 'react';
 import {noise2D} from '@remotion/noise';
 import {noise} from '@remotion/effects/noise';
 import {AbsoluteFill, Solid, interpolate, random, useCurrentFrame, useVideoConfig} from 'remotion';
-import {alpha, isDark, lift} from '../lib/color';
+import {alpha, isDark, lift, luminance} from '../lib/color';
 import {EASE, fr} from '../lib/motion';
 import type {BackgroundKind} from '../lib/styles';
 import {useTheme} from '../lib/theme';
@@ -41,6 +41,8 @@ export const Background: React.FC<{
   const unit = width / 1080;
   const light = lift(c.bg, 8); // one tonal step, the only "second color" of the field
   const shadeEdge = dark ? '0,0,0' : '30,26,20';
+  // A bright accent (yellow, lime) at full glow strength tints the whole dark field olive: scale glows by its brightness.
+  const glowK = 1 - 0.6 * Math.min(1, Math.max(0, luminance(c.accent)));
 
   const vignette = <AbsoluteFill style={{background: `radial-gradient(ellipse at 50% 45%, rgba(${shadeEdge},0) 50%, rgba(${shadeEdge},${(dark ? 0.45 : 0.12) * intensity}) 100%)`, pointerEvents: 'none'}} />;
   const grainLayer = grain > 0 ? <Solid width={width} height={height} color="#808080" style={{position: 'absolute', inset: 0, mixBlendMode: 'overlay', opacity: grain * 4}} effects={[noise({amount: 0.8, seed: frame % 97})]} /> : null;
@@ -73,7 +75,7 @@ export const Background: React.FC<{
     const size = Math.max(width, height) * 1.1;
     body = (
       <>
-        <div style={{position: 'absolute', left: '50%', top: '28%', width: size, height: size, translate: '-50% -50%', borderRadius: '50%', background: c.accent, opacity: (dark ? 0.22 : 0.14) * intensity * breatheV, filter: `blur(${size * 0.28}px)`}} />
+        <div style={{position: 'absolute', left: '50%', top: '28%', width: size, height: size, translate: '-50% -50%', borderRadius: '50%', background: c.accent, opacity: (dark ? 0.22 : 0.14) * glowK * intensity * breatheV, filter: `blur(${size * 0.28}px)`}} />
         <div style={{position: 'absolute', left: '50%', top: '32%', width: size * 0.45, height: size * 0.45, translate: '-50% -50%', borderRadius: '50%', background: light, opacity: 0.5 * intensity, filter: `blur(${size * 0.15}px)`}} />
       </>
     );
@@ -84,7 +86,7 @@ export const Background: React.FC<{
     body = (
       <>
         <div style={{position: 'absolute', left: '-50%', width: '200%', top: '45%', height: '120%', transformOrigin: 'top center', transform: 'rotateX(72deg)', backgroundImage: `linear-gradient(${line} 2px, transparent 2px), linear-gradient(90deg, ${line} 2px, transparent 2px)`, backgroundSize: `${cell}px ${cell}px`, backgroundPosition: `0px ${offset}px`, maskImage: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 25%, #000 100%)', WebkitMaskImage: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 25%, #000 100%)'}} />
-        <div style={{position: 'absolute', left: 0, right: 0, top: '30%', height: '30%', background: `radial-gradient(ellipse at 50% 60%, ${alpha(c.accent, 0.28)} 0%, rgba(0,0,0,0) 60%)`, opacity: intensity}} />
+        <div style={{position: 'absolute', left: 0, right: 0, top: '30%', height: '30%', background: `radial-gradient(ellipse at 50% 60%, ${alpha(c.accent, 0.28 * glowK)} 0%, rgba(0,0,0,0) 60%)`, opacity: intensity}} />
         <div style={{position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${c.bg} 0%, rgba(0,0,0,0) 40%)`}} />
       </>
     );
@@ -104,7 +106,7 @@ export const Background: React.FC<{
     body = (
       <>
         <div style={{position: 'absolute', left: '50%', top: '-20%', width: Math.max(width, height) * 3, height: Math.max(width, height) * 3, marginLeft: -Math.max(width, height) * 1.5, background: `repeating-conic-gradient(from ${angle}deg at 50% 50%, ${alpha(c.accent, dark ? 0.12 : 0.08)} 0deg, rgba(0,0,0,0) 6deg, rgba(0,0,0,0) 14deg)`, opacity: intensity, filter: `blur(${2 * unit}px)`}} />
-        <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: '60%', background: `radial-gradient(ellipse at 50% 0%, ${alpha(c.accent, 0.3)} 0%, rgba(0,0,0,0) 60%)`}} />
+        <div style={{position: 'absolute', left: 0, right: 0, top: 0, height: '60%', background: `radial-gradient(ellipse at 50% 0%, ${alpha(c.accent, 0.3 * glowK)} 0%, rgba(0,0,0,0) 60%)`}} />
       </>
     );
   } else if (kind === 'waves') {

@@ -88,6 +88,8 @@ const pacing = ['fast', 'medium', 'calm'].indexOf(args.pacing) !== -1 ? args.pac
 const videoId = String(args.id).replace(/[^a-zA-Z0-9_-]/g, '-');
 const raw = fs.readFileSync(input, 'utf8').replace(/\r\n/g, '\n');
 
+const stripEmphasis = (text) => String(text).replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+
 // ---- split into title + scene blocks --------------------------------------------------------------
 let title = args.title || '';
 const lines = raw.split('\n');
@@ -101,7 +103,7 @@ for (const line of lines) {
   const h1 = line.match(/^#\s+(.+)/);
   const h2 = line.match(/^#{2,3}\s+(.+)/);
   if (h1 && !title) {
-    title = h1[1].trim();
+    title = stripEmphasis(h1[1]);
     continue;
   }
   if (h2) {
@@ -204,7 +206,11 @@ const scenes = blocks.map((block, i) => {
   }
 
   const voiceover = voiceLines.join(' ').replace(/\s+/g, ' ').trim();
-  const headline = block.heading || firstSentence(voiceover);
+  // Markdown emphasis never reaches the screen: "## Your earbuds speak **radio**" shows "Your earbuds speak radio"
+  // with "radio" as the highlight word (the heading's bold wins over the voiceover's).
+  const headingEmph = block.heading && block.heading.match(/\*\*([^*]+)\*\*|\*([^*]+)\*/);
+  if (headingEmph) highlight = (headingEmph[1] || headingEmph[2]).trim();
+  const headline = block.heading ? stripEmphasis(block.heading) : firstSentence(voiceover);
   if (!highlight) highlight = pickHighlight(headline, voiceover);
 
   if (dataLines.length >= 3) {

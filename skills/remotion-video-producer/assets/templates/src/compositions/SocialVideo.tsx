@@ -74,9 +74,18 @@ export type SocialVideoProps = z.infer<typeof socialVideoSchema> & {
 
 const END_CARD_SECONDS = 2.5;
 
+const EMPHASIS = /\*\*([^*]+)\*\*|\*([^*]+)\*/;
+const cleanScene = (scene: VideoScript['scenes'][number]) => {
+  if (!scene.headline.includes('*')) return scene;
+  const m = scene.headline.match(EMPHASIS);
+  return {...scene, headline: scene.headline.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/\*/g, '').trim(), highlight: m ? (m[1] || m[2]).trim() : scene.highlight};
+};
+
 export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideoProps> = async ({props, abortSignal}) => {
   const fps = props.fps;
-  const script = await fetchJson<VideoScript>(scriptUrl(props.videoId), abortSignal);
+  const loaded = await fetchJson<VideoScript>(scriptUrl(props.videoId), abortSignal);
+  // Scripts written before the analyzer stripped Markdown can carry "**word**" in headlines: clean them here.
+  const script = loaded ? {...loaded, scenes: loaded.scenes.map((sc) => cleanScene(sc))} : null;
   if (!script) {
     throw new Error(`Missing public/script/${props.videoId}.json. Write the scene plan first (SKILL.md Phase 2) or run scripts/analyze-script.mjs.`);
   }

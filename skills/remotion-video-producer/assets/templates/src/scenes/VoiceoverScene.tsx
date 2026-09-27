@@ -6,7 +6,7 @@ import {Camera3D, Layer} from '../components/Camera3D';
 import {KenBurnsImage} from '../components/KenBurnsImage';
 import {KineticTitle} from '../components/KineticTitle';
 import {LutVideo} from '../components/LutMedia';
-import {alpha, scrimFor} from '../lib/color';
+import {alpha, luminance, scrimFor} from '../lib/color';
 import {NeonText} from '../components/NeonText';
 import type {GradeName} from '../lib/grades';
 import {PACING, SPRING, cameraPush, fr, type Pacing} from '../lib/motion';
@@ -120,7 +120,7 @@ export const VoiceoverScene: React.FC<{
         <Camera3D keyframes={[{at: 0, pan: -4, tilt: 2, dolly: -60}, {at: durationInFrames / fps, pan: 4, tilt: -1, dolly: 40}]} handheld={0.6} seed={scene.id}>
           <Layer depth={-320} style={{scale: '1.45'}}>{background}</Layer>
           <Layer depth={-120}>
-            <AbsoluteFill style={{background: `radial-gradient(circle at 50% 55%, ${alpha(accent, 0.2)} 0%, rgba(0,0,0,0) 55%)`}} />
+            <AbsoluteFill style={{background: `radial-gradient(circle at 50% 55%, ${alpha(accent, 0.2 * (1 - 0.6 * luminance(accent)))} 0%, rgba(0,0,0,0) 55%)`}} />
           </Layer>
           <Layer depth={80}>{copy}</Layer>
         </Camera3D>
