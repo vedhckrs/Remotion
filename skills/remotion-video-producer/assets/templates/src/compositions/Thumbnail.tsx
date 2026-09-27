@@ -6,6 +6,7 @@ import {AttributionBar} from '../components/AttributionBar';
 import {Background} from '../components/Background';
 import {BrandLogo, type IconSet} from '../components/Icon';
 import {LogoBadge} from '../components/LogoBadge';
+import {getLogoSlot} from '../lib/platforms';
 import {fetchJson, scriptUrl, type IconSpec, type VideoScript} from '../lib/script';
 import {STYLE_IDS, getStyle, themeWith} from '../lib/styles';
 import {ThemeProvider, useTheme} from '../lib/theme';
@@ -67,9 +68,36 @@ const Inner: React.FC<ThumbnailProps & {readonly script: VideoScript}> = ({varia
   const marks = showLogos ? icons.filter((ic, i, arr) => arr.findIndex((o) => o.name === ic.name) === i).slice(0, 3) : [];
   const usedKeys = marks.map((ic) => `${ic.set ?? 'simple-icons'}:${ic.name}`);
 
-  const fontSize = (isCover ? 200 : variant === 'square' ? 150 : 168) * unit * (line.length > 24 ? 0.8 : 1);
   const pad = 64 * unit;
   const creditSpace = usedKeys.length ? 44 * unit : 0;
+  const hasLogo = Boolean(script.logo?.text || script.logo?.src);
+  const logoScale = isCover ? 1 : 1.1;
+  const logoSlot = hasLogo ? getLogoSlot(width, height, 'top-left', undefined, logoScale) : null;
+
+  // The headline fits between the logo corner and the credits: estimate the wrap (heavy display type is
+  // about 0.62 em per uppercase character) and shrink until every line fits, so a long hook never runs
+  // under the channel logo or off the frame.
+  const boxLeft = pad;
+  const boxRight = isCover ? pad : marks.length ? width * 0.3 : pad;
+  const boxTop = isCover ? height * 0.25 : logoSlot ? logoSlot.y + logoSlot.height + 24 * unit : pad;
+  const boxBottom = isCover ? (marks.length ? height * 0.56 - 32 * unit : height - pad - creditSpace) : height - pad * 1.2 - creditSpace;
+  const charEm = preset.thumbnail.textCase === 'upper' ? 0.62 : 0.54;
+  const linesAt = (size: number) => {
+    const max = width - boxLeft - boxRight;
+    let lines = 1;
+    let used = 0;
+    for (const {word, hot} of words) {
+      const w = word.length * charEm * size + (hot && preset.thumbnail.accentBlock ? size * 0.28 : 0);
+      const next = used ? used + size * 0.22 + w : w;
+      if (next > max && used) {
+        lines++;
+        used = w;
+      } else used = next;
+    }
+    return lines;
+  };
+  let fontSize = (isCover ? 200 : variant === 'square' ? 150 : 168) * unit * (line.length > 24 ? 0.8 : 1);
+  while (fontSize > 56 * unit && linesAt(fontSize) * fontSize * 1.02 > boxBottom - boxTop) fontSize *= 0.94;
 
   return (
     <AbsoluteFill style={{backgroundColor: theme.colors.bg, fontFamily: preset.thumbnail.font, color: theme.colors.text}}>
@@ -85,9 +113,9 @@ const Inner: React.FC<ThumbnailProps & {readonly script: VideoScript}> = ({varia
       <div
         style={{
           position: 'absolute',
-          left: pad,
-          right: isCover ? pad : marks.length ? width * 0.3 : pad,
-          top: isCover ? height * 0.25 : undefined,
+          left: boxLeft,
+          right: boxRight,
+          top: isCover ? boxTop : undefined,
           bottom: isCover ? undefined : pad * 1.2 + creditSpace,
           display: 'flex',
           flexWrap: 'wrap',
@@ -133,7 +161,7 @@ const Inner: React.FC<ThumbnailProps & {readonly script: VideoScript}> = ({varia
         </div>
       ) : null}
 
-      {script.logo?.text || script.logo?.src ? <LogoBadge text={script.logo.text ?? undefined} src={script.logo.src ? staticFile(script.logo.src) : undefined} corner={isCover ? 'top-left' : 'top-left'} delay={0} scale={isCover ? 1 : 1.1} /> : null}
+      {script.logo?.text || script.logo?.src ? <LogoBadge text={script.logo.text ?? undefined} src={script.logo.src ? staticFile(script.logo.src) : undefined} corner="top-left" delay={0} scale={logoScale} /> : null}
       {usedKeys.length ? <AttributionBar used={usedKeys} opacity={0.5} fade={false} /> : null}
     </AbsoluteFill>
   );

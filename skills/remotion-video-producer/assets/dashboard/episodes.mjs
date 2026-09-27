@@ -22,6 +22,10 @@ export const RATIOS = {
   '1:1': {tag: 'square', platform: 'square', preset: 'feed', comps: ['Square', 'Feed'], label: 'Square 1:1'},
 };
 
+/** Ratios that make sense per video kind: Shorts are vertical (plus feed crops), long videos are 16:9. */
+export const RATIOS_FOR_KIND = {short: ['9:16', '4:5', '1:1'], long: ['16:9']};
+const allowedRatios = (kind) => RATIOS_FOR_KIND[kind] || RATIOS_FOR_KIND.short;
+
 const AUDIO = /\.(mp3|m4a|wav|aac|ogg)$/i;
 const readJson = (file, fallback = null) => {
   try {
@@ -80,7 +84,10 @@ export const createEpisodes = (ctx) => {
   };
 
   const whenFor = (plan, ep, video) => (ep.date && video.time ? `${ep.date}T${video.time}:00${plan.utcOffset || 'Z'}` : null);
-  const defaultRatios = (plan, video) => plan.defaults?.[video.kind]?.ratios || (video.kind === 'long' ? ['16:9'] : ['9:16']);
+  const defaultRatios = (plan, video) => {
+    const wanted = (plan.defaults?.[video.kind]?.ratios || [allowedRatios(video.kind)[0]]).filter((r) => allowedRatios(video.kind).includes(r));
+    return wanted.length ? wanted : [allowedRatios(video.kind)[0]];
+  };
   const defaultExportDir = (ep) => (ep.folderAbs ? path.join(ep.folderAbs, 'exports') : path.join(outDir, ep.id));
 
   const videoStatus = (ep, video) => {
@@ -128,7 +135,7 @@ export const createEpisodes = (ctx) => {
           topic: ep.topic,
           folder: ep.folderAbs,
           exportDir: defaultExportDir(ep),
-          videos: ep.videos.map((v) => ({variant: v.variant, kind: v.kind, time: v.time, title: v.title, hook: v.hook, videoId: v.videoId, when: whenFor(plan, ep, v), ratios: defaultRatios(plan, v), status: videoStatus(ep, v)})),
+          videos: ep.videos.map((v) => ({variant: v.variant, kind: v.kind, time: v.time, title: v.title, hook: v.hook, videoId: v.videoId, when: whenFor(plan, ep, v), ratios: defaultRatios(plan, v), allowed: allowedRatios(v.kind), status: videoStatus(ep, v)})),
         })),
       })),
     };
@@ -291,7 +298,7 @@ export const createEpisodes = (ctx) => {
     const {plan, week, ep} = found;
     const o = job.options;
     const selected = ep.videos
-      .map((v) => ({...v, ratios: (o.videos || []).find((x) => x.variant === v.variant)?.ratios}))
+      .map((v) => ({...v, ratios: ((o.videos || []).find((x) => x.variant === v.variant)?.ratios || []).filter((r) => allowedRatios(v.kind).includes(r))}))
       .filter((v) => v.ratios && v.ratios.length);
     if (!selected.length) throw new Error('Select at least one video and one aspect ratio');
     const exportBase = path.resolve(o.outDir || defaultExportDir(ep));
@@ -326,13 +333,13 @@ export const createEpisodes = (ctx) => {
         send('jobs', ctx.jobs);
       };
 
-      // 1. Script: the episode folder's Markdown wins when it is newer; else the existing JSON; else the writer.
+      // 1. Script: the episode folder's Markdown wins when it is newer (or on Redo); else the existing JSON; else the writer.
       setStep(k('script'), 'running');
       const md = ep.folderAbs ? path.join(ep.folderAbs, `script-${v.variant}.md`) : null;
       const topicKeyword = ep.topic?.toLowerCase();
       const keywords = uniq([...(plan.keywords || []), topicKeyword]).join(', ');
       let scriptSource = null;
-      if (md && fs.existsSync(md) && (!fs.existsSync(scriptFile) || mtime(md) > mtime(scriptFile))) {
+      if (md && fs.existsSync(md) && (o.regenerate || !fs.existsSync(scriptFile) || mtime(md) > mtime(scriptFile))) {
         const pacing = plan.defaults?.[v.kind]?.pacing || (v.kind === 'long' ? 'medium' : 'fast');
         const r = await runChild(job, 'analyze', node, [skillScript('analyze-script.mjs'), md, '--id', id, '--pacing', pacing, '--voice-preset', plan.voicePreset || 'young-male-pro', ...(plan.style ? ['--style', plan.style] : []), ...(keywords ? ['--keywords', keywords] : []), '--out', path.join('public', 'script', `${id}.json`)]);
         if (!r.ok || !fs.existsSync(scriptFile)) {

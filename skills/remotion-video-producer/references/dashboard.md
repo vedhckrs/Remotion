@@ -6,28 +6,30 @@ runs under `nice -n 10` so Chrome and FFmpeg it spawns yield to your foreground 
 
 ## Tabs
 
-**Episodes** (the content-plan studio). Load a season plan (JSON, format below) with **Choose plan file…**
-(a native Finder dialog on macOS, an in-page folder browser elsewhere). Weeks show as tabs grouped by
-month, each with a progress meter; a week lists its episodes with per-video status (script, voice,
-video ratios, upload details, saved). Pick an episode, then:
+**Episodes** (the content-plan studio). The plan file is remembered in settings (**Change plan** switches
+it: a native Finder dialog on macOS, an in-page folder browser elsewhere). Pick a week from the strip
+(grouped by month, `done/total` per week), then an episode tab (EP001, EP002, ...): only that episode's
+detail shows. Per video one row: tick box, name and length, title, the aspect ratios it may use and one
+status (No script yet, Script ready, Voiced, Rendered, Saved, Queued, Working N%).
 
-- tick the videos to make (for example Long, Short A, Short B) and the **aspect ratios** for each:
-  16:9, 9:16, 4:5, 1:1 (several per video is fine; defaults come from the plan);
-- choose **Save videos to** (default `<episode folder>/exports`); every video gets its own subfolder;
-- pick the voice (ElevenLabs, OpenAI, or the free macOS draft), music (a track from the plan's music
-  library, a newly generated bed, or none) and what happens when a script is missing (Claude Code
-  headless writes it, or stop);
-- **Generate**. Each ticked video becomes its own job, queued in plan order (Short A, Long, Short B),
+- Ratios follow the video kind: a **long** video is 16:9 only (shown as a tag, nothing to pick); a
+  **short** offers 9:16, 4:5 and 1:1 (at least one stays selected). The server applies the same rule, so an
+  API call asking for 9:16 on a long video (or 16:9 on a short) skips that ratio.
+- **Saves to** defaults to `<episode folder>/exports` (Change / Reset); every video gets its own subfolder.
+- Voice (ElevenLabs, OpenAI or the free macOS draft) and music (library track, generated bed or none).
+  **More options** holds the script writer (Claude Code headless, or stop when a script is missing) and
+  **Redo** (re-read the episode's script .md, then voice, thumbnails and renders again).
+- **Generate N videos**. Each ticked video becomes its own job, queued in plan order (Short A, Long, Short B),
   and the queue runs one job at a time: a video is fully rendered and saved before the next starts.
-  Each job shows its steps live: script → icons → voice → captions → music → thumbnails → one render per
-  ratio → upload details → save to folder. **Queue whole week** adds every video of the week the same way.
-  The tab bar shows the running job and how many are waiting on every tab.
+  Each job shows its step live (expand **Steps** for all of them: script → icons → voice → captions →
+  music → thumbnails → one render per ratio → upload details → save to folder) and can be cancelled (✕),
+  queued or running. The tab bar shows the running job and how many are waiting on every tab.
 
 Script source, in order: `script-<variant>.md` in the episode folder (analyzed when newer than the JSON),
 an existing `public/script/<episodeId>-<variant>.json`, then Claude Code (`claude -p` with
 `automation/writer-prompt.md` plus the episode's title, hook and sign-off). The plan's style, title,
 category, hashtags, CTA and logo are written into the script so thumbnails and copy match the brand.
-Every step is skipped when its output exists; tick **Redo voice & renders** to rebuild.
+Every step is skipped when its output exists; tick **Redo** to rebuild (it also re-reads `script-<variant>.md`).
 
 Saved folder layout:
 ```
@@ -38,15 +40,19 @@ Saved folder layout:
   short-b/   ...
 ```
 
-**Upload details.** Pick week and episode. Per video: players for each rendered ratio, the thumbnails
-and covers, and a card per platform with Copy buttons: YouTube (title, A/B title options,
-description with chapters, tags with the 500-character count, category), Facebook page video for long
-videos; YouTube Shorts, Instagram Reels caption (2,200 limit shown) and Facebook Reels for Shorts.
+**Upload details.** Pick week and episode. One card per video: the player (sized to the ratio, with a
+ratio picker when a short has several renders), thumbnails and covers, **Open large** and **Captions .srt**;
+next to it platform tabs with Copy buttons: YouTube and Facebook for a long video; YouTube Shorts,
+Instagram Reels (caption with the 2,200 limit) and Facebook Reels for a short. YouTube shows title, A/B
+title options, description with chapters, tags with the 500-character count and category.
 **Schedule…** pre-fills the plan's slot (`date` + `time` + `utcOffset`) and runs `publish.mjs`
-(dry run first). **Download UPLOAD-DETAILS.md** saves the same text as a file.
+(dry run ticked first). **Download .md** saves the episode's UPLOAD-DETAILS.md; **Open saved folder**
+reveals the export folder.
 
-**Control room.** Scripts, render panel, queue, autopilot and an outputs gallery (click a card to play it
-in a player window). The page fits the window; each panel scrolls on its own. The Memory gauge shows
+**Control room.** Scripts and autopilot on the left, outputs in the middle, render / queue / log on the
+right. Outputs are grouped by video folder and filtered with All / Long / Shorts / Feed / Thumbnails;
+each card keeps its real shape (16:9, 9:16, 1:1) with a ratio badge; click to play in a player window
+(Esc closes). The page fits the window; each panel scrolls on its own. The Memory gauge shows
 memory available to apps (free plus cache, as Activity Monitor counts it), not the near-zero free figure.
 
 ## Content plan (JSON)
@@ -97,8 +103,9 @@ is passed as the background system, the plan's `endCard` as the end card.
 
 ## Control room panels
 
-- Machine bar: CPU load against cores, free memory, thermal state (`pmset -g therm` CPU speed
-  limit on macOS), free disk, and the machine budget slider (10 to 100 percent, default 50). The
+- Machine bar: CPU load against cores, memory available, thermal state (Normal, Warm, Hot · slowing,
+  Critical; read from `NSProcessInfo.thermalState` on macOS, which works on Apple Silicon, with
+  `pmset -g therm` as fallback; n/a on other systems), free disk, and the machine budget slider (10 to 100 percent, default 50). The
   budget sets Chrome tab concurrency = cores x budget, capped by memory / 4, halved for 4K. On the
   MacBook Air M5 (10 cores, 16 GB) that is 4 tabs at 1080p and 2 at 4K.
 - Encoder and master toggles: hardware encoding (VideoToolbox on macOS) and 4K (scale 2) defaults
@@ -161,7 +168,10 @@ this stops other websites open in the same browser from triggering renders or up
 localhost. Example from a shell:
 `curl -X POST localhost:4545/api/render -H 'Content-Type: application/json' -H 'X-Dashboard: 1' -d '{"compositionId":"Shorts","preset":"shorts","fourK":true}'`.
 
-The queue runs jobs one at a time, oldest first.
+The queue runs jobs one at a time, oldest first. A render that makes no progress for 5 minutes (for
+example after the Mac slept mid-render) is cancelled with "Render stalled", so the queue moves on.
+`POST /api/settings` accepts only known keys with valid values (budget 10 to 100, booleans for `hw` and
+`fourK`, known `gl`, `voiceProvider`, `music` and `writer` values).
 
 ## Full speed
 

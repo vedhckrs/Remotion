@@ -20,7 +20,7 @@ import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
-import {createEpisodes} from './episodes.mjs';
+import {RATIOS_FOR_KIND, createEpisodes} from './episodes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cwd = process.cwd();
@@ -78,11 +78,30 @@ const concurrencyFor = (budget, fourK) => {
   return c;
 };
 
+/**
+ * Thermal state. Apple Silicon has no CPU_Speed_Limit in `pmset -g therm`, so ask macOS the way apps do:
+ * NSProcessInfo.thermalState (0 nominal, 1 fair, 2 serious = throttling, 3 critical) through JXA, cached
+ * because spawning osascript every gauge tick would itself cost CPU. Intel Macs fall back to pmset.
+ */
+const THERMAL_NAMES = ['normal', 'warm', 'hot', 'critical'];
+let thermalCache = {at: 0, value: null};
 const thermal = () => {
   if (!isMac) return null;
-  const res = spawnSync('pmset', ['-g', 'therm'], {encoding: 'utf8'});
-  const m = (res.stdout || '').match(/CPU_Speed_Limit\s*=\s*(\d+)/);
-  return m ? Number(m[1]) : null;
+  if (Date.now() - thermalCache.at < 15_000) return thermalCache.value;
+  let value = null;
+  const res = spawnSync('osascript', ['-l', 'JavaScript', '-e', 'ObjC.import("Foundation"); $.NSProcessInfo.processInfo.thermalState'], {encoding: 'utf8', timeout: 3000});
+  const level = Number(String(res.stdout || '').trim());
+  if (res.status === 0 && Number.isInteger(level) && level >= 0 && level <= 3) value = {level, state: THERMAL_NAMES[level]};
+  else {
+    const m = (spawnSync('pmset', ['-g', 'therm'], {encoding: 'utf8'}).stdout || '').match(/CPU_Speed_Limit\s*=\s*(\d+)/);
+    if (m) {
+      const limit = Number(m[1]);
+      const lvl = limit >= 100 ? 0 : limit >= 80 ? 1 : limit >= 50 ? 2 : 3;
+      value = {level: lvl, state: THERMAL_NAMES[lvl], speedLimit: limit};
+    }
+  }
+  thermalCache = {at: Date.now(), value};
+  return value;
 };
 
 /** Memory apps can use now. macOS keeps idle memory as cache, so os.freemem() reads near zero on a healthy
@@ -109,7 +128,7 @@ const machine = () => {
     freeMemoryGb: availableMemoryGb(),
     load1: Math.round(load * 10) / 10,
     loadPercent: Math.min(100, Math.round((load / cores) * 100)),
-    cpuSpeedLimit: thermal(),
+    thermal: thermal(),
     recommendedConcurrency: concurrencyFor(settings.budget, false),
     recommendedConcurrency4k: concurrencyFor(settings.budget, true),
     hardwareEncoder: isMac ? 'VideoToolbox' : spawnSync('which', ['nvidia-smi']).status === 0 ? 'NVENC' : null,
@@ -180,6 +199,7 @@ const listOutputs = () => {
     rows.push({file: rel, size: st.size, mtime: st.mtimeMs});
   };
   for (const f of fs.readdirSync(outDir)) {
+    if (f.startsWith('.')) continue; // .speedtest and other scratch folders
     const full = path.join(outDir, f);
     if (fs.statSync(full).isDirectory()) {
       for (const g of fs.readdirSync(full)) if (/\.(mp4|mov|webm|gif|png|jpg|srt)$/i.test(g)) add(path.join(f, g));
@@ -249,7 +269,7 @@ const latestSourceMtime = () => {
 
 const ensureBundle = async (job) => {
   if (serveUrl && bundledAt > latestSourceMtime()) return serveUrl;
-  job.status = 'bundling';
+  if (job.status !== 'cancelled') job.status = 'bundling';
   send('jobs', jobs);
   serveUrl = await bundler.bundle({entryPoint, publicDir, onProgress: (p) => (job.bundleProgress = p)});
   bundledAt = Date.now();
@@ -273,6 +293,8 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
   const width = Math.round(composition.width * scale);
   const height = Math.round(composition.height * scale);
   const info = {width, height, fps: composition.fps, totalFrames: composition.durationInFrames, concurrency, encoder: hw ? machine().hardwareEncoder : 'x264', fourK, hw};
+  // Cancel pressed while bundling or selecting: stop before Chrome starts rendering.
+  if (jobForBundle?.status === 'cancelled') throw new Error('Cancelled');
   const target = typeof outputLocation === 'function' ? outputLocation(info) : outputLocation;
   fs.mkdirSync(path.dirname(target), {recursive: true});
   onStart?.({...info, output: target});
@@ -280,6 +302,19 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
   cancelSignals.set(cancelKey, cancelSignal);
   const startedAt = Date.now();
   const frameRange = frames ? String(frames).split('-').map((n) => Number(n)) : null;
+  // Watchdog: a render with no progress for STALL_MS (Chrome hung, Mac slept mid-frame) is stopped with a
+  // clear error instead of blocking the queue forever.
+  const STALL_MS = 5 * 60_000;
+  let lastProgressAt = Date.now();
+  let stalled = false;
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastProgressAt > STALL_MS) {
+      stalled = true;
+      clearInterval(watchdog);
+      log('render', `No progress for ${STALL_MS / 60_000} minutes: stopping this render`);
+      cancelSignal.cancel();
+    }
+  }, 15_000);
   try {
     await renderer.renderMedia({
       composition,
@@ -300,11 +335,16 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
       cancelSignal: cancelSignal.cancelSignal,
       logLevel: 'error',
       onProgress: ({progress, renderedFrames, encodedFrames, stitchStage}) => {
+        lastProgressAt = Date.now();
         const elapsed = (Date.now() - startedAt) / 1000;
         onProgress?.({progress, renderedFrames, encodedFrames, stage: stitchStage, etaSeconds: progress > 0.02 ? Math.round((elapsed / progress) * (1 - progress)) : null});
       },
     });
+  } catch (error) {
+    if (stalled) throw new Error('Render stalled (no progress for 5 minutes). Generate again to retry; if it repeats, lower the budget or restart the dashboard.');
+    throw error;
   } finally {
+    clearInterval(watchdog);
     cancelSignals.delete(cancelKey);
   }
   return {...info, output: target, bytes: fs.statSync(target).size, seconds: Math.round((Date.now() - startedAt) / 1000)};
@@ -397,8 +437,11 @@ const pump = async () => {
     job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
   } catch (error) {
     job.status = job.status === 'cancelled' ? 'cancelled' : 'failed';
-    job.error = error.message.split('\n')[0].slice(0, 300);
-    log(job.kind, `Failed: ${job.error}`);
+    if (job.status === 'cancelled') log(job.kind, `Cancelled: ${job.title || job.task || job.compositionId || job.kind}`);
+    else {
+      job.error = error.message.split('\n')[0].slice(0, 300);
+      log(job.kind, `Failed: ${job.error}`);
+    }
   } finally {
     job.endedAt = Date.now();
     running = null;
@@ -434,22 +477,26 @@ const runSpeedTest = async (job) => {
   const compositionId = compositions.includes('Shorts') ? 'Shorts' : compositions.find((c) => !['Thumbnail', 'Cover', 'SquareCover'].includes(c)) || 'Shorts';
   const candidates = [...new Set([2, 3, 4, 5, 6, 8, cores].filter((c) => c >= 1 && c <= cores))].sort((a, b) => a - b);
   const dir = path.join(outDir, '.speedtest');
-  fs.mkdirSync(dir, {recursive: true});
   await ensureBundle(job);
+  if (job.status === 'cancelled') return;
+  fs.mkdirSync(dir, {recursive: true});
   job.status = 'running';
   job.results = [];
   send('jobs', jobs);
   log('speedtest', `${compositionId} (${videoId}), frames 0-119 at ${fourK ? '4K' : '1080p'}, hw=${Boolean(settings.hw && machine().hardwareEncoder)}: trying ${candidates.join(', ')} tabs`);
-  for (const [i, c] of candidates.entries()) {
-    if (job.status === 'cancelled') break;
-    const started = Date.now();
-    await renderTo({compositionId, preset: compositionId === 'YouTube' ? 'youtube-1080p' : 'shorts', inputProps: {videoId}, outputLocation: path.join(dir, `tabs-${c}.mp4`), fourK, hw: settings.hw, frames: '0-119', concurrency: c, jobForBundle: job, cancelKey: job.id, onProgress: (p) => { job.progress = (i + p.progress) / candidates.length; send('jobs', jobs); }});
-    const seconds = Math.round((Date.now() - started) / 100) / 10;
-    job.results.push({tabs: c, seconds});
-    log('speedtest', `  ${String(c).padStart(2)} tabs: ${seconds} s`);
-    send('jobs', jobs);
+  try {
+    for (const [i, c] of candidates.entries()) {
+      if (job.status === 'cancelled') break;
+      const started = Date.now();
+      await renderTo({compositionId, preset: compositionId === 'YouTube' ? 'youtube-1080p' : 'shorts', inputProps: {videoId}, outputLocation: path.join(dir, `tabs-${c}.mp4`), fourK, hw: settings.hw, frames: '0-119', concurrency: c, jobForBundle: job, cancelKey: job.id, onProgress: (p) => { job.progress = (i + p.progress) / candidates.length; send('jobs', jobs); }});
+      const seconds = Math.round((Date.now() - started) / 100) / 10;
+      job.results.push({tabs: c, seconds});
+      log('speedtest', `  ${String(c).padStart(2)} tabs: ${seconds} s`);
+      send('jobs', jobs);
+    }
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true}); // test clips are scratch, also after a cancel or failure
   }
-  fs.rmSync(dir, {recursive: true, force: true});
   if (!job.results.length) return;
   const best = job.results.reduce((a, b) => (b.seconds < a.seconds ? b : a));
   settings = {...settings, budget: 100, tested: {...(settings.tested || {}), [fourK ? 'fourK' : 'hd']: {best: best.tabs, seconds: best.seconds, results: job.results, at: new Date().toISOString()}}};
@@ -578,7 +625,12 @@ const server = http.createServer(async (req, res) => {
       const found = episodes.findEpisode(body.episodeId);
       // One job per video, in plan order: each renders and saves completely before the next starts.
       const order = found.ep.videos.map((v) => v.variant);
-      const videos = (body.videos || []).filter((v) => v.ratios?.length).sort((a, b) => order.indexOf(a.variant) - order.indexOf(b.variant));
+      const kindOf = Object.fromEntries(found.ep.videos.map((v) => [v.variant, v.kind]));
+      const videos = (Array.isArray(body.videos) ? body.videos : [])
+        .filter((v) => v && kindOf[v.variant])
+        .map((v) => ({variant: v.variant, ratios: [...new Set(Array.isArray(v.ratios) ? v.ratios : [])].filter((r) => (RATIOS_FOR_KIND[kindOf[v.variant]] || []).includes(r))}))
+        .filter((v) => v.ratios.length)
+        .sort((a, b) => order.indexOf(a.variant) - order.indexOf(b.variant));
       if (!videos.length) return json(res, 400, {error: 'Select at least one video and one aspect ratio'});
       const label = {long: 'Long video', 'short-a': 'Short A', 'short-b': 'Short B'};
       const queued = videos.map((v, i) =>
@@ -610,7 +662,17 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/settings') {
       const body = await readBody(req);
-      settings = {...settings, ...body};
+      // Only known keys with sane values; a bad value would break every render.
+      const clean = {};
+      if (body.budget !== undefined && Number.isFinite(Number(body.budget))) clean.budget = Math.min(100, Math.max(10, Math.round(Number(body.budget))));
+      for (const k of ['hw', 'fourK']) if (typeof body[k] === 'boolean') clean[k] = body[k];
+      if (['angle', 'angle-egl', 'swangle', 'egl', 'swiftshader', 'vulkan'].includes(body.gl)) clean.gl = body.gl;
+      if (Number.isInteger(body.studioPort) && body.studioPort > 1023 && body.studioPort < 65536) clean.studioPort = body.studioPort;
+      if (typeof body.planFile === 'string') clean.planFile = body.planFile.trim();
+      if (['elevenlabs', 'openai', 'macos'].includes(body.voiceProvider)) clean.voiceProvider = body.voiceProvider;
+      if (['library', 'generate', 'off'].includes(body.music)) clean.music = body.music;
+      if (['claude', 'manual'].includes(body.writer)) clean.writer = body.writer;
+      settings = {...settings, ...clean};
       saveSettings();
       return json(res, 200, {settings, machine: machine()});
     }
@@ -618,8 +680,10 @@ const server = http.createServer(async (req, res) => {
       await refreshCompositions();
       return json(res, 200, {compositions, compositionsError});
     }
+    const scriptId = p.startsWith('/api/scripts/') ? decodeURIComponent(p.slice('/api/scripts/'.length)).replace(/\.md$/, '') : null;
+    if (scriptId !== null && !/^[A-Za-z0-9_-]{1,80}$/.test(scriptId)) return json(res, 400, {error: 'script id may only use letters, numbers, - and _'});
     if (req.method === 'GET' && p.startsWith('/api/scripts/')) {
-      const id = decodeURIComponent(p.split('/')[3]);
+      const id = scriptId;
       const file = path.join(publicDir, 'script', `${id}.json`);
       if (!fs.existsSync(file)) return json(res, 404, {error: 'not found'});
       res.writeHead(200, {'Content-Type': 'application/json'});
@@ -639,7 +703,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {ok: true, path: path.relative(cwd, file)});
     }
     if (req.method === 'PUT' && p.startsWith('/api/scripts/')) {
-      const id = decodeURIComponent(p.split('/')[3]);
+      const id = scriptId;
       const body = await readBody(req);
       try {
         const schema = await import(path.join(SKILL_DIR, 'scripts', 'lib', 'script-schema.mjs'));
@@ -667,16 +731,10 @@ const server = http.createServer(async (req, res) => {
       const id = Number(p.split('/')[3]);
       const job = jobs.find((j) => j.id === id);
       if (!job) return json(res, 404, {error: 'not found'});
-      if (job.status === 'queued') job.status = 'cancelled';
-      else if (job.kind === 'episode') {
+      // Any active job: mark it cancelled (runners check between steps) and stop the current child or render.
+      if (['queued', 'bundling', 'selecting', 'rendering', 'running'].includes(job.status)) {
         job.status = 'cancelled';
         cancelSignals.get(id)?.cancel();
-      } else {
-        const sig = cancelSignals.get(id);
-        if (sig) {
-          job.status = 'cancelled';
-          sig.cancel();
-        }
       }
       send('jobs', jobs);
       return json(res, 200, job);
