@@ -159,6 +159,17 @@ localhost. Example from a shell:
 
 The queue runs jobs one at a time, oldest first.
 
+## Run it in the background (macOS)
+
+`npm run dashboard:install` (or `bash <skill>/scripts/install-dashboard.sh` from the project root) installs
+a LaunchAgent, `com.remotion.dashboard`, that starts the dashboard at login, restarts it if it stops and
+runs it at nice 10, so no Terminal window has to stay open. Stop any dashboard running in a Terminal
+first (Ctrl+C); the installer refuses while the port is taken. Log: `tools/dashboard/dashboard.log`.
+After `scaffold.sh --update`, restart it to load the new code:
+`launchctl kickstart -k gui/$(id -u)/com.remotion.dashboard`. Remove it with `--uninstall`. For a Dock
+icon, open the page in Chrome and use Cast, save and share > Install page as app. The first save to an
+external drive or the first native folder dialog may trigger a macOS permission prompt for node: allow it.
+
 ## Configuration
 
 - `--port 4545`, `--skill <dir>` (the scaffold writes the absolute skill path into the npm script).

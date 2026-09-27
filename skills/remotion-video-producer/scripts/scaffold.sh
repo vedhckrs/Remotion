@@ -131,11 +131,12 @@ pkg.scripts = Object.assign({}, pkg.scripts, {
   "auth-youtube": `node "${skill}/scripts/auth-youtube.mjs"`,
   autopilot: `node "${skill}/scripts/autopilot.mjs"`,
   "autopilot:install": `bash "${skill}/scripts/install-autopilot.sh"`,
+  "dashboard:install": `bash "${skill}/scripts/install-dashboard.sh"`,
   check: `node "${skill}/scripts/analyze-script.mjs" --check`,
 });
 fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
 ' "$SKILL_DIR"
-echo "  npm scripts added: dashboard, machine-check, analyze, check, voice, captions, music, luts, render, icons, thumbs, pack, publish, auth-youtube, autopilot, autopilot:install"
+echo "  npm scripts added: dashboard, dashboard:install, machine-check, analyze, check, voice, captions, music, luts, render, icons, thumbs, pack, publish, auth-youtube, autopilot, autopilot:install"
 
 if [ "$KEEP_ROOT" -eq 0 ]; then
   mv -f src/Root.example.tsx src/Root.tsx
