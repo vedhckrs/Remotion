@@ -128,7 +128,7 @@ const Inner: React.FC<ThumbnailProps & {readonly script: VideoScript}> = ({varia
           }}
         >
           {marks.map((ic, i) => (
-            <BrandLogo key={`${ic.name}-${i}`} name={ic.name} set={(ic.set ?? 'simple-icons') as Extract<IconSet, 'simple-icons' | 'logos'>} size={(marks.length === 1 ? 260 : isCover ? 190 : 150) * unit} animate="none" glow />
+            <BrandLogo key={`${ic.name}-${i}`} name={ic.name} set={(ic.set ?? 'simple-icons') as Extract<IconSet, 'simple-icons' | 'logos'>} size={(marks.length === 1 ? 260 : isCover ? 190 : 150) * unit} animate="none" />
           ))}
         </div>
       ) : null}

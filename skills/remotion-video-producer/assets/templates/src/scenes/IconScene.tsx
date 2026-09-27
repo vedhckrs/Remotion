@@ -12,7 +12,7 @@ import {useTheme} from '../lib/theme';
 
 /**
  * Icon / logo scene from the script (`visual.type: "icons"`):
- *  1 icon  -> hero logo with glow and label
+ *  1 icon  -> hero logo with label
  *  2 icons -> side by side with a "VS" badge (comparisons)
  *  3 to 8  -> staggered grid with labels (stacks, integrations, platforms)
  * Brand marks come from Simple Icons / SVG Logos in official colors; UI icons from Lucide.
@@ -39,11 +39,11 @@ export const IconScene: React.FC<{
   const renderIcon = (spec: IconSpec, i: number, size: number) => {
     const set = (spec.set ?? 'simple-icons') as IconSet;
     if (set === 'simple-icons' || set === 'logos') {
-      return <BrandLogo key={`${set}-${spec.name}-${i}`} set={set} name={spec.name} size={size} label={spec.label} delay={iconsDelay + i * (p.stagger + 2)} glow={list.length <= 2} />;
+      return <BrandLogo key={`${set}-${spec.name}-${i}`} set={set} name={spec.name} size={size} label={spec.label} delay={iconsDelay + i * (p.stagger + 2)} />;
     }
     return (
       <div key={`${set}-${spec.name}-${i}`} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: size * 0.12}}>
-        <Icon set={set} name={spec.name} size={size * 0.9} color={spec.color ?? theme.colors.accent} animate={set === 'lucide' || set === 'tabler' ? 'draw' : 'pop'} delay={iconsDelay + i * (p.stagger + 2)} glow={list.length <= 2} />
+        <Icon set={set} name={spec.name} size={size * 0.9} color={spec.color ?? theme.colors.accent} animate={set === 'lucide' || set === 'tabler' ? 'draw' : 'fluid'} delay={iconsDelay + i * (p.stagger + 2)} />
         {spec.label ? <div style={{fontFamily: theme.fonts.display, fontSize: size * 0.2, fontWeight: 700, color: theme.colors.text, textAlign: 'center'}}>{spec.label}</div> : null}
       </div>
     );

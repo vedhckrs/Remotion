@@ -35,22 +35,22 @@ npm run icons -- --from-script public/script/<videoId>.json     # everything the
 
 Markdown shorthand for the analyzer: `[icons: youtube, instagram, logos:react, lucide:zap]` at the start of a scene (unprefixed names are Simple Icons slugs). A brand mark as the channel logo: `"logo": {"icon": {"set": "simple-icons", "name": "..."}}` only for your own brand.
 
-`IconScene` lays out 1 icon as a hero with glow, 2 as a comparison with a **VS** badge (automatic when the headline contains "vs"), 3 to 8 as a staggered grid with labels. Brand marks render inside a frosted tile in their official color (from `credits.json`); UI icons draw themselves on (`animate="draw"`); colorful sets keep their own colors. Backgrounds follow the style preset or `visual.background`.
+`IconScene` lays out 1 icon as a hero, 2 as a comparison with a **VS** badge (automatic when the headline contains "vs"), 3 to 8 as a staggered grid with labels. Brand marks render clean (no glow, no drop shadow) inside a flat tonal tile in their official color (from `credits.json`); UI icons draw themselves on (`animate="draw"`); colorful sets keep their own colors. Backgrounds follow the style preset or `visual.background`.
 
 ## 3. Components
 
-- `<Icon set name size color animate="pop|draw|float|spin|none" delay glow />` loads the SVG once (cached, `delayRender`), makes it scale to its box, paints mono sets with `currentColor`, and, for `draw`, sets `pathLength=1` on every shape so a stroke-dashoffset reveals it.
-- `<BrandLogo name set="simple-icons|logos" size official label animate glow />` is the tile used by scenes and thumbnails. `official={false}` plus `color` paints a mark white or in the accent (allowed for many brands' "monochrome" variants; check guidelines).
+- `<Icon set name size color animate="fluid|pop|draw|float|spin|none" delay />` loads the SVG once (cached, `delayRender`), makes it scale to its box, paints mono sets with `currentColor`, and, for `draw`, sets `pathLength=1` on every shape so a stroke-dashoffset reveals it.
+- `<BrandLogo name set="simple-icons|logos" size official label animate />` is the tile used by scenes and thumbnails. `official={false}` plus `color` paints a mark white or in the accent (allowed for many brands' "monochrome" variants; check guidelines).
 - `<AttributionBar used={["simple-icons:youtube", ...]} />` is the credit line (next section). `SocialVideo` mounts it automatically for the frames where an icon scene is on screen, or for the whole video if the channel logo is a third-party mark.
 - `useIconCredits()` returns the credits array for custom layouts.
 
-Icon animation guide: pop for tiles (spring `soft`, scale 0.5 to 1), draw for outline icons in explainers (28 frames), float for idle hero marks (6 px, 2 s), spin only for loaders and gears. Stagger 2 to 4 frames like every other sibling. Never squash a logo: `Icon` keeps aspect with `preserveAspectRatio="xMidYMid meet"`.
+Icon animation guide: fluid for tiles (condense into place, no overshoot), pop only for playful beats, draw for outline icons in explainers (28 frames), float for idle hero marks (6 px, 2 s), spin only for loaders and gears. Stagger 2 to 4 frames like every other sibling. Never squash a logo: `Icon` keeps aspect with `preserveAspectRatio="xMidYMid meet"`.
 
 ## 4. Trademark and copyright rules (why the small credit line exists)
 
 - CC0 covers the SVG files, not the marks. A logo identifies its owner; using it to *refer to* YouTube, Notion or OpenAI in commentary, tutorials and comparisons is nominative use and fine in most jurisdictions. Implying endorsement, partnership or that the brand made the video is not.
 - The templates therefore render a small ownership line inside the safe area: "Logos: YouTube, Instagram are trademarks of their respective owners · Icons via Simple Icons (CC0 1.0)". Keep it on. `scripts/make-publish-pack.mjs` also appends the same credit to every description.
-- Never alter a mark: no recoloring outside the brand's own palette variants, no stretching, no adding effects that change the shape (glow behind it is fine, distortion is not). Keep clear space (about the height of the mark's smallest element) around it; the tile does this.
+- Never alter a mark: no recoloring outside the brand's own palette variants, no stretching, no glows, shadows or effects on the mark itself (a flat tile behind it is fine, distortion is not). Keep clear space (about the height of the mark's smallest element) around it; the tile does this.
 - Follow the brand's own page when `credits.json` links guidelines (`guidelines` field). A few brands restrict use of their mark in video thumbnails or forbid it in ads; when in doubt, use the wordmark in plain text instead.
 - Do not put third-party logos on merchandise or in paid ads without permission; that is outside nominative use.
 - Client logos: get the vector file from the client, drop it in `public/icons/custom/`, and add a `credits.json` entry with their license note so the credit line reads correctly.
@@ -61,4 +61,4 @@ Search Simple Icons and SVG Logos first (add a request there if missing; most br
 
 ## 6. Thumbnails
 
-`Thumbnail.tsx` places up to three brand marks from the script on the thumbnail (right column at 16:9, a row under the headline on covers) with glow, plus the same credit line at half opacity. Turn them off with `showLogos: false` when the brand's guidelines forbid thumbnail use.
+`Thumbnail.tsx` places up to three brand marks from the script on the thumbnail (right column at 16:9, a row under the headline on covers), clean on flat tiles, plus the same credit line at half opacity. Turn them off with `showLogos: false` when the brand's guidelines forbid thumbnail use.
