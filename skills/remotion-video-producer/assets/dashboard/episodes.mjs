@@ -206,7 +206,7 @@ export const createEpisodes = (ctx) => {
       let out = '';
       let child;
       try {
-        child = spawn(cmd, args, {cwd, env: {...process.env, REMOTION_GL: getSettings().gl, REMOTION_BUDGET: String(getSettings().budget), ...env}});
+        child = spawn(cmd, args, {cwd, stdio: ['ignore', 'pipe', 'pipe'], env: {...process.env, REMOTION_GL: getSettings().gl, REMOTION_BUDGET: String(getSettings().budget), ...env}}); // no stdin: claude -p would wait 3 s for it
       } catch (error) {
         resolve({code: -1, ok: false, out: error.message});
         return;

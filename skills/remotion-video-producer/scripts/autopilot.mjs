@@ -90,7 +90,7 @@ const log = (id, line) => {
 const runStep = (item, name, cmd, cmdArgs, options = {}) => {
   const started = Date.now();
   log(item.id, `${name}: ${[cmd, ...cmdArgs].join(' ')}`);
-  const res = spawnSync(cmd, cmdArgs, {cwd, encoding: 'utf8', timeout: options.timeoutMs || 60 * 60_000, env: {...process.env, REMOTION_BUDGET: String(queue.budget), ...(options.env || {})}, maxBuffer: 64 * 1024 * 1024});
+  const res = spawnSync(cmd, cmdArgs, {cwd, input: '', encoding: 'utf8', timeout: options.timeoutMs || 60 * 60_000, env: {...process.env, REMOTION_BUDGET: String(queue.budget), ...(options.env || {})}, maxBuffer: 64 * 1024 * 1024});
   fs.appendFileSync(path.join(logsDir, `${item.id}.log`), `${res.stdout || ''}${res.stderr || ''}`);
   const ok = res.status === 0 || (options.okCodes || []).includes(res.status);
   item.steps[name] = {status: ok ? (res.status === 0 ? 'done' : 'skipped') : 'failed', code: res.status, seconds: Math.round((Date.now() - started) / 1000), at: new Date().toISOString()};
