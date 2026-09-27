@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {interpolate, spring, staticFile, useCurrentFrame, useDelayRender, useVideoConfig} from 'remotion';
 import {contrast, isDark, lift} from '../lib/color';
-import {SPRING, fluid, fr, idleFloat} from '../lib/motion';
+import {EASE, SPRING, fluid, fr, idleFloat} from '../lib/motion';
 import {useTheme} from '../lib/theme';
 
 /**
@@ -108,7 +108,7 @@ export const Icon: React.FC<{
   const local = frame - fr(delay, fps);
   const enter = spring({frame: local, fps, config: SPRING.soft});
   const flow = fluid(local, fps, {duration: 22});
-  const draw = interpolate(local, [0, fr(28, fps)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  const draw = interpolate(local, [0, fr(18, fps)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: EASE.emphasizedOut});
   const html = useMemo(() => (svg ? prepareSvg(svg, {draw: animate === 'draw', progress: draw, mono}) : ''), [svg, animate, draw, mono]);
   if (!svg) return null;
   const transform = animate === 'spin' ? `rotate(${(local / fps) * 90}deg)` : undefined;

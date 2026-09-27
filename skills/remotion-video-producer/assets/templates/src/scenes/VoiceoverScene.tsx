@@ -42,7 +42,7 @@ export const VoiceoverScene: React.FC<{
 
   const push = cameraPush(frame, durationInFrames, 1, p.cameraPush);
   const visual = scene.visual ?? {type: 'plain' as const};
-  const headlineSize = (isVertical ? 96 : isHorizontal ? 104 : 88) * unit;
+  const headlineSize = (isVertical ? 124 : isHorizontal ? 112 : 96) * unit;
   const exitAt = durationInFrames - fr(4, fps);
 
   // Supporting line waits for the headline words to land, then rises in.
@@ -77,12 +77,13 @@ export const VoiceoverScene: React.FC<{
         left: safe.x,
         top: safe.y,
         width: safe.width,
-        height: safe.height,
+        // Vertical: the headline is the hero, centred in the frame above the caption band (never a small line at the top).
+        height: isVertical ? safe.height * 0.72 : safe.height,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: isVertical ? 'flex-start' : 'center',
+        justifyContent: 'center',
         alignItems: isHorizontal ? 'flex-start' : 'center',
-        paddingTop: isVertical ? safe.height * (isNeon ? 0.16 : 0.12) : 0, // clears the logo slot; the neon camera tilt lifts copy a little
+        paddingTop: isVertical ? safe.height * (isNeon ? 0.1 : 0.06) : 0, // clears the logo slot
         gap: 28 * unit,
       }}
     >
@@ -95,7 +96,7 @@ export const VoiceoverScene: React.FC<{
         <div
           style={{
             fontFamily: theme.fonts.body,
-            fontSize: 44 * unit,
+            fontSize: (isVertical ? 50 : 44) * unit,
             fontWeight: 500,
             color: theme.colors.muted,
             maxWidth: isHorizontal ? safe.width * 0.5 : safe.width * 0.9,

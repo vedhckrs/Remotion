@@ -17,7 +17,9 @@ export const AttributionBar: React.FC<{
   readonly opacity?: number;
   /** Fade in/out with the enclosing sequence (off for stills). */
   readonly fade?: boolean;
-}> = ({used, extra, opacity = 0.6, fade: fadeEnabled = true}) => {
+  /** Also name the icon sets and licences on screen. Off by default: the publish pack puts them in the description. */
+  readonly licenses?: boolean;
+}> = ({used, extra, opacity = 0.6, fade: fadeEnabled = true, licenses = false}) => {
   const theme = useTheme();
   const credits = useIconCredits();
   const frame = useCurrentFrame();
@@ -27,11 +29,11 @@ export const AttributionBar: React.FC<{
   const usedCredits = credits.filter((c) => used.indexOf(`${c.set}:${c.name}`) !== -1);
   const brands = usedCredits.filter((c) => c.set === 'simple-icons' || c.set === 'logos');
   const sets = Array.from(new Set(usedCredits.map((c) => c.license)));
-  if (usedCredits.length === 0 && !extra) return null;
+  if ((licenses ? usedCredits.length : brands.length) === 0 && !extra) return null;
 
   const parts: string[] = [];
   if (brands.length) parts.push(`Logos: ${brands.map((b) => b.title).join(', ')} ${brands.length === 1 ? 'is a trademark of its owner' : 'are trademarks of their respective owners'}`);
-  if (sets.length) parts.push(`Icons via ${Array.from(new Set(usedCredits.map((c) => (c.set === 'simple-icons' ? 'Simple Icons' : c.set === 'logos' ? 'SVG Logos' : c.set === 'lucide' ? 'Lucide' : c.set === 'tabler' ? 'Tabler' : c.set === 'fluent-emoji-flat' ? 'Fluent Emoji' : c.set)))).join(', ')} (${sets.join(', ')})`);
+  if (licenses && sets.length) parts.push(`Icons via ${Array.from(new Set(usedCredits.map((c) => (c.set === 'simple-icons' ? 'Simple Icons' : c.set === 'logos' ? 'SVG Logos' : c.set === 'lucide' ? 'Lucide' : c.set === 'tabler' ? 'Tabler' : c.set === 'fluent-emoji-flat' ? 'Fluent Emoji' : c.set)))).join(', ')} (${sets.join(', ')})`);
   if (extra) parts.push(extra);
 
   const fadeFrames = fr(12, fps);

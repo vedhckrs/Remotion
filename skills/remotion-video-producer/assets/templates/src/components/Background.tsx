@@ -108,24 +108,21 @@ export const Background: React.FC<{
       </>
     );
   } else if (kind === 'waves') {
-    const layers = [lift(c.bg, 4), lift(c.bg, 8), lift(c.bg, 13)];
+    // Three thin glowing lines in the accent flowing across the lower third (filled tonal masses read as grey mud).
+    const lines = [0, 1, 2].map((i) => {
+      const amp = height * (0.025 + i * 0.012);
+      const baseY = height * (0.62 + i * 0.07);
+      let d = `M 0 ${baseY}`;
+      for (let x = 0; x <= width; x += width / 48) {
+        const y = baseY + Math.sin((x / (width / (1.5 + i * 0.6))) * Math.PI * 2 + t * (0.6 + i * 0.25) * (i % 2 ? -1 : 1)) * amp;
+        d += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+      }
+      return <path key={i} d={d} fill="none" stroke={c.accent} strokeWidth={(4 - i) * unit} strokeOpacity={(0.55 - i * 0.14) * intensity} style={{filter: `drop-shadow(0 0 ${10 * unit}px ${alpha(c.accent, 0.6)})`}} />;
+    });
     body = (
       <>
-        {layers.map((color, i) => {
-          const amp = height * (0.04 + i * 0.015);
-          const baseY = height * (0.7 + i * 0.09);
-          let d = `M 0 ${baseY}`;
-          for (let x = 0; x <= width; x += width / 40) {
-            const y = baseY + Math.sin((x / (width / (2 + i))) * Math.PI * 2 + t * (0.5 + i * 0.2) * (i % 2 ? -1 : 1)) * amp;
-            d += ` L ${x} ${y}`;
-          }
-          d += ` L ${width} ${height} L 0 ${height} Z`;
-          return (
-            <svg key={i} width={width} height={height} style={{position: 'absolute', inset: 0, opacity: intensity}}>
-              <path d={d} fill={color} />
-            </svg>
-          );
-        })}
+        <div style={{position: 'absolute', left: 0, right: 0, top: '45%', height: '45%', background: `radial-gradient(ellipse at 50% 60%, ${alpha(c.accent, 0.12)} 0%, rgba(0,0,0,0) 65%)`, opacity: intensity}} />
+        <svg width={width} height={height} style={{position: 'absolute', inset: 0}}>{lines}</svg>
       </>
     );
   } else if (kind === 'dots') {

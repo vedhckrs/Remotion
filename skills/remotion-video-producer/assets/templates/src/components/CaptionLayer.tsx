@@ -19,8 +19,8 @@ import {useTheme} from '../lib/theme';
 export type CaptionStyle = 'hormozi' | 'pop' | 'boxed' | 'karaoke' | 'outline' | 'minimal';
 
 const STYLE_DEFAULTS: Record<CaptionStyle, {font: 'display' | 'caption' | 'impact'; uppercase: boolean; combineMs: number; weight: number}> = {
-  hormozi: {font: 'caption', uppercase: true, combineMs: 800, weight: 900},
-  pop: {font: 'caption', uppercase: false, combineMs: 900, weight: 900},
+  hormozi: {font: 'caption', uppercase: true, combineMs: 650, weight: 900},
+  pop: {font: 'caption', uppercase: false, combineMs: 650, weight: 900},
   boxed: {font: 'display', uppercase: false, combineMs: 1000, weight: 800},
   karaoke: {font: 'display', uppercase: false, combineMs: 1400, weight: 800},
   outline: {font: 'impact', uppercase: true, combineMs: 900, weight: 400},
@@ -54,7 +54,8 @@ export const CaptionLayer: React.FC<{
     return createTikTokStyleCaptions({captions: [...captions], combineTokensWithinMilliseconds: combineMs ?? defaults.combineMs, breakOnSilenceAfterMilliseconds: breakOnSilenceMs}).pages;
   }, [captions, combineMs, defaults.combineMs, breakOnSilenceMs]);
 
-  const size = fontSize ?? (isVertical ? (style === 'hormozi' || style === 'outline' ? 68 : 62) : 44) * unit;
+  // Shorts are watched on a phone at arm's length: 80 to 90 px on a 1080 px wide frame, 2 to 4 words per page.
+  const size = fontSize ?? (isVertical ? (style === 'hormozi' || style === 'outline' ? 88 : 84) : 52) * unit;
   const y = band.y + band.height * anchorY;
 
   return (

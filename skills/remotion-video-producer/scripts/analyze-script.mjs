@@ -15,7 +15,7 @@
  *   > subline text               becomes the supporting line
  *   - Label: 42%                 three or more such lines in a scene become a bar chart
  *   [neon] / [image: path] / [video: path] at the start of a scene picks the visual
- *   [icons: youtube, instagram, logos:react, lucide:zap]   brand/UI icon scene (default set simple-icons)
+ *   [icons: youtube, instagram, logos:react, lucide:wifi=Wi-Fi]   brand/UI icon scene (default set simple-icons; =Label names a UI icon)
  *   [speaker: Ada Lovelace | Founder, Analytical Engines]  lower third for that scene
  *   [bg: spotlight]              per-scene background system (solid, tonal, spotlight, grid, dots, particles, rays, waves, streaks, paper)
  *   (delivery: excited)          per-scene delivery hint for TTS
@@ -155,9 +155,13 @@ const scenes = blocks.map((block, i) => {
       if (kind === 'neon') visual = {type: 'neon'};
       else if (kind === 'icons' || kind === 'logos') {
         const icons = (tag[2] || '').split(',').map((s) => s.trim()).filter(Boolean).map((token) => {
-          const [a, b] = token.split(':').map((x) => x.trim());
+          const [ref, explicit] = token.split('=').map((x) => x.trim());
+          const [a, b] = ref.split(':').map((x) => x.trim());
           const spec = b ? {set: a, name: b} : {set: kind === 'logos' ? 'logos' : 'simple-icons', name: a};
-          spec.label = spec.name.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+          // Brand marks get their name as a label; UI icons (lucide, tabler) only an explicit one ("lucide:wifi=Wi-Fi"),
+          // because file names like "map-pin" or "zap" mean nothing to a viewer.
+          if (explicit) spec.label = explicit;
+          else if (spec.set === 'simple-icons' || spec.set === 'logos') spec.label = spec.name.replace(/-/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
           return spec;
         });
         visual = {type: 'icons', icons};

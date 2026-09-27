@@ -27,7 +27,7 @@ export const EndCard: React.FC<{
   const pill = spring({frame, fps, delay: fr(16, fps), config: SPRING.snappy});
   const shimmer = interpolate(frame % fr(60, fps), [0, fr(60, fps)], [-120, 220], {easing: EASE.inOut});
 
-  const titleSize = (isVertical ? 84 : 72) * unit;
+  const titleSize = (isVertical ? 112 : 84) * unit;
 
   return (
     <AbsoluteFill>
@@ -57,10 +57,10 @@ export const EndCard: React.FC<{
           style={{
             position: 'relative',
             overflow: 'hidden',
-            padding: `${22 * unit}px ${48 * unit}px`,
+            padding: `${28 * unit}px ${60 * unit}px`,
             borderRadius: 999,
             background: accent,
-            fontSize: 40 * unit,
+            fontSize: (isVertical ? 54 : 44) * unit,
             fontWeight: 800,
             color: theme.colors.onAccent,
             opacity: pill,
@@ -71,7 +71,7 @@ export const EndCard: React.FC<{
           {cta}
           <div style={{position: 'absolute', top: 0, bottom: 0, width: '30%', left: `${shimmer}%`, background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0) 100%)'}} />
         </div>
-        {handle ? <div style={{fontSize: 32 * unit, fontWeight: 500, color: theme.colors.muted, opacity: pill}}>{handle}</div> : null}
+        {handle ? <div style={{fontSize: (isVertical ? 44 : 34) * unit, fontWeight: 500, color: theme.colors.muted, opacity: pill}}>{handle}</div> : null}
       </div>
     </AbsoluteFill>
   );
