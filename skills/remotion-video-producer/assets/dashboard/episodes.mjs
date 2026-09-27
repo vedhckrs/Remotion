@@ -307,7 +307,7 @@ export const createEpisodes = (ctx) => {
     const setStep = (key, status, detail) => {
       const st = job.steps.find((x) => x.key === key);
       if (st) Object.assign(st, {status, ...(detail !== undefined ? {detail} : {})});
-      const done = job.steps.filter((x) => ['done', 'skipped', 'failed'].includes(x.status)).length;
+      const done = job.steps.filter((x) => ['done', 'skipped', 'failed', 'notrun'].includes(x.status)).length;
       job.progress = done / job.steps.length;
       job.current = status === 'running' ? `${key}` : job.current;
       send('jobs', ctx.jobs);
@@ -327,7 +327,7 @@ export const createEpisodes = (ctx) => {
       fs.mkdirSync(vOut, {recursive: true});
       const fail = (step, message) => {
         setStep(k(step), 'failed', message);
-        for (const st of job.steps) if (st.variant === v.variant && st.status === 'pending') st.status = 'skipped';
+        for (const st of job.steps) if (st.variant === v.variant && st.status === 'pending') st.status = 'notrun';
         failures++;
         log('episode', `${id}: ${step} failed: ${message}`);
         send('jobs', ctx.jobs);
@@ -353,7 +353,9 @@ export const createEpisodes = (ctx) => {
       } else if ((o.writer || getSettings().writer) === 'claude') {
         const r = await runChild(job, 'writer', 'claude', ['-p', writerPrompt(plan, week, ep, v), '--output-format', 'text', '--max-turns', '80', '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npx remotion compositions*),Bash(ls *),Bash(cat *)'], {timeoutMs: 25 * 60_000, env: {CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: ''}});
         if (!fs.existsSync(scriptFile)) {
-          fail('script', r.code === -1 ? 'claude CLI not found: install Claude Code or add script-*.md files to the episode folder' : 'the writer finished without public/script/' + id + '.json');
+          fail('script', r.code === -1 ? 'claude CLI not found: install Claude Code or add script-*.md files to the episode folder'
+            : /not logged in|\/login|invalid api key|authentication/i.test(r.out) ? 'Claude Code is not logged in: open Terminal, run claude, type /login, then Generate again (or add ' + `script-${v.variant}.md` + ' to the episode folder)'
+            : 'the writer finished without public/script/' + id + '.json');
           continue;
         }
         setStep(k('script'), 'done', 'written by Claude Code');
@@ -506,7 +508,7 @@ export const createEpisodes = (ctx) => {
             },
             onProgress: (p) => {
               job.render = {...job.render, ...p};
-              const done = job.steps.filter((x) => ['done', 'skipped', 'failed'].includes(x.status)).length;
+              const done = job.steps.filter((x) => ['done', 'skipped', 'failed', 'notrun'].includes(x.status)).length;
               job.progress = (done + p.progress) / job.steps.length;
               send('jobs', ctx.jobs);
             },
@@ -561,7 +563,7 @@ export const createEpisodes = (ctx) => {
     }
     send('plan', summary());
     if (cancelled()) return;
-    if (failures) throw new Error(`${failures} step(s) failed; the rest finished. See the steps list and log.`);
+    if (failures) throw new Error(`${failures} step(s) failed. See the steps list and log.`);
   };
 
   return {summary, details, detailsMarkdown, runEpisode, loadPlan, defaultExportDir, findEpisode};
