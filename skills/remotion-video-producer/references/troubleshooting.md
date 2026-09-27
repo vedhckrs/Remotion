@@ -7,6 +7,10 @@ Symptoms, causes and fixes, in the order they usually hit a production.
 - An asset loaded late in one tab: wrap fetches in `delayRender()` / `useDelayRender()`; use `<Img>`, `<Video>`, `<Audio>`, `<AnimatedImage>` instead of CSS `background-image` or raw `<img>`.
 - Emergency diagnosis: `--concurrency=1` removes tab-state differences; if the flicker disappears, the cause is non-determinism.
 
+## `<name>[@]: unbound variable` from a shell script on macOS
+
+macOS ships bash 3.2, where `set -u` treats an empty array as unset, so `"${ARR[@]}"` aborts the script (for example `machine-check.sh: line 71: EXTRA[@]: unbound variable`). The skill's scripts use `${ARR[@]+"${ARR[@]}"}`, which expands to nothing when the array is empty on every bash version. Keep that form in any script you add, and check with bash 3.2 (`/bin/bash` on a Mac), not a newer Homebrew bash.
+
 ## Google Fonts fail to load during `compositions` or render (`net::ERR_CERT_AUTHORITY_INVALID`, `Failed to fetch`)
 - Headless Chrome does not trust a corporate or sandbox proxy certificate, so `@remotion/google-fonts` cannot download the font. Pass `--ignore-certificate-errors` to `npx remotion compositions|render|still` in that environment, or self-host the font with `@remotion/fonts` from `public/fonts/` (also the right choice for reproducible renders on Lambda and in CI).
 

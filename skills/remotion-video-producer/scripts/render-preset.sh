@@ -94,13 +94,13 @@ quality() { # $1 crf  $2 x264 preset  $3 hw bitrate
 }
 
 case "$PRESET" in
-  youtube-1080p) FLAGS=("${COMMON[@]}" $(quality 16 slow 16M) --audio-bitrate=320k); SUFFIX="youtube_1920x1080"; EXT=mp4 ;;
-  youtube-4k)    FLAGS=("${COMMON[@]}" $(quality 17 slow 60M) --audio-bitrate=320k --scale=2); SUFFIX="youtube_3840x2160"; EXT=mp4; CONC="${REMOTION_CONCURRENCY:-$(( CONC_DEFAULT / 2 > 0 ? CONC_DEFAULT / 2 : 1 ))}" ;;
-  shorts)        FLAGS=("${COMMON[@]}" $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="shorts_1080x1920"; EXT=mp4 ;;
-  reels)         FLAGS=("${COMMON[@]}" $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="reels_1080x1920"; EXT=mp4 ;;
-  stories)       FLAGS=("${COMMON[@]}" $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="stories_1080x1920"; EXT=mp4 ;;
-  facebook)      FLAGS=("${COMMON[@]}" $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="facebook_1080x1920"; EXT=mp4 ;;
-  feed)          FLAGS=("${COMMON[@]}" $(quality 17 medium 12M) --audio-bitrate=256k); SUFFIX="feed_1080x1350"; EXT=mp4 ;;
+  youtube-1080p) FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 16 slow 16M) --audio-bitrate=320k); SUFFIX="youtube_1920x1080"; EXT=mp4 ;;
+  youtube-4k)    FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 slow 60M) --audio-bitrate=320k --scale=2); SUFFIX="youtube_3840x2160"; EXT=mp4; CONC="${REMOTION_CONCURRENCY:-$(( CONC_DEFAULT / 2 > 0 ? CONC_DEFAULT / 2 : 1 ))}" ;;
+  shorts)        FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="shorts_1080x1920"; EXT=mp4 ;;
+  reels)         FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="reels_1080x1920"; EXT=mp4 ;;
+  stories)       FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="stories_1080x1920"; EXT=mp4 ;;
+  facebook)      FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 medium 14M) --audio-bitrate=256k); SUFFIX="facebook_1080x1920"; EXT=mp4 ;;
+  feed)          FLAGS=(${COMMON[@]+"${COMMON[@]}"} $(quality 17 medium 12M) --audio-bitrate=256k); SUFFIX="feed_1080x1350"; EXT=mp4 ;;
   preview)       FLAGS=(--codec=h264 --crf=28 --scale=0.5 --x264-preset=ultrafast --jpeg-quality=70 --overwrite); [ -n "${REMOTION_GL:-}" ] && FLAGS+=("--gl=${REMOTION_GL}"); SUFFIX="preview"; EXT=mp4 ;;
   prores)        FLAGS=(--codec=prores --prores-profile=4444 --image-format=png --pixel-format=yuva444p10le --overwrite); [ "$HW" = "1" ] && FLAGS+=(--hardware-acceleration=if-possible); [ -n "${REMOTION_GL:-}" ] && FLAGS+=("--gl=${REMOTION_GL}"); SUFFIX="prores"; EXT=mov ;;
   *) echo "Unknown preset: $PRESET" >&2; exit 1 ;;
@@ -126,7 +126,7 @@ fi
 
 echo "Rendering $COMP with preset $PRESET -> $OUT"
 echo "  machine: ${CORES} cores, ${MEM_GB} GB RAM | budget ${BUDGET}% -> concurrency ${CONC} | encoder: $([ "$HW" = "1" ] && echo hardware || echo 'software x264') | $([ "$FOURK" = "1" ] || [ "$PRESET" = "youtube-4k" ] && echo '4K master' || echo 'native size')"
-"${RUNNER[@]}" npx remotion render "$COMP" "$OUT" "${FLAGS[@]}" "${EXTRA[@]}"
+${RUNNER[@]+"${RUNNER[@]}"} npx remotion render "$COMP" "$OUT" ${FLAGS[@]+"${FLAGS[@]}"} ${EXTRA[@]+"${EXTRA[@]}"}
 
 if command -v ffprobe >/dev/null 2>&1; then
   ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,bit_rate -show_entries format=duration,size -of default=noprint_wrappers=1 "$OUT" || true

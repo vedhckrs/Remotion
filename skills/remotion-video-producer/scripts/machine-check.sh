@@ -68,7 +68,7 @@ if [ "${1:-}" = "--render-test" ] && [ -n "${2:-}" ]; then
   echo
   echo "Render test: one still of $COMP with --gl=$GL"
   START=$(date +%s)
-  if npx remotion still "$COMP" out/machine-check.png --frame=10 --gl="$GL" --log=error "${EXTRA[@]}"; then
+  if npx remotion still "$COMP" out/machine-check.png --frame=10 --gl="$GL" --log=error ${EXTRA[@]+"${EXTRA[@]}"}; then
     echo "  ok in $(( $(date +%s) - START )) s -> out/machine-check.png"
   else
     if [ "$GL" = "swangle" ]; then
@@ -80,7 +80,7 @@ if [ "${1:-}" = "--render-test" ] && [ -n "${2:-}" ]; then
   fi
   echo "Render test: WebGL extras (light leak, grain) with --gl=$GL"
   START=$(date +%s)
-  if npx remotion still "$COMP" out/machine-check-webgl.png --frame=20 --gl="$GL" --props='{"webglExtras":true}' --log=error "${EXTRA[@]}"; then
+  if npx remotion still "$COMP" out/machine-check-webgl.png --frame=20 --gl="$GL" --props='{"webglExtras":true}' --log=error ${EXTRA[@]+"${EXTRA[@]}"}; then
     echo "  ok in $(( $(date +%s) - START )) s -> out/machine-check-webgl.png"
   else
     echo "  WebGL FAILED on $GL. Effects, light leaks and shader transitions need a working backend; try swangle." >&2
