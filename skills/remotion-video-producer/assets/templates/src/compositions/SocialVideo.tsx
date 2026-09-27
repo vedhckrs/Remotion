@@ -13,6 +13,7 @@ import {LogoBadge} from '../components/LogoBadge';
 import {LowerThird} from '../components/LowerThird';
 import {MusicBed} from '../components/MusicBed';
 import {SafeArea} from '../components/SafeArea';
+import {SourceNote} from '../components/SourceNote';
 import {GRADE_NAMES, Graded, type GradeName} from '../lib/grades';
 import {PACING, fr, readingSeconds, type Pacing} from '../lib/motion';
 import {PLATFORMS, PLATFORM_IDS, type PlatformId} from '../lib/platforms';
@@ -206,6 +207,19 @@ export const SocialVideo: React.FC<SocialVideoProps> = ({videoId, fps, style, ac
           <AttributionBar used={r.used} />
         </Sequence>
       ))}
+
+      {/* Citations: small, bottom right, for the scene that makes the claim. Older scripts kept them in the subline. */}
+      {timings.map((t, i) => {
+        const scene = scenes[i];
+        const source = scene?.source ?? (scene?.subline && /^sources?\s*:/i.test(scene.subline) ? scene.subline : undefined);
+        if (!source || t.id === '__end') return null;
+        const credited = attributionRanges.some((r) => r.from <= t.startFrame && r.from + r.durationInFrames > t.startFrame);
+        return (
+          <Sequence key={`source-${t.id}`} from={t.startFrame} durationInFrames={t.baseFrames} layout="none" name="Source">
+            <SourceNote text={source} aboveCredit={credited} />
+          </Sequence>
+        );
+      })}
 
       {effectiveMusic ? <MusicBed src={staticFile(effectiveMusic.src)} segments={voiceSegments} musicLevel={effectiveMusic.level} duckedLevel={effectiveMusic.level * 0.4} /> : null}
 

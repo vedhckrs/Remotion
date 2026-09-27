@@ -15,7 +15,7 @@ import path from 'node:path';
  *   logo?: { src?, text?, corner? } | null,
  *   music?: { src?, mood?, level? } | null,
  *   voice?: { provider: 'elevenlabs' | 'openai' | 'macos', voiceId?, preset?, model?, instructions?, settings? },
- *   scenes: [{ id, headline, highlight?, subline?, voiceover, delivery?, minSeconds?, speaker?: {name, role?},
+ *   scenes: [{ id, headline, highlight?, subline?, source?, voiceover, delivery?, minSeconds?, speaker?: {name, role?},
  *              visual?: { type: 'plain' | 'image' | 'video' | 'chart' | 'neon' | 'icons', src?, focal?, background?,
  *                         chart?: { kind, title?, unit?, data: [{label, value}] }, icons?: [{set?, name, label?}] } }]
  * }

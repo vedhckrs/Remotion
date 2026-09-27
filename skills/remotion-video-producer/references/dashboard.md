@@ -57,7 +57,8 @@ reveals the export folder.
 **Control room.** Scripts and autopilot on the left, outputs in the middle, render / queue / log on the
 right. Outputs are grouped by video folder and filtered with All / Long / Shorts / Feed / Thumbnails;
 each card keeps its real shape (16:9, 9:16, 1:1) with a ratio badge; click to play in a player window
-(Esc closes). The page fits the window; each panel scrolls on its own. The Memory gauge shows
+(Esc closes). **QC frames** in the player saves contact sheets (a frame every half second with its time,
+24 per PNG) to Downloads, for review without sending the video. The page fits the window; each panel scrolls on its own. The Memory gauge shows
 memory available to apps (free plus cache, as Activity Monitor counts it), not the near-zero free figure.
 
 ## Content plan (JSON)

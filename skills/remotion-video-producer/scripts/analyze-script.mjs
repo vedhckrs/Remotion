@@ -13,6 +13,7 @@
  *   blank line                   also starts a new scene when there are no headings
  *   **word** or *word*           marks the highlight word of that scene
  *   > subline text               becomes the supporting line
+ *   > Source: Ookla, 2025        a citation, shown small in the bottom-right corner
  *   - Label: 42%                 three or more such lines in a scene become a bar chart
  *   [neon] / [image: path] / [video: path] at the start of a scene picks the visual
  *   [icons: youtube, instagram, logos:react, lucide:wifi=Wi-Fi]   brand/UI icon scene (default set simple-icons; =Label names a UI icon)
@@ -142,6 +143,7 @@ const scenes = blocks.map((block, i) => {
   let visual = {type: 'plain'};
   let delivery;
   let subline;
+  let source;
   let highlight;
   let speaker;
   let background;
@@ -185,7 +187,10 @@ const scenes = blocks.map((block, i) => {
     }
     const quote = line.match(/^\s*>\s*(.+)/);
     if (quote) {
-      subline = quote[1].trim();
+      // "> Source: ..." is a citation (small note in the corner); any other quote line is the supporting line.
+      const cite = quote[1].match(/^sources?\s*:\s*(.+)/i);
+      if (cite) source = cite[1].trim();
+      else subline = quote[1].trim();
       continue;
     }
     const data = line.match(/^\s*[-*]\s*([^:]+?)\s*[:—-]\s*\$?([\d.,]+)\s*(%|[a-zA-Z]+)?\s*$/);
@@ -217,6 +222,7 @@ const scenes = blocks.map((block, i) => {
   if (background) visual = {...visual, background};
   const scene = {id, headline, highlight, voiceover: voiceover || headline, visual};
   if (subline) scene.subline = subline;
+  if (source) scene.source = source;
   if (delivery) scene.delivery = delivery;
   if (speaker) scene.speaker = speaker;
   if (i === 0) scene.minSeconds = pacing === 'fast' ? 2 : 2.5;

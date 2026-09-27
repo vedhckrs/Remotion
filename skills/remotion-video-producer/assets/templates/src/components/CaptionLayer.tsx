@@ -51,8 +51,21 @@ export const CaptionLayer: React.FC<{
 
   const pages = useMemo(() => {
     if (captions.length === 0) return [] as TikTokPage[];
-    return createTikTokStyleCaptions({captions: [...captions], combineTokensWithinMilliseconds: combineMs ?? defaults.combineMs, breakOnSilenceAfterMilliseconds: breakOnSilenceMs}).pages;
-  }, [captions, combineMs, defaults.combineMs, breakOnSilenceMs]);
+    const raw = createTikTokStyleCaptions({captions: [...captions], combineTokensWithinMilliseconds: combineMs ?? defaults.combineMs, breakOnSilenceAfterMilliseconds: breakOnSilenceMs}).pages;
+    // At most 4 words per page on vertical: two lines at Shorts size, so captions never run into the
+    // source note or the platform UI at the bottom of the frame, even when the voice is fast.
+    const maxWords = isVertical ? 4 : 7;
+    return raw.flatMap((page): TikTokPage[] => {
+      if (page.tokens.length <= maxWords) return [page];
+      const chunks: TikTokPage[] = [];
+      for (let i = 0; i < page.tokens.length; i += maxWords) {
+        const tokens = page.tokens.slice(i, i + maxWords);
+        const startMs = tokens[0].fromMs;
+        chunks.push({text: tokens.map((t) => t.text).join(''), startMs, durationMs: tokens[tokens.length - 1].toMs - startMs, tokens});
+      }
+      return chunks;
+    });
+  }, [captions, combineMs, defaults.combineMs, breakOnSilenceMs, isVertical]);
 
   // Shorts are watched on a phone at arm's length: 80 to 90 px on a 1080 px wide frame, 2 to 4 words per page.
   const size = fontSize ?? (isVertical ? (style === 'hormozi' || style === 'outline' ? 88 : 84) : 52) * unit;
@@ -114,7 +127,8 @@ const CaptionPage: React.FC<{
     justifyContent: 'center',
     alignItems: 'center',
     // Stroked, hard-shadowed styles eat into the gap (stroke + 4 px shadow), so they get a wider one.
-    columnGap: fontSize * (style === 'hormozi' || style === 'outline' ? 0.38 : 0.24),
+    // Pop words bounce past full size and the active one grows, so pop needs the widest gap or neighbours touch.
+    columnGap: fontSize * (style === 'hormozi' || style === 'outline' || style === 'pop' ? 0.38 : 0.26),
     rowGap: fontSize * 0.14,
     translate: `0px ${-fontSize * 0.6}px`,
     fontFamily: theme.fonts[font],
@@ -176,7 +190,7 @@ const CaptionPage: React.FC<{
         if (style === 'pop') {
           const pop = spring({frame, fps, delay: Math.max(0, tokenStartFrame - 2), config: SPRING.bouncy, durationInFrames: fr(10, fps)});
           return (
-            <span key={`${token.fromMs}-${i}`} style={{display: 'inline-block', color: active || spoken ? accent : '#FFFFFF', opacity: interpolate(pop, [0, 0.5], [0, 1], {extrapolateRight: 'clamp'}), scale: String(0.6 + pop * 0.4 + (active ? 0.08 : 0)), filter: active ? `drop-shadow(0 0 ${fontSize * 0.25}px ${accent})` : undefined}}>
+            <span key={`${token.fromMs}-${i}`} style={{display: 'inline-block', color: active || spoken ? accent : '#FFFFFF', opacity: interpolate(pop, [0, 0.5], [0, 1], {extrapolateRight: 'clamp'}), scale: String(0.6 + Math.min(pop, 1.04) * 0.4 + (active ? 0.05 : 0)), filter: active ? `drop-shadow(0 0 ${fontSize * 0.25}px ${accent})` : undefined}}>
               {text}
             </span>
           );

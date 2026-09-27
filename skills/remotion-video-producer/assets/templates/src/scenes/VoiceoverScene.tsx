@@ -92,7 +92,7 @@ export const VoiceoverScene: React.FC<{
       ) : (
         <KineticTitle text={scene.headline} highlight={scene.highlight} fontSize={headlineSize} highlightColor={accent} align={isHorizontal ? 'left' : 'center'} exitAt={exitAt} stagger={p.stagger} maxWidth={isHorizontal ? safe.width * 0.62 : '100%'} />
       )}
-      {scene.subline ? (
+      {scene.subline && !/^sources?\s*:/i.test(scene.subline) ? (
         <div
           style={{
             fontFamily: theme.fonts.body,

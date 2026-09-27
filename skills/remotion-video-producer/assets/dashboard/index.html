@@ -273,7 +273,7 @@
 </div>
 
 <div class="modal" id="player"><div class="box wide">
-  <div class="row" style="margin:0"><b id="pl-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button class="small" id="pl-reveal">Reveal in Finder</button><a id="pl-dl" href="#" download><button class="small">Download</button></a><button class="small" id="pl-close">Close</button></div>
+  <div class="row" style="margin:0"><b id="pl-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button class="small" id="pl-qc" title="Save contact sheets (a frame every half second) to send for review">QC frames</button><button class="small" id="pl-reveal">Reveal in Finder</button><a id="pl-dl" href="#" download><button class="small">Download</button></a><button class="small" id="pl-close">Close</button></div>
   <div class="stage" id="pl-stage"></div>
 </div></div>
 
@@ -783,7 +783,44 @@ function openPlayer(file) {
   $('#pl-stage').innerHTML = isVideo ? `<video controls autoplay src="${outUrl(file)}"></video>` : `<img src="${outUrl(file)}" />`;
   $('#pl-dl').href = outUrl(file);
   $('#pl-reveal').onclick = () => api('/api/reveal', 'POST', {file});
+  $('#pl-qc').style.display = isVideo ? '' : 'none';
+  $('#pl-qc').onclick = () => qcSheets(file);
   $('#player').classList.add('on');
+}
+// Contact sheets for review: a frame every half second with its time, 24 per image, saved to Downloads.
+async function qcSheets(file) {
+  const btn = $('#pl-qc');
+  const v = document.createElement('video');
+  v.muted = true; v.preload = 'auto'; v.src = outUrl(file);
+  const once = (ev) => new Promise((ok, bad) => { v.addEventListener(ev, ok, {once: true}); v.addEventListener('error', () => bad(new Error('cannot read the video')), {once: true}); });
+  try {
+    await once('loadedmetadata');
+    const step = 0.5, per = 24, vertical = v.videoHeight >= v.videoWidth;
+    const cols = vertical ? 6 : 4, w = vertical ? 270 : 400, h = Math.round((w * v.videoHeight) / v.videoWidth), label = 26;
+    const times = [];
+    for (let t = 0.05; t < v.duration; t += step) times.push(t);
+    const name = file.split('/').pop().replace(/\.[^.]+$/, '');
+    const sheets = Math.ceil(times.length / per);
+    for (let k = 0; k < sheets; k++) {
+      const chunk = times.slice(k * per, (k + 1) * per), rows = Math.ceil(chunk.length / cols);
+      const c = document.createElement('canvas'); c.width = cols * w; c.height = rows * (h + label);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#111'; ctx.fillRect(0, 0, c.width, c.height);
+      for (const [i, t] of chunk.entries()) {
+        btn.textContent = `QC ${k * per + i + 1}/${times.length}`;
+        v.currentTime = t; await once('seeked');
+        const x = (i % cols) * w, y = Math.floor(i / cols) * (h + label);
+        ctx.drawImage(v, x, y + label, w, h);
+        ctx.fillStyle = '#FFD23F'; ctx.font = '600 18px ui-monospace, monospace'; ctx.fillText(`${name}  ${t.toFixed(1)} s`, x + 8, y + 19);
+      }
+      const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${name}_qc_${k + 1}-of-${sheets}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }
+    btn.textContent = `Saved ${sheets} sheet${sheets > 1 ? 's' : ''} to Downloads`;
+  } catch (e) {
+    btn.textContent = 'QC failed: ' + e.message;
+  }
+  setTimeout(() => { btn.textContent = 'QC frames'; }, 6000);
 }
 function closePlayer() { $('#pl-stage').innerHTML = ''; $('#player').classList.remove('on'); }
 $('#pl-close').onclick = closePlayer;

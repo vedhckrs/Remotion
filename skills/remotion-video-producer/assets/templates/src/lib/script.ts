@@ -34,6 +34,8 @@ export type ScriptScene = {
   /** Word (or phrase) inside the headline to emphasize. */
   readonly highlight?: string;
   readonly subline?: string;
+  /** Citation for a number or claim; shown small in the bottom-right corner ("> Source: ..." in Markdown). */
+  readonly source?: string;
   readonly voiceover: string;
   /** Visual intent for this scene. */
   readonly visual?: {
