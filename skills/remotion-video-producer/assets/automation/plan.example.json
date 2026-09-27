@@ -1,0 +1,55 @@
+{
+  "title": "My Channel · Season 1",
+  "root": "..",
+  "style": "tech-grid",
+  "handle": "@yourhandle",
+  "endCard": {"headline": "See you in the next one.", "cta": "Subscribe for a new explainer every day", "handle": "@yourhandle"},
+  "signOff": "See you in the next one.",
+  "cta": "Subscribe for a new explainer every day.",
+  "voicePreset": "young-male-pro",
+  "music": "energetic-tech",
+  "musicLibrary": "public/music",
+  "category": "Science & Technology",
+  "language": "en",
+  "timezone": "Asia/Kolkata",
+  "utcOffset": "+05:30",
+  "keywords": ["how it works", "tech explained"],
+  "hashtags": ["#HowItWorks", "#TechExplained"],
+  "defaults": {"long": {"ratios": ["16:9"], "pacing": "medium"}, "short": {"ratios": ["9:16"], "pacing": "fast"}},
+  "targetSeconds": {"long": 420, "short": 45},
+  "weeks": [
+    {
+      "number": 1,
+      "title": "Invisible Signals Around You",
+      "pillar": "Networks & Connectivity",
+      "background": "grid",
+      "playlist": "How Signals Work",
+      "start": "2026-09-28",
+      "month": "Month 1",
+      "episodes": [
+        {
+          "id": "ep001",
+          "date": "2026-09-28",
+          "topic": "How the internet works",
+          "folder": "episodes/ep001-how-the-internet-works",
+          "videos": [
+            {"variant": "short-a", "kind": "short", "time": "09:00", "title": "Your reel just travelled along the ocean floor to reach you.", "hook": "Your reel just travelled along the ocean floor to reach you."},
+            {"variant": "long", "kind": "long", "time": "13:00", "title": "How the Internet Actually Reaches Your Phone (Undersea Cables to Wi-Fi)", "hook": "Your reel just travelled along the ocean floor to reach you."},
+            {"variant": "short-b", "kind": "short", "time": "19:00", "title": "The internet isn't in the sky. It's under the sea.", "hook": "The internet isn't in the sky. It's under the sea."}
+          ]
+        },
+        {
+          "id": "ep002",
+          "date": "2026-09-29",
+          "topic": "How Wi-Fi works",
+          "folder": "episodes/ep002-how-wi-fi-works",
+          "videos": [
+            {"variant": "short-a", "kind": "short", "time": "09:00", "title": "Your router is basically a tiny radio station.", "hook": "Your router is basically a tiny radio station."},
+            {"variant": "long", "kind": "long", "time": "13:00", "title": "How Wi-Fi Sends Videos Through Thin Air", "hook": "Your router is basically a tiny radio station."},
+            {"variant": "short-b", "kind": "short", "time": "19:00", "title": "Why Wi-Fi gets slow behind walls.", "hook": "Why Wi-Fi gets slow behind walls."}
+          ]
+        }
+      ]
+    }
+  ]
+}

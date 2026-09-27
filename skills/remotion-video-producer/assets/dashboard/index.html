@@ -54,6 +54,48 @@
   .budget input[type=range] { flex:1; accent-color:var(--accent); }
   a { color:var(--accent2); }
   .kbd { font-family:ui-monospace, Menlo, monospace; background:var(--line); padding:1px 5px; border-radius:4px; font-size:11px; }
+  nav.tabs { display:flex; gap:4px; padding:10px 20px 0; border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:4; }
+  nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0; background:none; padding:10px 14px; color:var(--muted); font-weight:600; }
+  nav.tabs button.on { color:var(--text); border-bottom-color:var(--accent); }
+  .view { display:none; } .view.on { display:block; } main.view.on { display:grid; }
+  .pad { padding:16px 20px; }
+  .planbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .planbar b { font-size:15px; }
+  .weeks { display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:12px; }
+  .weeks .month { flex:0 0 auto; align-self:center; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:0 6px 0 12px; }
+  .wk { flex:0 0 auto; text-align:left; min-width:150px; max-width:190px; }
+  .wk b { display:block; font-size:12px; } .wk small { color:var(--muted); font-size:11px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .wk.on { border-color:var(--accent); background:rgba(124,92,255,.14); }
+  .wk .meter { height:3px; background:var(--line); border-radius:2px; margin-top:6px; overflow:hidden; } .wk .meter i { display:block; height:100%; background:var(--ok); }
+  .ep-grid { display:grid; grid-template-columns: 340px 1fr 360px; gap:16px; }
+  @media (max-width:1300px) { .ep-grid { grid-template-columns:1fr; } }
+  .ep { cursor:pointer; } .ep.on { border-color:var(--accent); }
+  .dots { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+  .dot { font-size:10.5px; padding:1px 6px; border-radius:5px; background:var(--line); color:var(--muted); }
+  .dot.ok { background:rgba(34,197,94,.18); color:#86efac; } .dot.part { background:rgba(245,158,11,.18); color:#fcd34d; }
+  .vrow { display:grid; grid-template-columns: 26px 1fr; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
+  .vrow:first-child { border-top:none; }
+  .vrow .t { font-weight:600; } .vrow .h { color:var(--muted); font-size:12.5px; }
+  .ratio { font-size:12px; padding:5px 9px; }
+  .ratio.on { border-color:var(--accent); background:rgba(124,92,255,.18); }
+  .steps { display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:12px; }
+  .steps .s { display:flex; justify-content:space-between; gap:8px; color:var(--muted); }
+  .steps .s.done, .steps .s.skipped { color:#86efac; } .steps .s.running { color:#c9bcff; font-weight:600; } .steps .s.failed { color:#fca5a5; }
+  .steps .s small { color:var(--muted); font-weight:400; text-align:right; }
+  .vgroup { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:6px; }
+  .field { margin-bottom:10px; } .field label { display:flex; justify-content:space-between; align-items:center; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px; }
+  .field .val { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; font-size:13px; max-height:260px; overflow:auto; }
+  .plat { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .plat h3 { margin:0 0 10px; font-size:14px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .up-grid { display:grid; grid-template-columns: 320px 1fr; gap:16px; }
+  @media (max-width:1100px) { .up-grid { grid-template-columns:1fr; } }
+  .thumbs { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:6px; margin-top:8px; } .thumbs img { width:100%; border-radius:6px; border:1px solid var(--line); }
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:20; }
+  .modal.on { display:flex; }
+  .modal .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; width:min(640px, 94vw); max-height:80vh; display:flex; flex-direction:column; padding:14px 16px; }
+  .modal .entries { overflow:auto; flex:1; margin:8px 0; border:1px solid var(--line); border-radius:8px; }
+  .modal .entries div { padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--line); font-size:13px; } .modal .entries div:hover { background:var(--panel2); }
+  .copied { color:var(--ok) !important; border-color:var(--ok) !important; }
 </style>
 </head>
 <body>
@@ -69,7 +111,62 @@
   <div class="gauge"><label>Studio</label><div class="row" style="margin:0"><button class="small" id="studio-btn">Start</button><a id="studio-link" href="#" target="_blank" style="display:none">open</a></div></div>
 </header>
 
-<main>
+<nav class="tabs">
+  <button data-view="episodes" class="on">Episodes</button>
+  <button data-view="upload">Upload details</button>
+  <button data-view="control">Control room</button>
+</nav>
+
+<div class="view on pad" id="view-episodes">
+  <div class="planbar">
+    <b id="plan-title">Content plan</b>
+    <small class="muted" id="plan-file"></small>
+    <button class="small" id="plan-choose">Choose plan file…</button>
+  </div>
+  <div id="plan-error" class="muted"></div>
+  <div class="weeks" id="weeks"></div>
+  <div class="ep-grid">
+    <section>
+      <h2><span id="week-title">Week</span> <button class="small" id="week-all" title="Queue every episode of this week with the default ratios">Queue whole week</button></h2>
+      <small class="muted" id="week-meta"></small>
+      <div class="list" id="episodes" style="margin-top:10px"></div>
+    </section>
+    <section id="ep-detail"><small class="muted">Pick an episode.</small></section>
+    <div>
+      <section>
+        <h2>Progress</h2>
+        <div class="list" id="ep-jobs"></div>
+      </section>
+      <section>
+        <h2>Log</h2>
+        <div class="log" id="log2"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="view pad" id="view-upload">
+  <div class="planbar">
+    <select id="up-week" style="max-width:320px"></select>
+    <select id="up-ep" style="max-width:420px"></select>
+    <button class="small" id="up-refresh">Refresh</button>
+    <a id="up-md" href="#"><button class="small">Download UPLOAD-DETAILS.md</button></a>
+    <button class="small" id="up-open">Open saved folder</button>
+  </div>
+  <div id="up-body"><small class="muted">Pick an episode.</small></div>
+</div>
+
+<div class="modal" id="browser">
+  <div class="box">
+    <b id="br-title">Choose a folder</b>
+    <div class="chips" id="br-roots" style="margin-top:8px"></div>
+    <div class="row" style="margin:0"><input type="text" id="br-dir" /><button class="small" id="br-up">Up</button></div>
+    <div class="entries" id="br-list"></div>
+    <div class="row" style="margin:0"><button class="primary" id="br-ok">Use this folder</button><button id="br-new">New folder…</button><button id="br-cancel">Cancel</button></div>
+  </div>
+</div>
+
+<main class="view" id="view-control">
   <div>
     <section>
       <h2>Scripts <button class="small" id="new-script">New from text</button></h2>
@@ -134,7 +231,7 @@ const PRESET_LIST = ['shorts','reels','stories','facebook','feed','youtube-1080p
 const PLATFORM_FOR_COMP = { Shorts:'shorts', Reels:'reels', Stories:'stories', Facebook:'facebook', Feed:'feed', YouTube:'youtube-1080p' };
 
 const api = async (path, method='GET', body) => {
-  const res = await fetch(path, {method, headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  const res = await fetch(path, {method, headers:{'Content-Type':'application/json', 'X-Dashboard':'1'}, body: body ? JSON.stringify(body) : undefined});
   return res.json();
 };
 const fmtBytes = (b) => b > 1e9 ? (b/1e9).toFixed(2)+' GB' : b > 1e6 ? (b/1e6).toFixed(1)+' MB' : Math.round(b/1e3)+' KB';
@@ -211,7 +308,7 @@ function renderScripts() {
 function renderJobs() {
   $('#jobs').innerHTML = S.jobs.map(j => {
     const pct = Math.round((j.progress||0)*100);
-    const title = j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
+    const title = j.kind === 'episode' ? `episode ${esc(j.title||'')}` : j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
     const meta = j.kind === 'render' ? [j.size, j.concurrency ? j.concurrency+' tabs' : '', j.encoder, j.renderedFrames!=null ? `${j.renderedFrames}/${j.totalFrames} rendered` : '', j.encodedFrames!=null ? `${j.encodedFrames} encoded` : '', j.etaSeconds!=null && j.status==='rendering' ? 'ETA '+fmtTime(j.etaSeconds) : '', j.bytes ? fmtBytes(j.bytes) : ''].filter(Boolean).join(' · ') : (j.error || '');
     const active = ['queued','bundling','selecting','rendering','running'].includes(j.status);
     return `<div class="item"><div class="top"><b>#${j.id} ${title}</b><span><span class="status ${j.status}">${j.status}</span> ${active ? `<button class="small danger" data-cancel="${j.id}">cancel</button>` : ''}</span></div>
@@ -251,12 +348,15 @@ function renderStudio() {
   const a = $('#studio-link'); if (S.studio.url) { a.href = S.studio.url; a.style.display = 'inline'; } else a.style.display = 'none';
 }
 function appendLog(e) {
-  const el = $('#log'); const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-  const div = document.createElement('div'); div.innerHTML = `<span class="src">${esc(e.source)}</span> ${esc(e.line)}`; el.appendChild(div);
-  while (el.children.length > 400) el.removeChild(el.firstChild);
-  if (atBottom) el.scrollTop = el.scrollHeight;
+  for (const el of [$('#log'), $('#log2')]) {
+    if (!el) continue;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    const div = document.createElement('div'); div.innerHTML = `<span class="src">${esc(e.source)}</span> ${esc(e.line)}`; el.appendChild(div);
+    while (el.children.length > 400) el.removeChild(el.firstChild);
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }
 }
-function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderAutopilot(); renderStudio(); }
+function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderAutopilot(); renderStudio(); if (typeof renderEpisodeJobs === "function") renderEpisodeJobs(); }
 
 async function openEditor(id) {
   const res = await fetch('/api/scripts/'+encodeURIComponent(id)); const text = await res.text();
@@ -280,7 +380,7 @@ $('#an-run').onclick = async () => {
 };
 async function saveText(id, text) {
   // The server stores the text as public/script/<id>.md and returns its path for the analyze task.
-  const r = await fetch('/api/scripts/'+encodeURIComponent(id)+'.md', {method:'PUT', headers:{'Content-Type':'text/plain'}, body: text});
+  const r = await fetch('/api/scripts/'+encodeURIComponent(id)+'.md', {method:'PUT', headers:{'Content-Type':'text/plain', 'X-Dashboard':'1'}, body: text});
   const j = await r.json(); return j.path;
 }
 $('#refresh-comps').onclick = async () => { const r = await api('/api/compositions/refresh','POST'); S.compositions = r.compositions; S.compositionsError = r.compositionsError; renderComps(); };
@@ -297,15 +397,290 @@ $('#ap-run').onclick = () => { if (confirm('Produce the next queued videos now (
 $('#ap-due').onclick = () => api('/api/tasks','POST',{task:'autopilot-publish-due', options:{}});
 $('#studio-btn').onclick = async () => { const r = await api('/api/studio','POST',{action: S.studio.running ? 'stop' : 'start'}); S.studio = r; renderStudio(); };
 
-async function refresh() { S = await api('/api/state'); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); }
+async function refresh() { S = await api('/api/state'); renderAll(); $('#log').innerHTML=''; $('#log2').innerHTML=''; (S.log||[]).forEach(appendLog); }
 const es = new EventSource('/api/events');
-es.addEventListener('state', (e) => { S = JSON.parse(e.data); renderAll(); $('#log').innerHTML=''; (S.log||[]).forEach(appendLog); });
+es.addEventListener('state', (e) => { S = JSON.parse(e.data); renderAll(); $('#log').innerHTML=''; $('#log2').innerHTML=''; (S.log||[]).forEach(appendLog); });
 es.addEventListener('machine', (e) => { S.machine = JSON.parse(e.data); renderMachine(); });
-es.addEventListener('jobs', (e) => { S.jobs = JSON.parse(e.data); renderJobs(); if (S.jobs.some(j => j.kind === 'task' && ['done','failed'].includes(j.status))) refreshScriptsSoon(); });
+es.addEventListener('jobs', (e) => { S.jobs = JSON.parse(e.data); renderJobs(); renderEpisodeJobs(); if (S.jobs.some(j => j.kind === 'task' && ['done','failed'].includes(j.status))) refreshScriptsSoon(); });
 es.addEventListener('outputs', (e) => { S.outputs = JSON.parse(e.data); renderOutputs(); refreshScriptsSoon(); });
 es.addEventListener('studio', (e) => { S.studio = JSON.parse(e.data); renderStudio(); });
 es.addEventListener('log', (e) => appendLog(JSON.parse(e.data)));
+es.addEventListener('plan', (e) => { P = JSON.parse(e.data); renderPlan(); if (view === 'upload') loadDetails(); });
 let scriptsTimer; function refreshScriptsSoon() { clearTimeout(scriptsTimer); scriptsTimer = setTimeout(async () => { const st = await api('/api/state'); S.scripts = st.scripts; S.compositions = st.compositions; S.queue = st.queue; renderScripts(); renderComps(); renderAutopilot(); }, 800); }
+
+// ---------- Episodes + Upload details --------------------------------------------------------------
+let P = {weeks: []};
+let view = 'episodes';
+let selWeek = null, selEp = null;
+const FORMS = {};
+const COPY = [];
+const VARIANT_LABEL = {long: 'Long video', 'short-a': 'Short A', 'short-b': 'Short B'};
+const store = {get(k, d) { try { const v = localStorage.getItem('rcr.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set(k, v) { try { localStorage.setItem('rcr.' + k, JSON.stringify(v)); } catch {} }};
+const allEpisodes = () => P.weeks.flatMap(w => w.episodes.map(ep => ({...ep, week: w})));
+const findEp = (id) => allEpisodes().find(e => e.id === id);
+const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'}) : '';
+
+function setView(v) {
+  view = v; store.set('view', v);
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  document.querySelectorAll('.view').forEach(el => el.classList.toggle('on', el.id === 'view-' + v));
+  if (v === 'upload') { syncUploadSelectors(); loadDetails(); }
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
+
+async function loadPlan() { P = await api('/api/plan'); renderPlan(); }
+
+function videoDots(v) {
+  const st = v.status; const rendered = Object.entries(st.renders).filter(([, ok]) => ok).map(([r]) => r);
+  return `<span class="dot ${st.script ? 'ok' : st.md ? 'part' : ''}" title="script">${st.script ? 'script ✓' : st.md ? 'script .md' : 'no script'}</span>`
+    + `<span class="dot ${st.voice ? 'ok' : ''}">${st.voice ? 'voice ✓' : 'voice'}</span>`
+    + `<span class="dot ${rendered.length ? 'ok' : ''}">${rendered.length ? 'video ' + rendered.join(' ') : 'video'}</span>`
+    + `<span class="dot ${st.pack ? 'ok' : ''}">${st.pack ? 'details ✓' : 'details'}</span>`
+    + (st.exported ? `<span class="dot ok" title="${esc(st.exported)}">saved ✓</span>` : '');
+}
+const epDone = (ep) => ep.videos.filter(v => v.status.rendered && v.status.pack).length;
+
+function renderPlan() {
+  $('#plan-title').textContent = P.title || 'Content plan';
+  $('#plan-file').textContent = P.file || '';
+  $('#plan-error').textContent = P.error || '';
+  if (!P.weeks?.length) { $('#weeks').innerHTML = ''; $('#episodes').innerHTML = '<small class="muted">No plan loaded. Click "Choose plan file…" and pick your season JSON (for Wiresplained: Tech/01-plan/season-1.json).</small>'; $('#ep-detail').innerHTML = ''; return; }
+  if (selWeek == null || !P.weeks.find(w => w.number === selWeek)) selWeek = store.get('week', P.weeks[0].number);
+  if (!P.weeks.find(w => w.number === selWeek)) selWeek = P.weeks[0].number;
+  let lastMonth = null;
+  $('#weeks').innerHTML = P.weeks.map(w => {
+    const month = w.month || (w.start ? new Date(w.start + 'T12:00:00').toLocaleString(undefined, {month: 'long'}) : '');
+    const head = month && month !== lastMonth ? `<span class="month">${esc(month)}</span>` : ''; lastMonth = month;
+    const total = w.episodes.reduce((n, e) => n + e.videos.length, 0); const done = w.episodes.reduce((n, e) => n + epDone(e), 0);
+    return `${head}<button class="wk ${w.number === selWeek ? 'on' : ''}" data-week="${w.number}"><b>W${w.number} · ${esc(w.title || '')}</b><small>${esc(fmtDate(w.start))} · ${esc(w.pillar || '')}</small><div class="meter"><i style="width:${total ? Math.round(done / total * 100) : 0}%"></i></div></button>`;
+  }).join('');
+  document.querySelectorAll('[data-week]').forEach(b => b.onclick = () => { selWeek = Number(b.dataset.week); store.set('week', selWeek); selEp = null; renderPlan(); });
+  const w = P.weeks.find(x => x.number === selWeek);
+  $('#week-title').textContent = `Week ${w.number}: ${w.title || ''}`;
+  $('#week-meta').textContent = [w.pillar, w.playlist ? `playlist "${w.playlist}"` : '', w.background ? `background ${w.background}` : ''].filter(Boolean).join(' · ');
+  if (!selEp || !w.episodes.find(e => e.id === selEp)) selEp = w.episodes[0]?.id;
+  $('#episodes').innerHTML = w.episodes.map(ep => `
+    <div class="item ep ${ep.id === selEp ? 'on' : ''}" data-ep="${esc(ep.id)}">
+      <div class="top"><b>${esc(ep.id.toUpperCase())} · ${esc(ep.topic)}</b><small>${esc(fmtDate(ep.date))}</small></div>
+      <small>${epDone(ep)}/${ep.videos.length} videos ready</small>
+      ${ep.videos.map(v => `<div class="vgroup">${esc(VARIANT_LABEL[v.variant] || v.variant)} ${esc(v.time || '')}</div><div class="dots">${videoDots(v)}</div>`).join('')}
+    </div>`).join('');
+  document.querySelectorAll('[data-ep]').forEach(el => el.onclick = () => { selEp = el.dataset.ep; renderPlan(); });
+  renderDetail();
+  syncUploadSelectors();
+}
+
+function formFor(ep) {
+  if (!FORMS[ep.id]) {
+    const saved = store.get('form', {});
+    FORMS[ep.id] = {
+      videos: Object.fromEntries(ep.videos.map(v => [v.variant, {on: true, ratios: [...(v.ratios || [])]}])),
+      outDir: ep.exportDir || '',
+      voiceProvider: saved.voiceProvider || S.settings.voiceProvider || 'elevenlabs',
+      music: saved.music || S.settings.music || 'library',
+      writer: saved.writer || S.settings.writer || 'claude',
+      fourK: S.settings.fourK ?? true, hw: S.settings.hw ?? false, regenerate: false,
+    };
+  }
+  return FORMS[ep.id];
+}
+
+function renderDetail() {
+  const ep = findEp(selEp); if (!ep) { $('#ep-detail').innerHTML = '<small class="muted">Pick an episode.</small>'; return; }
+  const f = formFor(ep);
+  const ratioChips = (v) => Object.entries(P.ratios || {}).map(([r, label]) => `<button class="small ratio ${f.videos[v.variant].ratios.includes(r) ? 'on' : ''}" data-ratio="${esc(v.variant)}|${esc(r)}" title="${esc(label)}">${esc(r)}</button>`).join(' ');
+  $('#ep-detail').innerHTML = `
+    <h2>${esc(ep.id.toUpperCase())} · ${esc(fmtDate(ep.date))} <span><button class="small" id="ep-open">Open episode folder</button> <button class="small" id="ep-up">Upload details →</button></span></h2>
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px">${esc(ep.topic)}</div>
+    <small class="muted">${esc(ep.folder || '')}</small>
+    <div style="margin-top:10px">${ep.videos.map(v => `
+      <div class="vrow">
+        <input type="checkbox" data-on="${esc(v.variant)}" ${f.videos[v.variant].on ? 'checked' : ''} />
+        <div>
+          <div class="t">${esc(VARIANT_LABEL[v.variant] || v.variant)} <small class="muted">· ${esc(v.kind)} · ${esc(v.time || '')}</small></div>
+          <div>${esc(v.title || '')}</div>
+          ${v.hook && v.hook !== v.title ? `<div class="h">Hook: ${esc(v.hook)}</div>` : ''}
+          <div class="row" style="margin:8px 0 4px;gap:6px">${ratioChips(v)}</div>
+          <div class="dots">${videoDots(v)}</div>
+        </div>
+      </div>`).join('')}</div>
+    <div class="field" style="margin-top:12px"><label>Save videos to</label>
+      <div class="row" style="margin:0"><input type="text" id="ep-out" value="${esc(f.outDir)}" /><button class="small" id="ep-choose">Choose…</button><button class="small" id="ep-reset" title="Episode folder / exports">Episode folder</button></div>
+      <small class="muted">Each video gets its own subfolder (long/, short-a/, short-b/) with the MP4s, thumbnails, upload details and script, plus UPLOAD-DETAILS.md for the episode.</small>
+    </div>
+    <div class="row">
+      <select id="ep-voice" title="Voice"><option value="elevenlabs">Voice: ElevenLabs</option><option value="macos">Voice: macOS draft (free)</option><option value="openai">Voice: OpenAI</option></select>
+      <select id="ep-music" title="Music"><option value="library">Music: from library folder</option><option value="generate">Music: generate (ElevenLabs)</option><option value="off">Music: none</option></select>
+      <select id="ep-writer" title="When a script is missing"><option value="claude">Missing script: Claude Code writes it</option><option value="manual">Missing script: stop and tell me</option></select>
+    </div>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="ep-4k" ${f.fourK ? 'checked' : ''} /> 4K master</label>
+      <label class="check"><input type="checkbox" id="ep-hw" ${f.hw ? 'checked' : ''} ${S.machine.hardwareEncoder ? '' : 'disabled'} /> Hardware encoder</label>
+      <label class="check" title="Re-voice, re-render and remake thumbnails even if they exist"><input type="checkbox" id="ep-redo" ${f.regenerate ? 'checked' : ''} /> Redo voice & renders</label>
+    </div>
+    <div class="row"><button class="primary" id="ep-go" style="font-size:15px;padding:10px">Generate ${esc(ep.id.toUpperCase())}</button></div>
+    <small class="muted" id="ep-msg"></small>`;
+  $('#ep-voice').value = f.voiceProvider; $('#ep-music').value = f.music; $('#ep-writer').value = f.writer;
+  document.querySelectorAll('[data-on]').forEach(cb => cb.onchange = () => { f.videos[cb.dataset.on].on = cb.checked; });
+  document.querySelectorAll('[data-ratio]').forEach(b => b.onclick = () => {
+    const [variant, r] = b.dataset.ratio.split('|'); const list = f.videos[variant].ratios;
+    const i = list.indexOf(r); if (i >= 0) list.splice(i, 1); else list.push(r);
+    renderDetail();
+  });
+  $('#ep-out').oninput = () => { f.outDir = $('#ep-out').value; };
+  $('#ep-reset').onclick = () => { f.outDir = ep.exportDir; renderDetail(); };
+  $('#ep-choose').onclick = async () => { const dir = await chooseFolder(f.outDir || ep.folder, 'Save the videos for ' + ep.id.toUpperCase() + ' to'); if (dir) { f.outDir = dir; renderDetail(); } };
+  $('#ep-open').onclick = () => ep.folder && api('/api/open', 'POST', {path: ep.folder});
+  $('#ep-up').onclick = () => { setView('upload'); };
+  const remember = () => store.set('form', {voiceProvider: f.voiceProvider, music: f.music, writer: f.writer});
+  $('#ep-voice').onchange = () => { f.voiceProvider = $('#ep-voice').value; remember(); };
+  $('#ep-music').onchange = () => { f.music = $('#ep-music').value; remember(); };
+  $('#ep-writer').onchange = () => { f.writer = $('#ep-writer').value; remember(); };
+  $('#ep-4k').onchange = () => { f.fourK = $('#ep-4k').checked; };
+  $('#ep-hw').onchange = () => { f.hw = $('#ep-hw').checked; };
+  $('#ep-redo').onchange = () => { f.regenerate = $('#ep-redo').checked; };
+  $('#ep-go').onclick = () => generate(ep, f);
+}
+
+async function generate(ep, f) {
+  const videos = Object.entries(f.videos).filter(([, v]) => v.on && v.ratios.length).map(([variant, v]) => ({variant, ratios: v.ratios}));
+  if (!videos.length) { $('#ep-msg').textContent = 'Tick at least one video and one aspect ratio.'; return; }
+  const r = await api('/api/episodes/generate', 'POST', {episodeId: ep.id, videos, outDir: f.outDir, voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, fourK: f.fourK, hw: f.hw, regenerate: f.regenerate});
+  $('#ep-msg').textContent = r.error ? r.error : `Queued job #${r.id}: ${videos.map(v => v.variant + ' ' + v.ratios.join('+')).join(', ')} → ${f.outDir}`;
+}
+
+$('#week-all').onclick = async () => {
+  const w = P.weeks.find(x => x.number === selWeek); if (!w) return;
+  if (!confirm(`Queue all ${w.episodes.length} episodes of week ${w.number} (${w.episodes.length * 3} videos) with their default ratios? They run one after another.`)) return;
+  for (const ep of w.episodes) {
+    const f = formFor(ep);
+    const videos = Object.entries(f.videos).filter(([, v]) => v.on && v.ratios.length).map(([variant, v]) => ({variant, ratios: v.ratios}));
+    await api('/api/episodes/generate', 'POST', {episodeId: ep.id, videos, outDir: f.outDir, voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, fourK: f.fourK, hw: f.hw});
+  }
+};
+
+function renderEpisodeJobs() {
+  const list = S.jobs.filter(j => j.kind === 'episode');
+  $('#ep-jobs').innerHTML = list.map(j => {
+    const pct = Math.round((j.progress || 0) * 100);
+    const active = ['queued', 'bundling', 'running'].includes(j.status);
+    const groups = {}; for (const st of j.steps || []) (groups[st.variant] = groups[st.variant] || []).push(st);
+    return `<div class="item"><div class="top"><b>#${j.id} ${esc(j.title || '')}</b><span><span class="status ${j.status}">${j.status}</span> ${active ? `<button class="small danger" data-cancel2="${j.id}">cancel</button>` : ''}</span></div>
+      <div class="progress"><i style="width:${pct}%"></i></div>
+      <small>${pct}%${j.render ? ` · rendering ${esc(j.render.ratio)} ${esc(j.render.size || '')} · ${Math.round((j.render.progress || 0) * 100)}%${j.render.etaSeconds != null ? ' · ETA ' + fmtTime(j.render.etaSeconds) : ''}` : ''}${j.error ? ' · ' + esc(j.error) : ''}</small>
+      ${Object.entries(groups).map(([variant, steps]) => `<div class="vgroup">${esc(VARIANT_LABEL[variant] || variant)}</div><div class="steps">${steps.map(st => `<div class="s ${st.status}"><span>${st.status === 'done' ? '✓' : st.status === 'skipped' ? '–' : st.status === 'failed' ? '✗' : st.status === 'running' ? '▸' : '·'} ${esc(st.label)}</span><small>${esc(st.detail || '')}</small></div>`).join('')}</div>`).join('')}
+      ${j.exportDir && ['done', 'failed'].includes(j.status) ? `<div class="row" style="margin:8px 0 0"><button class="small" data-openout="${esc(j.exportDir)}">Open saved folder</button><button class="small" data-details="${esc(j.options?.episodeId || '')}">Upload details</button></div>` : ''}
+    </div>`;
+  }).join('') || '<small class="muted">Nothing generating. Pick an episode and click Generate.</small>';
+  document.querySelectorAll('[data-cancel2]').forEach(b => b.onclick = () => api(`/api/jobs/${b.dataset.cancel2}/cancel`, 'POST'));
+  document.querySelectorAll('[data-openout]').forEach(b => b.onclick = () => api('/api/open', 'POST', {path: b.dataset.openout}));
+  document.querySelectorAll('[data-details]').forEach(b => b.onclick = () => { selEp = b.dataset.details; const ep = findEp(selEp); if (ep) selWeek = ep.week.number; setView('upload'); });
+}
+
+// ---- folder / file picking: native Finder dialog on macOS, in-page browser elsewhere ----
+async function chooseFolder(start, prompt) {
+  const r = await api('/api/pick', 'POST', {kind: 'folder', prompt, start});
+  if (r.path) return r.path;
+  if (r.cancelled) return null;
+  return browseModal(start, false, prompt);
+}
+function browseModal(start, files, title) {
+  return new Promise((resolve) => {
+    const m = $('#browser'); m.classList.add('on'); $('#br-title').textContent = title || 'Choose a folder';
+    $('#br-ok').style.display = files ? 'none' : '';
+    $('#br-new').style.display = files ? 'none' : '';
+    let cur = start || '';
+    const close = (val) => { m.classList.remove('on'); resolve(val); };
+    const load = async (dir) => {
+      const d = await api('/api/browse?dir=' + encodeURIComponent(dir || '') + (files ? '&files=1' : ''));
+      cur = d.dir; $('#br-dir').value = d.dir;
+      $('#br-roots').innerHTML = d.roots.map(r => `<span class="chip" data-root="${esc(r.path)}">${esc(r.name)}</span>`).join('');
+      $('#br-list').innerHTML = (d.error ? `<div class="muted">${esc(d.error)}</div>` : '') + d.entries.map(e => `<div data-path="${esc(e.path)}" data-dir="${e.dir ? 1 : 0}">${e.dir ? '📁' : '📄'} ${esc(e.name)}</div>`).join('');
+      document.querySelectorAll('[data-root]').forEach(c => c.onclick = () => load(c.dataset.root));
+      document.querySelectorAll('#br-list [data-path]').forEach(el => el.onclick = () => el.dataset.dir === '1' ? load(el.dataset.path) : close(el.dataset.path));
+      $('#br-up').onclick = () => load(d.parent);
+    };
+    $('#br-dir').onchange = () => load($('#br-dir').value);
+    $('#br-ok').onclick = () => close(cur);
+    $('#br-new').onclick = () => { const name = prompt('New folder name inside ' + cur); if (name) close(cur.replace(/\/$/, '') + '/' + name.replace(/[\/\\]/g, '-')); };
+    $('#br-cancel').onclick = () => close(null);
+    load(start);
+  });
+}
+$('#plan-choose').onclick = async () => {
+  let file = null;
+  const r = await api('/api/pick', 'POST', {kind: 'file', prompt: 'Choose the season plan (JSON)', start: P.file ? P.file.replace(/\/[^/]*$/, '') : ''});
+  if (r.path) file = r.path; else if (!r.cancelled) file = await browseModal(P.file ? P.file.replace(/\/[^/]*$/, '') : '', true, 'Choose the season plan (JSON)');
+  if (!file) return;
+  await api('/api/settings', 'POST', {planFile: file});
+  selWeek = null; selEp = null; loadPlan();
+};
+
+// ---- Upload details ----
+function syncUploadSelectors() {
+  if (!P.weeks?.length) return;
+  $('#up-week').innerHTML = P.weeks.map(w => `<option value="${w.number}" ${w.number === selWeek ? 'selected' : ''}>Week ${w.number}: ${esc(w.title || '')}</option>`).join('');
+  const w = P.weeks.find(x => x.number === selWeek) || P.weeks[0];
+  $('#up-ep').innerHTML = w.episodes.map(ep => `<option value="${esc(ep.id)}" ${ep.id === selEp ? 'selected' : ''}>${esc(ep.id.toUpperCase())} · ${esc(ep.topic)} · ${epDone(ep)}/${ep.videos.length} ready</option>`).join('');
+  if (selEp) $('#up-md').href = `/api/episodes/${encodeURIComponent(selEp)}/upload-details.md`;
+}
+$('#up-week').onchange = () => { selWeek = Number($('#up-week').value); const w = P.weeks.find(x => x.number === selWeek); selEp = w.episodes[0]?.id; syncUploadSelectors(); renderPlan(); loadDetails(); };
+$('#up-ep').onchange = () => { selEp = $('#up-ep').value; syncUploadSelectors(); renderPlan(); loadDetails(); };
+$('#up-refresh').onclick = () => loadDetails();
+let D = null;
+$('#up-open').onclick = () => { const dir = D?.videos.find(v => v.exported)?.exported; api('/api/open', 'POST', {path: dir ? dir.replace(/\/[^/]*$/, '') : D?.exportDir}); };
+
+async function loadDetails() {
+  if (!selEp) return;
+  D = await api(`/api/episodes/${encodeURIComponent(selEp)}/details`);
+  renderUpload();
+}
+const copyable = (label, text, extra = '') => { const i = COPY.push(String(text ?? '')) - 1; return `<div class="field"><label><span>${esc(label)}${extra}</span><button class="small" data-copy="${i}">Copy</button></label><div class="val">${esc(text ?? '')}</div></div>`; };
+function platCard(title, platform, v, body) {
+  return `<div class="plat"><h3><span>${esc(title)}</span><span><button class="small" data-pub="${esc(v.videoId)}|${esc(platform)}|${esc(v.when || '')}">${v.when ? 'Schedule…' : 'Publish…'}</button></span></h3>${body}</div>`;
+}
+function renderUpload() {
+  COPY.length = 0;
+  if (!D || D.error) { $('#up-body').innerHTML = `<small class="muted">${esc(D?.error || 'Pick an episode.')}</small>`; return; }
+  $('#up-body').innerHTML = `<h2 style="margin:4px 0 12px">${esc(D.id.toUpperCase())} · ${esc(D.topic)} <small class="muted">· Week ${D.week.number}: ${esc(D.week.title)} · playlist "${esc(D.week.playlist || '')}"</small></h2>` + D.videos.map(v => {
+    const p = v.pack?.platforms;
+    const media = `<section>
+        <h2>${esc(VARIANT_LABEL[v.variant] || v.variant)} <small class="muted">${esc(v.time || '')}</small></h2>
+        ${v.videos.map(f => `<div style="margin-bottom:8px"><video controls preload="metadata" src="/out/${f.file.split('/').map(encodeURIComponent).join('/')}"></video><small class="muted">${esc(f.ratio)} · ${esc(f.file.split('/').pop())}</small></div>`).join('') || '<small class="muted">No video yet.</small>'}
+        <div class="thumbs">${v.thumbnails.map(t => `<a href="/out/${t.split('/').map(encodeURIComponent).join('/')}" target="_blank"><img src="/out/${t.split('/').map(encodeURIComponent).join('/')}" /></a>`).join('')}</div>
+        ${v.when ? `<small class="muted" style="display:block;margin-top:8px">Scheduled slot: ${esc(v.when.replace('T', ' ').slice(0, 16))}</small>` : ''}
+        ${v.exported ? `<small class="muted" style="display:block;margin-top:4px">Saved in ${esc(v.exported)}</small>` : ''}
+        ${v.srt ? `<a href="/out/${v.srt.split('/').map(encodeURIComponent).join('/')}" download><button class="small" style="margin-top:8px">Captions .srt</button></a>` : ''}
+      </section>`;
+    if (!p) return `<div class="up-grid">${media}<section><small class="muted">No upload details yet. Generate this video on the Episodes tab; titles, descriptions, tags and hashtags are written for every platform.</small></section></div>`;
+    let cards = '';
+    if (v.kind === 'long') {
+      const yt = p.youtube;
+      cards += platCard('YouTube', 'youtube', v, copyable('Title', yt.title, ` · ${yt.title.length} chars`) + (v.pack.titles.length > 1 ? `<div class="field"><label>Other titles for A/B testing</label>${v.pack.titles.slice(1, 4).map(t => { const i = COPY.push(t) - 1; return `<div class="row" style="margin:0 0 4px"><div class="val" style="flex:1">${esc(t)}</div><button class="small" data-copy="${i}">Copy</button></div>`; }).join('')}</div>` : '') + copyable('Description', yt.description) + copyable('Tags', yt.tags.join(', '), ` · ${yt.tags.join(', ').length}/500`) + `<small class="muted">Category id ${yt.categoryId} (28 = Science & Technology) · not made for kids · upload thumbnail.jpg${v.srt ? ' · add the .srt as captions' : ''}</small>`);
+      cards += platCard('Facebook (page video)', 'facebook-video', v, copyable('Title', p.facebook.title) + copyable('Description', p.facebook.description));
+    } else {
+      const ys = p['youtube-shorts'];
+      cards += platCard('YouTube Shorts', 'youtube-shorts', v, copyable('Title', ys.title, ` · ${ys.title.length} chars`) + copyable('Description', ys.description) + copyable('Tags', ys.tags.join(', ')));
+      cards += platCard('Instagram Reels', 'instagram', v, copyable('Caption', p.instagram.caption, ` · ${p.instagram.caption.length}/2200`) + `<small class="muted">Cover: cover.jpg · share to feed on</small>`);
+      cards += platCard('Facebook Reels', 'facebook', v, copyable('Title', p.facebook.title) + copyable('Description', p.facebook.description));
+    }
+    return `<div class="up-grid">${media}<div>${cards}</div></div>`;
+  }).join('');
+  document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
+    try { await navigator.clipboard.writeText(COPY[Number(b.dataset.copy)]); b.textContent = 'Copied'; b.classList.add('copied'); setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1400); } catch { alert('Clipboard blocked by the browser; select the text and copy it.'); }
+  });
+  document.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => {
+    const [videoId, platform, slot] = b.dataset.pub.split('|');
+    const when = prompt(`Upload ${videoId} to ${platform}.\nSchedule time (ISO with offset). Blank = publish now.`, slot || '');
+    if (when === null) return;
+    const dryRun = confirm('Dry run first?\nOK = only print what would be uploaded (safe).\nCancel = really upload now.');
+    api('/api/tasks', 'POST', {task: 'publish', options: {videoId, platform, when: when || undefined, dryRun}});
+    setView('control');
+  });
+}
+
+setView(store.get('view', 'episodes'));
+loadPlan();
 </script>
 </body>
 </html>

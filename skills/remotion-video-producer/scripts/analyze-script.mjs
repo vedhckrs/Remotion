@@ -227,6 +227,9 @@ if (scenes.length === 0) {
 const keywords = args.keywords ? String(args.keywords).split(',').map((k) => k.trim()).filter(Boolean) : [];
 const highlights = scenes.map((s) => s.scene.highlight).filter(Boolean);
 const hook = scenes[0].scene.headline.replace(/[.!?]+$/, '');
+// Thumbnail text: the whole hook when it is short, else its first words without a dangling "the" / "to".
+const thumbWords = hook.split(/\s+/).slice(0, hook.split(/\s+/).length <= 6 ? 6 : 5);
+while (thumbWords.length > 2 && STOP.has(thumbWords[thumbWords.length - 1].toLowerCase().replace(/[^a-z']/g, ''))) thumbWords.pop();
 const seo = {
   titles: [title || hook, hook, `${hook} (${keywords[0] || 'explained'})`].filter((v, i, a) => v && a.indexOf(v) === i).slice(0, 3),
   description: `${title || hook}. ${scenes.slice(0, 2).map((s) => s.scene.voiceover.split(/(?<=[.!?])\s+/)[0]).join(' ')}`.slice(0, 300),
@@ -234,7 +237,7 @@ const seo = {
   hashtags: [...keywords, ...highlights].map((k) => '#' + String(k).toLowerCase().replace(/[^a-z0-9]/g, '')).filter((h) => h.length > 2).filter((v, i, a) => a.indexOf(v) === i).slice(0, 5),
   category: args.category || 'Education',
   cta: 'Follow for part two.',
-  thumbnailText: hook.split(/\s+/).slice(0, 4).join(' '),
+  thumbnailText: thumbWords.join(' '),
   language: 'en',
 };
 

@@ -30,7 +30,7 @@ export const AttributionBar: React.FC<{
   if (usedCredits.length === 0 && !extra) return null;
 
   const parts: string[] = [];
-  if (brands.length) parts.push(`Logos: ${brands.map((b) => b.title).join(', ')} are trademarks of their respective owners`);
+  if (brands.length) parts.push(`Logos: ${brands.map((b) => b.title).join(', ')} ${brands.length === 1 ? 'is a trademark of its owner' : 'are trademarks of their respective owners'}`);
   if (sets.length) parts.push(`Icons via ${Array.from(new Set(usedCredits.map((c) => (c.set === 'simple-icons' ? 'Simple Icons' : c.set === 'logos' ? 'SVG Logos' : c.set === 'lucide' ? 'Lucide' : c.set === 'tabler' ? 'Tabler' : c.set === 'fluent-emoji-flat' ? 'Fluent Emoji' : c.set)))).join(', ')} (${sets.join(', ')})`);
   if (extra) parts.push(extra);
 

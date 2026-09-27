@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Create a Remotion project wired for the remotion-video-producer pipeline.
 #
-#   scripts/scaffold.sh <dir> [npm|pnpm|bun|yarn] [--keep-root]
+#   scripts/scaffold.sh <dir> [npm|pnpm|bun|yarn] [--keep-root] [--update]
+#
+# --update refreshes an existing project to this skill version: backs up src/ and tools/dashboard to
+# .skill-backup/<time>/, copies the new templates and dashboard, keeps src/Root.tsx, the project's own
+# src/lib/brand-styles.ts, public/, automation/ and .env untouched.
 #
 # - Scaffolds with create-video (blank template) if <dir> has no package.json
 # - Installs the packages the templates use, pinned to the project's Remotion version
@@ -15,7 +19,11 @@ DIR="${1:-.}"
 PM="${2:-npm}"
 case "$PM" in --*) PM=npm ;; esac
 KEEP_ROOT=0
-for arg in "$@"; do [ "$arg" = "--keep-root" ] && KEEP_ROOT=1; done
+UPDATE=0
+for arg in "$@"; do
+  [ "$arg" = "--keep-root" ] && KEEP_ROOT=1
+  [ "$arg" = "--update" ] && UPDATE=1 && KEEP_ROOT=1
+done
 
 case "$PM" in
   npm)  INSTALL="npm install"; RUNX="npx" ;;
@@ -46,9 +54,30 @@ $RUNX remotion add @remotion/media @remotion/transitions @remotion/google-fonts 
 echo "Adding icon and logo sources (simple-icons: 3000+ brand marks with official colors)"
 $INSTALL simple-icons >/dev/null 2>&1 || npm install simple-icons >/dev/null 2>&1 || echo "  simple-icons install skipped (fetch-icons.mjs falls back to jsDelivr)"
 
+if [ "$UPDATE" -eq 1 ]; then
+  BACKUP=".skill-backup/$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BACKUP"
+  [ -d src ] && cp -R src "$BACKUP/src"
+  [ -d tools/dashboard ] && cp -R tools/dashboard "$BACKUP/dashboard"
+  echo "Update mode: backed up src/ and tools/dashboard/ to $BACKUP"
+fi
+
 echo "Copying templates"
 mkdir -p src public/script public/voiceover public/music public/media public/captions public/icons out automation
+# The project's own presets live in src/lib/brand-styles.ts and are never overwritten.
+BRAND_KEEP=""
+if [ -f src/lib/brand-styles.ts ]; then BRAND_KEEP="$(mktemp)"; cp src/lib/brand-styles.ts "$BRAND_KEEP"; fi
 cp -R "$TEMPLATES/src/." src/
+if [ -n "$BRAND_KEEP" ]; then cp "$BRAND_KEEP" src/lib/brand-styles.ts; rm -f "$BRAND_KEEP"; fi
+if [ "$UPDATE" -eq 1 ] && [ -f "$BACKUP/src/lib/styles.ts" ]; then
+  # Presets added straight into the old styles.ts would be lost; name them so they can move to brand-styles.ts.
+  MISSING="$(grep -o "id: '[a-z0-9-]*'" "$BACKUP/src/lib/styles.ts" | sort -u | while read -r l; do grep -qF "$l" src/lib/styles.ts src/lib/brand-styles.ts || echo "$l"; done)"
+  if [ -n "$MISSING" ]; then
+    echo "  Custom presets found in your old src/lib/styles.ts:"
+    echo "$MISSING" | sed 's/^/    /'
+    echo "  Move them into src/lib/brand-styles.ts (copy from $BACKUP/src/lib/styles.ts) so they survive updates."
+  fi
+fi
 cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
 
 # create-video installs Tailwind v4 in the blank template (src/index.css imports it).
@@ -67,7 +96,10 @@ fi
 
 echo "Installing the local dashboard (tools/dashboard) and LUTs (public/luts)"
 mkdir -p tools/dashboard public/luts
+SETTINGS_KEEP=""
+if [ -f tools/dashboard/settings.json ]; then SETTINGS_KEEP="$(mktemp)"; cp tools/dashboard/settings.json "$SETTINGS_KEEP"; fi
 cp -R "$SKILL_DIR/assets/dashboard/." tools/dashboard/
+if [ -n "$SETTINGS_KEEP" ]; then cp "$SETTINGS_KEEP" tools/dashboard/settings.json; rm -f "$SETTINGS_KEEP"; fi
 node "$SKILL_DIR/scripts/make-lut.mjs" --out public/luts >/dev/null && echo "  7 LUTs written"
 
 echo "Automation files (automation/): queue.json, topics.md, writer-prompt.md"
@@ -115,7 +147,7 @@ fi
 
 # Keep secrets and large generated files out of git.
 touch .gitignore
-for line in ".env" "out/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
+for line in ".env" "out/" ".skill-backup/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
   grep -qxF "$line" .gitignore || echo "$line" >> .gitignore
 done
 [ -f .env ] || printf '# ELEVENLABS_API_KEY=\n# OPENAI_API_KEY=\n# YouTube (scripts/auth-youtube.mjs): YT_CLIENT_ID= YT_CLIENT_SECRET= YT_REFRESH_TOKEN=\n# Meta: IG_USER_ID= META_ACCESS_TOKEN= META_PAGE_ID= META_PAGE_TOKEN=\n' > .env

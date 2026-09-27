@@ -20,6 +20,7 @@ import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
+import {createEpisodes} from './episodes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cwd = process.cwd();
@@ -56,7 +57,7 @@ const memoryGb = os.totalmem() / 1024 ** 3;
 const isMac = process.platform === 'darwin';
 
 const readSettings = () => {
-  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000};
+  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', voiceProvider: 'elevenlabs', music: 'library', writer: 'claude'};
   try {
     return {...defaults, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))};
   } catch {
@@ -182,7 +183,8 @@ const refreshCompositions = () =>
     child.stderr.on('data', (d) => (err += d));
     child.on('close', (code) => {
       if (code === 0) {
-        compositions = out.trim().split(/\s+/).filter(Boolean);
+        // --quiet prints the ids on the last line; earlier lines can be cache notices.
+        compositions = (out.trim().split('\n').filter((l) => l.trim()).pop() || '').trim().split(/\s+/).filter(Boolean);
         compositionsError = null;
       } else {
         compositionsError = err.split('\n').filter((l) => l.trim()).slice(-3).join(' ');
@@ -239,70 +241,83 @@ const ensureBundle = async (job) => {
   return serveUrl;
 };
 
-const runRender = async (job) => {
-  const preset = PRESETS[job.preset] || PRESETS.shorts;
-  const url = await ensureBundle(job);
-  const hw = job.hw && machine().hardwareEncoder;
-  const fourK = job.fourK && job.preset !== 'preview';
+/**
+ * Render one composition to a file with real progress and cancel. Used by the Render panel (runRender)
+ * and by the episode pipeline (one call per aspect ratio).
+ */
+const renderTo = async ({compositionId, preset: presetName, inputProps = {}, outputLocation, fourK: wantFourK, hw: wantHw, budget, frames, jobForBundle, cancelKey, onStart, onProgress}) => {
+  const preset = PRESETS[presetName] || PRESETS.shorts;
+  const url = await ensureBundle(jobForBundle);
+  const hw = wantHw && machine().hardwareEncoder;
+  const fourK = wantFourK && presetName !== 'preview';
   const scale = preset.scale ?? (fourK ? 2 : 1);
-  const concurrency = job.concurrency || concurrencyFor(job.budget ?? settings.budget, fourK);
+  const concurrency = concurrencyFor(budget ?? settings.budget, fourK);
   const chromiumOptions = {gl: settings.gl, ignoreCertificateErrors: Boolean(process.env.REMOTION_IGNORE_CERTS)};
-  const inputProps = job.inputProps || {};
-
-  job.status = 'selecting';
-  send('jobs', jobs);
-  const composition = await renderer.selectComposition({serveUrl: url, id: job.compositionId, inputProps, chromiumOptions, logLevel: 'error'});
+  const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, logLevel: 'error'});
   const width = Math.round(composition.width * scale);
   const height = Math.round(composition.height * scale);
-  const suffix = job.preset === 'preview' ? 'preview' : `${job.preset}_${width}x${height}${fourK ? '_4k' : ''}${hw ? '_hw' : ''}`;
-  const outputLocation = path.join(outDir, `${job.compositionId}_${suffix}.mp4`);
-  job.output = path.basename(outputLocation);
-  job.totalFrames = composition.durationInFrames;
-  job.fps = composition.fps;
-  job.size = `${width}x${height}@${composition.fps}`;
-  job.concurrency = concurrency;
-  job.encoder = hw ? machine().hardwareEncoder : 'x264';
-  job.status = 'rendering';
-  job.startedAt = Date.now();
-  send('jobs', jobs);
-  log('render', `${job.compositionId} -> ${job.output} | ${job.size} | ${concurrency} tabs | ${job.encoder}${fourK ? ' | 4K' : ''}`);
-
+  const info = {width, height, fps: composition.fps, totalFrames: composition.durationInFrames, concurrency, encoder: hw ? machine().hardwareEncoder : 'x264', fourK, hw};
+  const target = typeof outputLocation === 'function' ? outputLocation(info) : outputLocation;
+  fs.mkdirSync(path.dirname(target), {recursive: true});
+  onStart?.({...info, output: target});
   const cancelSignal = renderer.makeCancelSignal();
-  cancelSignals.set(job.id, cancelSignal);
+  cancelSignals.set(cancelKey, cancelSignal);
+  const startedAt = Date.now();
+  const frameRange = frames ? String(frames).split('-').map((n) => Number(n)) : null;
+  try {
+    await renderer.renderMedia({
+      composition,
+      serveUrl: url,
+      codec: 'h264',
+      outputLocation: target,
+      inputProps,
+      chromiumOptions,
+      concurrency,
+      scale,
+      colorSpace: 'bt709',
+      pixelFormat: 'yuv420p',
+      audioCodec: 'aac',
+      audioBitrate: preset.audioBitrate,
+      jpegQuality: preset.jpegQuality ?? 90,
+      frameRange: frameRange && frameRange.length === 2 ? [frameRange[0], frameRange[1]] : null,
+      ...(hw ? {hardwareAcceleration: 'if-possible', videoBitrate: fourK ? '60M' : preset.hwBitrate} : {crf: fourK ? preset.crf + 1 : preset.crf, x264Preset: fourK && preset.x264 === 'slow' ? 'medium' : preset.x264}),
+      cancelSignal: cancelSignal.cancelSignal,
+      logLevel: 'error',
+      onProgress: ({progress, renderedFrames, encodedFrames, stitchStage}) => {
+        const elapsed = (Date.now() - startedAt) / 1000;
+        onProgress?.({progress, renderedFrames, encodedFrames, stage: stitchStage, etaSeconds: progress > 0.02 ? Math.round((elapsed / progress) * (1 - progress)) : null});
+      },
+    });
+  } finally {
+    cancelSignals.delete(cancelKey);
+  }
+  return {...info, output: target, bytes: fs.statSync(target).size, seconds: Math.round((Date.now() - startedAt) / 1000)};
+};
 
-  const frameRange = job.frames ? job.frames.split('-').map((n) => Number(n)) : null;
-  await renderer.renderMedia({
-    composition,
-    serveUrl: url,
-    codec: 'h264',
-    outputLocation,
-    inputProps,
-    chromiumOptions,
-    concurrency,
-    scale,
-    colorSpace: 'bt709',
-    pixelFormat: 'yuv420p',
-    audioCodec: 'aac',
-    audioBitrate: preset.audioBitrate,
-    jpegQuality: preset.jpegQuality ?? 90,
-    frameRange: frameRange && frameRange.length === 2 ? [frameRange[0], frameRange[1]] : null,
-    ...(hw ? {hardwareAcceleration: 'if-possible', videoBitrate: fourK ? '60M' : preset.hwBitrate} : {crf: fourK ? preset.crf + 1 : preset.crf, x264Preset: fourK && preset.x264 === 'slow' ? 'medium' : preset.x264}),
-    cancelSignal: cancelSignal.cancelSignal,
-    logLevel: 'error',
-    onProgress: ({progress, renderedFrames, encodedFrames, stitchStage}) => {
-      job.progress = progress;
-      job.renderedFrames = renderedFrames;
-      job.encodedFrames = encodedFrames;
-      job.stage = stitchStage;
-      const elapsed = (Date.now() - job.startedAt) / 1000;
-      job.etaSeconds = progress > 0.02 ? Math.round((elapsed / progress) * (1 - progress)) : null;
+const runRender = async (job) => {
+  const result = await renderTo({
+    compositionId: job.compositionId,
+    preset: job.preset,
+    inputProps: job.inputProps || {},
+    fourK: job.fourK,
+    hw: job.hw,
+    budget: job.budget,
+    frames: job.frames,
+    jobForBundle: job,
+    cancelKey: job.id,
+    outputLocation: ({width, height, fourK, hw}) => path.join(outDir, `${job.compositionId}_${job.preset === 'preview' ? 'preview' : `${job.preset}_${width}x${height}${fourK ? '_4k' : ''}${hw ? '_hw' : ''}`}.mp4`),
+    onStart: (info) => {
+      Object.assign(job, {output: path.basename(info.output), totalFrames: info.totalFrames, fps: info.fps, size: `${info.width}x${info.height}@${info.fps}`, concurrency: info.concurrency, encoder: info.encoder, status: 'rendering', startedAt: Date.now()});
+      send('jobs', jobs);
+      log('render', `${job.compositionId} -> ${job.output} | ${job.size} | ${info.concurrency} tabs | ${info.encoder}${info.fourK ? ' | 4K' : ''}`);
+    },
+    onProgress: (p) => {
+      Object.assign(job, p);
       send('jobs', jobs);
     },
   });
-  cancelSignals.delete(job.id);
-  const st = fs.statSync(outputLocation);
-  job.bytes = st.size;
-  log('render', `Done ${job.output} (${(st.size / 1048576).toFixed(1)} MB) in ${Math.round((Date.now() - job.startedAt) / 1000)} s`);
+  job.bytes = result.bytes;
+  log('render', `Done ${job.output} (${(result.bytes / 1048576).toFixed(1)} MB) in ${result.seconds} s`);
 };
 
 const TASKS = {
@@ -354,11 +369,13 @@ const runTask = (job) =>
 
 const pump = async () => {
   if (running) return;
-  const job = jobs.find((j) => j.status === 'queued');
+  // Oldest queued job first (jobs are stored newest first for the UI).
+  const job = [...jobs].reverse().find((j) => j.status === 'queued');
   if (!job) return;
   running = job;
   try {
     if (job.kind === 'render') await runRender(job);
+    else if (job.kind === 'episode') await episodes.runEpisode(job);
     else await runTask(job);
     job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
   } catch (error) {
@@ -370,6 +387,7 @@ const pump = async () => {
     running = null;
     send('jobs', jobs);
     send('outputs', listOutputs());
+    if (job.kind === 'episode') send('plan', episodes.summary());
     setTimeout(pump, 50);
   }
 };
@@ -381,6 +399,41 @@ const enqueue = (job) => {
   send('jobs', jobs);
   pump();
   return full;
+};
+
+const episodes = createEpisodes({cwd, SKILL_DIR, getSettings: () => settings, log, send, renderTo, cancelSignals, getCompositions: () => compositions, jobs});
+
+// ---------- folder picker ------------------------------------------------------------------------
+/** Native Finder dialog on macOS; resolves {path} or {cancelled: true}. Other systems use /api/browse. */
+const pickNative = ({kind, prompt, start}) =>
+  new Promise((resolve) => {
+    if (!isMac) return resolve({unsupported: true});
+    const esc = (t) => String(t || '').replace(/[\\"]/g, '');
+    const where = start && fs.existsSync(start) ? ` default location (POSIX file "${esc(start)}")` : '';
+    const what = kind === 'file' ? `choose file with prompt "${esc(prompt || 'Choose a file')}" of type {"public.json"}${where}` : `choose folder with prompt "${esc(prompt || 'Choose a folder')}"${where}`;
+    const child = spawn('osascript', ['-e', 'tell application "System Events"', '-e', 'activate', '-e', `set chosen to POSIX path of (${what})`, '-e', 'end tell', '-e', 'return chosen']);
+    let out = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.on('close', (code) => resolve(code === 0 && out.trim() ? {path: out.trim().replace(/\/$/, '') || '/'} : {cancelled: true}));
+    child.on('error', () => resolve({unsupported: true}));
+  });
+
+const browse = (dir, withFiles) => {
+  const home = os.homedir();
+  const roots = [{name: 'Home', path: home}, {name: 'Project', path: cwd}];
+  if (isMac && fs.existsSync('/Volumes')) for (const v of fs.readdirSync('/Volumes')) roots.push({name: v, path: path.join('/Volumes', v)});
+  const target = path.resolve(dir || home);
+  let entries = [];
+  try {
+    entries = fs
+      .readdirSync(target, {withFileTypes: true})
+      .filter((e) => !e.name.startsWith('.') && (e.isDirectory() || (withFiles && e.name.endsWith('.json'))))
+      .map((e) => ({name: e.name, path: path.join(target, e.name), dir: e.isDirectory()}))
+      .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
+  } catch (error) {
+    return {dir: target, parent: path.dirname(target), roots, entries: [], error: error.message};
+  }
+  return {dir: target, parent: path.dirname(target), roots, entries};
 };
 
 // ---------- studio -------------------------------------------------------------------------------
@@ -432,12 +485,53 @@ const state = () => ({machine: machine(), settings, compositions, compositionsEr
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname;
+  // Local-only guard: refuse other hosts (DNS rebinding) and cross-site writes. The page sends
+  // X-Dashboard on every non-GET request; a foreign website cannot add that header without a CORS
+  // preflight, which this server never approves.
+  const host = String(req.headers.host || '').replace(/:\d+$/, '');
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(host)) {
+    res.writeHead(403);
+    return res.end('forbidden host');
+  }
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-dashboard'] !== '1') {
+    res.writeHead(403);
+    return res.end('missing X-Dashboard header');
+  }
   try {
     if (req.method === 'GET' && p === '/') {
       res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
       return res.end(fs.readFileSync(path.join(here, 'index.html')));
     }
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, state());
+    if (req.method === 'GET' && p === '/api/plan') return json(res, 200, episodes.summary());
+    if (req.method === 'GET' && /^\/api\/episodes\/[^/]+\/details$/.test(p)) {
+      const d = episodes.details(decodeURIComponent(p.split('/')[3]));
+      return d ? json(res, 200, d) : json(res, 404, {error: 'episode not in plan'});
+    }
+    if (req.method === 'GET' && /^\/api\/episodes\/[^/]+\/upload-details\.md$/.test(p)) {
+      const d = episodes.details(decodeURIComponent(p.split('/')[3]));
+      if (!d) return json(res, 404, {error: 'episode not in plan'});
+      res.writeHead(200, {'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': `attachment; filename="${d.id}-upload-details.md"`});
+      return res.end(episodes.detailsMarkdown(d));
+    }
+    if (req.method === 'POST' && p === '/api/episodes/generate') {
+      const body = await readBody(req);
+      if (!episodes.findEpisode(body.episodeId)) return json(res, 404, {error: 'episode not in plan'});
+      const found = episodes.findEpisode(body.episodeId);
+      const job = enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} ${found.ep.topic}`, options: {episodeId: body.episodeId, videos: body.videos || [], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}});
+      return json(res, 200, job);
+    }
+    if (req.method === 'POST' && p === '/api/pick') return json(res, 200, await pickNative(await readBody(req)));
+    if (req.method === 'GET' && p === '/api/browse') return json(res, 200, browse(url.searchParams.get('dir'), url.searchParams.get('files') === '1'));
+    if (req.method === 'POST' && p === '/api/open') {
+      const body = await readBody(req);
+      const target = path.resolve(String(body.path || ''));
+      if (!body.path || !fs.existsSync(target)) return json(res, 404, {error: 'not found'});
+      if (isMac) spawn('open', [target]);
+      else if (process.platform === 'win32') spawn('explorer', [target]);
+      else spawn('xdg-open', [target]);
+      return json(res, 200, {ok: true});
+    }
     if (req.method === 'GET' && p === '/api/events') {
       res.writeHead(200, {'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive'});
       res.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
@@ -505,7 +599,10 @@ const server = http.createServer(async (req, res) => {
       const job = jobs.find((j) => j.id === id);
       if (!job) return json(res, 404, {error: 'not found'});
       if (job.status === 'queued') job.status = 'cancelled';
-      else {
+      else if (job.kind === 'episode') {
+        job.status = 'cancelled';
+        cancelSignals.get(id)?.cancel();
+      } else {
         const sig = cancelSignals.get(id);
         if (sig) {
           job.status = 'cancelled';

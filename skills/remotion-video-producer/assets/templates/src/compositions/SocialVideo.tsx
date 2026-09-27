@@ -15,7 +15,7 @@ import {MusicBed} from '../components/MusicBed';
 import {SafeArea} from '../components/SafeArea';
 import {GRADE_NAMES, Graded, type GradeName} from '../lib/grades';
 import {PACING, fr, readingSeconds, type Pacing} from '../lib/motion';
-import {PLATFORM_IDS} from '../lib/platforms';
+import {PLATFORMS, PLATFORM_IDS, type PlatformId} from '../lib/platforms';
 import {absoluteCaptions, computeSceneTimings, fetchJson, manifestUrl, scriptUrl, totalFrames, voiceoverUrl, type SceneTiming, type VideoScript, type VoiceoverManifest} from '../lib/script';
 import {BACKGROUND_KINDS, STYLE_IDS, getStyle, themeWith, type BackgroundKind, type CaptionStyleName} from '../lib/styles';
 import {ThemeProvider} from '../lib/theme';
@@ -99,9 +99,13 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   const timings = computeSceneTimings(durations, fps, gapSeconds, transitionFrames);
   const captions = manifest ? absoluteCaptions(manifest, timings, fps) : [];
 
+  // The platform prop sets the frame size, so any SocialVideo composition can render any ratio
+  // (the dashboard passes platform: 'square' for 1:1, 'feed' for 4:5, 'shorts' for 9:16...).
+  const size = PLATFORMS[props.platform as PlatformId];
   return {
     durationInFrames: totalFrames(timings),
     fps,
+    ...(size ? {width: size.width, height: size.height} : {}),
     props: {...props, script, manifest, timings, captions, resolvedPacing, transitionFrames, resolvedStyle: preset.id},
     defaultOutName: `${props.videoId}_${props.platform}`,
   };

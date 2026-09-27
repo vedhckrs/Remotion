@@ -1,6 +1,7 @@
 import {alpha, ensureContrast, isDark, lift, readableOn, textShadowFor, tone} from './color';
 import type {GradeName} from './grades';
 import type {Pacing} from './motion';
+import {brandStyles} from './brand-styles';
 import {FONT_FAMILIES, theme, type Theme, type ThemeColors} from './theme';
 
 /**
@@ -61,7 +62,7 @@ export const deriveColors = (seed: ColorSeed): ThemeColors => {
   };
 };
 
-type ThemeOverrides = Omit<Partial<Theme>, 'colors' | 'fonts'> & {colors: ColorSeed; fonts?: Partial<Theme['fonts']>};
+export type ThemeOverrides = Omit<Partial<Theme>, 'colors' | 'fonts'> & {colors: ColorSeed; fonts?: Partial<Theme['fonts']>};
 
 const base = (overrides: ThemeOverrides): Theme => {
   const colors = deriveColors(overrides.colors);
@@ -74,7 +75,7 @@ const base = (overrides: ThemeOverrides): Theme => {
   };
 };
 
-export const STYLES: Record<string, StylePreset> = {
+const BUILT_IN_STYLES: Record<string, StylePreset> = {
   'midnight-neon': {
     id: 'midnight-neon',
     label: 'Midnight Neon',
@@ -160,6 +161,12 @@ export const STYLES: Record<string, StylePreset> = {
     thumbnail: {font: FONT_FAMILIES.poppins, textCase: 'none', accentBlock: true},
   },
 };
+
+/** What src/lib/brand-styles.ts receives to build channel presets without importing this file at runtime. */
+export type BrandStyleHelpers = {readonly base: (overrides: ThemeOverrides) => Theme; readonly FONT_FAMILIES: typeof FONT_FAMILIES};
+
+/** Built-in presets plus the project's own (src/lib/brand-styles.ts, never overwritten by scaffold --update). */
+export const STYLES: Record<string, StylePreset> = {...BUILT_IN_STYLES, ...brandStyles({base, FONT_FAMILIES})};
 
 export const STYLE_IDS = Object.keys(STYLES);
 export const DEFAULT_STYLE = 'midnight-neon';

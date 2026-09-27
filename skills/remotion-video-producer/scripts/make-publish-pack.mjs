@@ -89,7 +89,7 @@ const usedCredits = credits.filter((c) => usedKeys.has(`${c.set}:${c.name}`));
 const brandNames = usedCredits.filter((c) => c.set === 'simple-icons' || c.set === 'logos').map((c) => c.title);
 const setNames = Array.from(new Set(usedCredits.map((c) => ({'simple-icons': 'Simple Icons (CC0 1.0)', logos: 'SVG Logos (CC0 1.0)', lucide: 'Lucide (ISC)', tabler: 'Tabler Icons (MIT)', 'fluent-emoji-flat': 'Fluent Emoji (MIT)'})[c.set] || c.set)));
 const creditLines = [];
-if (brandNames.length) creditLines.push(`Logos: ${brandNames.join(', ')} are trademarks of their respective owners; used for identification only.`);
+if (brandNames.length) creditLines.push(`Logos: ${brandNames.join(', ')} ${brandNames.length === 1 ? 'is a trademark of its owner' : 'are trademarks of their respective owners'}; used for identification only.`);
 if (setNames.length) creditLines.push(`Icons: ${setNames.join(', ')}.`);
 if (script.music?.credit) creditLines.push(`Music: ${clean(script.music.credit)}${script.music.license ? ` (${clean(script.music.license)})` : ''}.`);
 else if (script.music?.src && /elevenlabs|generated/i.test(script.music.src + (script.music.mood || ''))) creditLines.push('Music: generated with ElevenLabs Music.');

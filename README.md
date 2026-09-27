@@ -14,7 +14,7 @@ skills/remotion-video-producer/
 │   ├── captions.md          transcription sources, TikTok-style pages, styling, SRT export
 │   ├── rendering.md         CLI flags, presets, 4K60, stills, GIF, alpha, Lambda and cloud
 │   ├── local-machine.md     Apple Silicon laptop profile: 50% budget, GL, thermals, storage, local Whisper/TTS
-│   ├── dashboard.md         the local control room and its API
+│   ├── dashboard.md         the local control room, the Episodes studio, content-plan format and API
 │   ├── ecosystem.md         researched plugins and sources: libraries, captions, transitions, voices, LUTs, music, icons, publishing APIs
 │   ├── icons-and-logos.md   brand marks and icon sets, the icon scene, trademark rules, the credit line
 │   ├── publishing-seo.md    thumbnails, per-platform copy rules, scheduling, API credentials and quotas
@@ -39,7 +39,7 @@ skills/remotion-video-producer/
 │   ├── render-preset.sh     platform presets: --4k masters, --hw encoding, --budget, nice
 │   ├── machine-check.sh     machine profile, recommended settings, GL render test
 │   └── lib/                 alignment, env, media, script schema helpers
-├── assets/dashboard/        local control room (server.mjs + index.html), installed to tools/dashboard
+├── assets/dashboard/        local control room (server.mjs, episodes.mjs, index.html), installed to tools/dashboard
 ├── assets/automation/       queue.example.json, topics.example.md, writer-prompt.md, installed to automation/
 ├── assets/templates/        starter components that compile and render against Remotion 4.0.529 at 60 fps
 │   ├── remotion.config.ts
@@ -74,6 +74,8 @@ Say `start Remotion` or simply describe the video:
 - "Plan tomorrow's two Shorts and one long video, produce them tonight and schedule the uploads."
 
 The agent scaffolds a project (`scripts/scaffold.sh`), writes the script as Markdown and converts it with `npm run analyze`, fetches the real logos it names (`npm run icons`), generates voiceover (`ELEVENLABS_API_KEY` in `.env`, or the free macOS voice for drafts), builds scenes from the templates under a style preset, adds captions and music, checks safe zones, renders 4K60 masters with `npm run render -- <Composition> <preset> --4k` or from the dashboard at `npm run dashboard` (http://localhost:4545), makes thumbnails (`npm run thumbs`), writes per-platform upload copy (`npm run pack`) and schedules uploads (`npm run publish`). `npm run autopilot` runs the whole chain daily; `npm run autopilot:install` puts it on launchd.
+
+For a planned season, the dashboard's **Episodes** tab loads a plan JSON (weeks → episodes → videos; `assets/automation/plan.example.json`), and you pick week, episode, aspect ratios and a save folder and click Generate. The **Upload details** tab then shows each platform's title, description, tags and hashtags with Copy and Schedule buttons. Upgrade an existing project with `scripts/scaffold.sh <dir> --update`; channel presets live in `src/lib/brand-styles.ts`, which updates never overwrite.
 
 ## Tuned for
 

@@ -39,7 +39,7 @@ If no Remotion project exists, run `scripts/scaffold.sh <dir> [package-manager]`
 
 Compositions are registered per platform in `src/Root.tsx` inside `<Folder>`s at 60 fps; the same scene components render at every size. Never hardcode positions that assume one aspect ratio: use `src/lib/platforms.ts` (safe rect, logo slot, caption band, `unit` scale).
 
-Start the control room with `npm run dashboard` (http://localhost:4545). It shows machine load and thermals, the budget slider, scripts with their voice / caption / music status and one-click icons / thumbnails / publish pack / publish, queued renders with real progress and cancel, the autopilot queue, outputs with preview, and Studio start / stop. See `references/dashboard.md`.
+Start the control room with `npm run dashboard` (http://localhost:4545). Its **Episodes** tab loads a season plan (JSON: weeks → episodes → videos), lets the user pick week, episode, videos, aspect ratios (16:9, 9:16, 4:5, 1:1) and a save folder, then produces the whole episode in one job (script from the episode folder or Claude Code, voice, music, thumbnails, one render per ratio, upload details, copy to the folder). Its **Upload details** tab shows every platform's title, description, tags and hashtags with Copy and Schedule buttons. The **Control room** tab has machine load and thermals, the budget slider, scripts, renders with real progress and cancel, the autopilot queue, outputs and Studio. See `references/dashboard.md`. Channel presets go in `src/lib/brand-styles.ts`; upgrade an existing project with `scripts/scaffold.sh <dir> --update`.
 
 ### Phase 2 - Script and scene plan
 
@@ -147,7 +147,7 @@ Everything is idempotent and logged per item; `writer: "manual"` makes the queue
 ## Files in this skill
 
 Scripts (`scripts/`, Node 20+, no build step):
-- `scaffold.sh` - new project with packages, templates, config, dashboard, LUTs and npm scripts.
+- `scaffold.sh` - new project with packages, templates, config, dashboard, LUTs and npm scripts; `--update` upgrades an existing one.
 - `analyze-script.mjs` - Markdown or text script to scene JSON (headlines, highlights, charts, pacing, voice settings).
 - `generate-voiceover.mjs` - ElevenLabs (word timestamps, voice presets, `--list-voices`, v3 tags), OpenAI, or macOS `say` drafts; manifest and captions.
 - `audio-durations.mjs` - manifest for voiceover you were given.
@@ -163,7 +163,7 @@ Scripts (`scripts/`, Node 20+, no build step):
 - `machine-check.sh` - machine profile, recommended settings, GL render test.
 - `lib/` - alignment, env, media, script schema helpers.
 
-Dashboard (`assets/dashboard/`): `server.mjs` + `index.html`, copied to `tools/dashboard/` by the scaffold. See `references/dashboard.md`.
+Dashboard (`assets/dashboard/`): `server.mjs`, `episodes.mjs` (content-plan studio) and `index.html`, copied to `tools/dashboard/` by the scaffold. `assets/automation/plan.example.json` is a starter season plan. See `references/dashboard.md`.
 
 Automation (`assets/automation/`): `queue.example.json`, `topics.example.md`, `writer-prompt.md`, copied to `automation/` by the scaffold.
 

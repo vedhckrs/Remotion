@@ -56,6 +56,12 @@ const resolveFile = () => {
   if (args.file) return String(args.file);
   const wanted = platform === 'facebook-video' ? pack.feedVideo || pack.video : pack.video;
   if (wanted && fs.existsSync(wanted)) return wanted;
+  // The video's own folder next (any ratio that suits the platform), so another video's file is never picked.
+  const ownDir = path.join('out', videoId);
+  const tags = {youtube: ['youtube'], 'youtube-shorts': ['shorts'], instagram: ['shorts', 'feed', 'square'], facebook: ['shorts'], 'facebook-video': ['feed', 'youtube', 'square']}[platform];
+  const own = tags.map((t) => path.join(ownDir, `${videoId}_${t}.mp4`)).find((f) => fs.existsSync(f));
+  if (own) return own;
+  if (fs.existsSync(ownDir) && fs.readdirSync(ownDir).some((f) => f.endsWith('.mp4'))) return null;
   const candidates = fs.existsSync('out')
     ? fs
         .readdirSync('out')
