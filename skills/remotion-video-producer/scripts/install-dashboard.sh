@@ -2,7 +2,11 @@
 # Run the dashboard in the background on this Mac: starts at login, restarts if it stops, no Terminal
 # window needed. Open http://localhost:<port> (or the Chrome app you install from that page).
 #
-#   bash scripts/install-dashboard.sh [--port 4545] [--uninstall]
+#   bash scripts/install-dashboard.sh [--port 4545] [--full-speed] [--uninstall]
+#
+# --full-speed runs renders at normal priority (Nice 0, ProcessType Interactive) instead of the default
+# low priority (Nice 10), so a render takes all the CPU it can even while you use other apps. The default
+# keeps the Mac responsive; either way an idle Mac gives the render every core.
 #
 # Run from the project root. Creates ~/Library/LaunchAgents/com.remotion.dashboard.plist, which runs
 # `node tools/dashboard/server.mjs` at nice 10 with the project as working directory (so .env is read as
@@ -14,10 +18,13 @@ PROJECT="$(pwd)"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT=4545
 UNINSTALL=0
+NICE=10
+PTYPE=Standard
 while [ $# -gt 0 ]; do
   case "$1" in
     --port) PORT="$2"; shift 2 ;;
     --port=*) PORT="${1#--port=}"; shift ;;
+    --full-speed) NICE=0; PTYPE=Interactive; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     *) echo "Unknown option $1" >&2; exit 1 ;;
   esac
@@ -88,7 +95,8 @@ cat > "$PLIST" <<EOF
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>15</integer>
-  <key>Nice</key><integer>10</integer>
+  <key>Nice</key><integer>$NICE</integer>
+  <key>ProcessType</key><string>$PTYPE</string>
   <key>StandardOutPath</key><string>$(xml "$LOG")</string>
   <key>StandardErrorPath</key><string>$(xml "$LOG")</string>
 </dict></plist>
@@ -100,7 +108,7 @@ launchctl bootstrap "gui/$UID_NUM" "$PLIST"
 # Wait for it to answer so the message below is true.
 for _ in $(seq 1 30); do
   if curl -s -o /dev/null "http://localhost:$PORT/api/plan"; then
-    echo "Dashboard is running in the background: http://localhost:$PORT"
+    echo "Dashboard is running in the background: http://localhost:$PORT ($([ "$NICE" -eq 0 ] && echo "full-speed priority" || echo "low priority; add --full-speed for maximum speed"))"
     echo "  starts at every login, restarts if it stops; no Terminal window needed"
     echo "  log:     $LOG"
     echo "  restart: launchctl kickstart -k gui/$UID_NUM/$LABEL"

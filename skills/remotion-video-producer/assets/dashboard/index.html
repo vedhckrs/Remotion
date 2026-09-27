@@ -105,7 +105,7 @@
   <div class="gauge"><label>Memory free</label><div class="bar"><i id="g-mem"></i></div><b id="t-mem">–</b></div>
   <div class="gauge"><label>Thermal</label><div class="bar"><i id="g-therm"></i></div><b id="t-therm">–</b></div>
   <div class="gauge"><label>Disk free</label><b id="t-disk">–</b></div>
-  <div class="gauge budget"><label>Machine budget</label><div style="display:flex;gap:8px;align-items:center;width:100%"><input type="range" id="budget" min="10" max="100" step="5" /><b id="t-budget">50%</b></div><small class="muted" id="t-conc"></small></div>
+  <div class="gauge budget"><label>Machine budget</label><div style="display:flex;gap:8px;align-items:center;width:100%"><input type="range" id="budget" min="10" max="100" step="5" /><b id="t-budget">50%</b></div><small class="muted" id="t-conc"></small><div style="display:flex;gap:6px;margin-top:4px"><button class="small" id="full-speed" title="Budget 100 %, hardware encoder on">Full speed</button><button class="small" id="speed-test" title="Times 2 s of video with different tab counts and keeps the fastest">Speed test</button></div></div>
   <div class="gauge"><label>Encoder</label><label class="check"><input type="checkbox" id="hw" /> <span id="t-hw">hardware</span></label></div>
   <div class="gauge"><label>Master</label><label class="check"><input type="checkbox" id="fourk" /> 4K (scale 2)</label></div>
   <div class="gauge"><label>Studio</label><div class="row" style="margin:0"><button class="small" id="studio-btn">Start</button><a id="studio-link" href="#" target="_blank" style="display:none">open</a></div></div>
@@ -250,7 +250,8 @@ function renderMachine() {
   th.style.width = (lim ?? 100)+'%'; th.className = lim == null ? '' : lim < 70 ? 'bad' : lim < 100 ? 'warn' : 'ok';
   $('#t-therm').textContent = lim == null ? 'n/a' : lim < 100 ? `throttled to ${lim}%` : 'full speed';
   $('#t-disk').textContent = m.freeDiskGb == null ? '–' : `${m.freeDiskGb} GB` + (m.freeDiskGb < 30 ? ' ⚠' : '');
-  $('#t-conc').textContent = `${m.recommendedConcurrency} tabs 1080p · ${m.recommendedConcurrency4k} tabs 4K`;
+  const t4 = S.settings?.tested?.fourK;
+  $('#t-conc').textContent = `${m.recommendedConcurrency} tabs 1080p · ${m.recommendedConcurrency4k} tabs 4K` + (t4 ? ` · tested best 4K: ${t4.best}` : '');
   $('#t-hw').textContent = m.hardwareEncoder ? `hardware (${m.hardwareEncoder})` : 'hardware (unavailable)';
   $('#hw').disabled = !m.hardwareEncoder;
 }
@@ -308,7 +309,7 @@ function renderScripts() {
 function renderJobs() {
   $('#jobs').innerHTML = S.jobs.map(j => {
     const pct = Math.round((j.progress||0)*100);
-    const title = j.kind === 'episode' ? `episode ${esc(j.title||'')}` : j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
+    const title = j.kind === 'episode' ? `episode ${esc(j.title||'')}` : j.kind === 'speedtest' ? esc(j.title||'speed test') : j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
     const meta = j.kind === 'render' ? [j.size, j.concurrency ? j.concurrency+' tabs' : '', j.encoder, j.renderedFrames!=null ? `${j.renderedFrames}/${j.totalFrames} rendered` : '', j.encodedFrames!=null ? `${j.encodedFrames} encoded` : '', j.etaSeconds!=null && j.status==='rendering' ? 'ETA '+fmtTime(j.etaSeconds) : '', j.bytes ? fmtBytes(j.bytes) : ''].filter(Boolean).join(' · ') : (j.error || '');
     const active = ['queued','bundling','selecting','rendering','running'].includes(j.status);
     return `<div class="item"><div class="top"><b>#${j.id} ${title}</b><span><span class="status ${j.status}">${j.status}</span> ${active ? `<button class="small danger" data-cancel="${j.id}">cancel</button>` : ''}</span></div>
@@ -395,6 +396,8 @@ $('#fourk').onchange = async () => { const r = await api('/api/settings','POST',
 $('#ap-plan').onclick = () => api('/api/tasks','POST',{task:'autopilot-plan', options:{}});
 $('#ap-run').onclick = () => { if (confirm('Produce the next queued videos now (voice, render, publish pack, scheduled uploads)?')) api('/api/tasks','POST',{task:'autopilot-run', options:{}}); };
 $('#ap-due').onclick = () => api('/api/tasks','POST',{task:'autopilot-publish-due', options:{}});
+$('#full-speed').onclick = async () => { const r = await api('/api/settings','POST',{budget:100, hw: Boolean(S.machine.hardwareEncoder)}); S.settings = r.settings; S.machine = r.machine; renderMachine(); renderSettings(); };
+$('#speed-test').onclick = async () => { if (!confirm(`Speed test: renders 2 seconds of video ${S.settings.fourK ? 'in 4K ' : ''}with 2 to ${S.machine.cores} tabs (about 3 to 8 minutes), then keeps the fastest as your Full speed setting. Close other heavy apps first. Start?`)) return; await api('/api/speedtest','POST',{fourK: S.settings.fourK}); };
 $('#studio-btn').onclick = async () => { const r = await api('/api/studio','POST',{action: S.studio.running ? 'stop' : 'start'}); S.studio = r; renderStudio(); };
 
 async function refresh() { S = await api('/api/state'); renderAll(); $('#log').innerHTML=''; $('#log2').innerHTML=''; (S.log||[]).forEach(appendLog); }
@@ -561,7 +564,7 @@ $('#week-all').onclick = async () => {
 };
 
 function renderEpisodeJobs() {
-  const list = S.jobs.filter(j => j.kind === 'episode');
+  const list = S.jobs.filter(j => j.kind === 'episode' || j.kind === 'speedtest');
   $('#ep-jobs').innerHTML = list.map(j => {
     const pct = Math.round((j.progress || 0) * 100);
     const active = ['queued', 'bundling', 'running'].includes(j.status);
@@ -569,6 +572,7 @@ function renderEpisodeJobs() {
     return `<div class="item"><div class="top"><b>#${j.id} ${esc(j.title || '')}</b><span><span class="status ${j.status}">${j.status}</span> ${active ? `<button class="small danger" data-cancel2="${j.id}">cancel</button>` : ''}</span></div>
       <div class="progress"><i style="width:${pct}%"></i></div>
       <small>${pct}%${j.render ? ` · rendering ${esc(j.render.ratio)} ${esc(j.render.size || '')} · ${Math.round((j.render.progress || 0) * 100)}%${j.render.etaSeconds != null ? ' · ETA ' + fmtTime(j.render.etaSeconds) : ''}` : ''}${j.error ? ' · ' + esc(j.error) : ''}</small>
+      ${j.kind === 'speedtest' ? `<div class="steps">${(j.results || []).map(r => `<div class="s ${j.best && j.best.tabs === r.tabs ? 'done' : ''}"><span>${r.tabs} tabs</span><small>${r.seconds} s${j.best && j.best.tabs === r.tabs ? ' · fastest, saved' : ''}</small></div>`).join('')}</div>` : ''}
       ${Object.entries(groups).map(([variant, steps]) => `<div class="vgroup">${esc(VARIANT_LABEL[variant] || variant)}</div><div class="steps">${steps.map(st => `<div class="s ${st.status}"><span>${st.status === 'done' ? '✓' : st.status === 'skipped' ? '–' : st.status === 'failed' ? '✗' : st.status === 'running' ? '▸' : '·'} ${esc(st.label)}</span><small>${esc(st.detail || '')}</small></div>`).join('')}</div>`).join('')}
       ${j.exportDir && ['done', 'failed'].includes(j.status) ? `<div class="row" style="margin:8px 0 0"><button class="small" data-openout="${esc(j.exportDir)}">Open saved folder</button><button class="small" data-details="${esc(j.options?.episodeId || '')}">Upload details</button></div>` : ''}
     </div>`;

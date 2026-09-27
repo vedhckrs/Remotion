@@ -57,7 +57,7 @@ const memoryGb = os.totalmem() / 1024 ** 3;
 const isMac = process.platform === 'darwin';
 
 const readSettings = () => {
-  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', voiceProvider: 'elevenlabs', music: 'library', writer: 'claude'};
+  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', tested: null, voiceProvider: 'elevenlabs', music: 'library', writer: 'claude'};
   try {
     return {...defaults, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))};
   } catch {
@@ -68,6 +68,9 @@ let settings = readSettings();
 const saveSettings = () => fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 
 const concurrencyFor = (budget, fourK) => {
+  // Full speed (100 %) uses the tab count the speed test measured as fastest on this machine, if any.
+  const tested = settings?.tested?.[fourK ? 'fourK' : 'hd'];
+  if (budget >= 100 && tested?.best) return tested.best;
   const byCpu = Math.floor((cores * Math.min(100, Math.max(10, budget))) / 100);
   const byMem = Math.floor(memoryGb / 4);
   let c = Math.max(1, Math.min(byCpu, byMem));
@@ -245,13 +248,13 @@ const ensureBundle = async (job) => {
  * Render one composition to a file with real progress and cancel. Used by the Render panel (runRender)
  * and by the episode pipeline (one call per aspect ratio).
  */
-const renderTo = async ({compositionId, preset: presetName, inputProps = {}, outputLocation, fourK: wantFourK, hw: wantHw, budget, frames, jobForBundle, cancelKey, onStart, onProgress}) => {
+const renderTo = async ({compositionId, preset: presetName, inputProps = {}, outputLocation, fourK: wantFourK, hw: wantHw, budget, frames, concurrency: forcedConcurrency, jobForBundle, cancelKey, onStart, onProgress}) => {
   const preset = PRESETS[presetName] || PRESETS.shorts;
   const url = await ensureBundle(jobForBundle);
   const hw = wantHw && machine().hardwareEncoder;
   const fourK = wantFourK && presetName !== 'preview';
   const scale = preset.scale ?? (fourK ? 2 : 1);
-  const concurrency = concurrencyFor(budget ?? settings.budget, fourK);
+  const concurrency = forcedConcurrency || concurrencyFor(budget ?? settings.budget, fourK);
   const chromiumOptions = {gl: settings.gl, ignoreCertificateErrors: Boolean(process.env.REMOTION_IGNORE_CERTS)};
   const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, logLevel: 'error'});
   const width = Math.round(composition.width * scale);
@@ -376,6 +379,7 @@ const pump = async () => {
   try {
     if (job.kind === 'render') await runRender(job);
     else if (job.kind === 'episode') await episodes.runEpisode(job);
+    else if (job.kind === 'speedtest') await runSpeedTest(job);
     else await runTask(job);
     job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
   } catch (error) {
@@ -399,6 +403,44 @@ const enqueue = (job) => {
   send('jobs', jobs);
   pump();
   return full;
+};
+
+/**
+ * Speed test: render the same 2 seconds with different Chrome tab counts and keep the fastest as the
+ * "full speed" setting (used when the budget slider is at 100 %). Too few tabs leave cores idle; too
+ * many thrash memory, so the best value is measured, not guessed (Remotion's own advice).
+ */
+const runSpeedTest = async (job) => {
+  const o = job.options || {};
+  const fourK = o.fourK ?? settings.fourK;
+  const scripts = listScripts().filter((x) => x.voiceover);
+  const videoId = o.videoId || scripts[0]?.id || 'example';
+  const compositionId = compositions.includes('Shorts') ? 'Shorts' : compositions.find((c) => !['Thumbnail', 'Cover', 'SquareCover'].includes(c)) || 'Shorts';
+  const candidates = [...new Set([2, 3, 4, 5, 6, 8, cores].filter((c) => c >= 1 && c <= cores))].sort((a, b) => a - b);
+  const dir = path.join(outDir, '.speedtest');
+  fs.mkdirSync(dir, {recursive: true});
+  await ensureBundle(job);
+  job.status = 'running';
+  job.results = [];
+  send('jobs', jobs);
+  log('speedtest', `${compositionId} (${videoId}), frames 0-119 at ${fourK ? '4K' : '1080p'}, hw=${Boolean(settings.hw && machine().hardwareEncoder)}: trying ${candidates.join(', ')} tabs`);
+  for (const [i, c] of candidates.entries()) {
+    if (job.status === 'cancelled') break;
+    const started = Date.now();
+    await renderTo({compositionId, preset: compositionId === 'YouTube' ? 'youtube-1080p' : 'shorts', inputProps: {videoId}, outputLocation: path.join(dir, `tabs-${c}.mp4`), fourK, hw: settings.hw, frames: '0-119', concurrency: c, jobForBundle: job, cancelKey: job.id, onProgress: (p) => { job.progress = (i + p.progress) / candidates.length; send('jobs', jobs); }});
+    const seconds = Math.round((Date.now() - started) / 100) / 10;
+    job.results.push({tabs: c, seconds});
+    log('speedtest', `  ${String(c).padStart(2)} tabs: ${seconds} s`);
+    send('jobs', jobs);
+  }
+  fs.rmSync(dir, {recursive: true, force: true});
+  if (!job.results.length) return;
+  const best = job.results.reduce((a, b) => (b.seconds < a.seconds ? b : a));
+  settings = {...settings, budget: 100, tested: {...(settings.tested || {}), [fourK ? 'fourK' : 'hd']: {best: best.tabs, seconds: best.seconds, results: job.results, at: new Date().toISOString()}}};
+  saveSettings();
+  job.best = best;
+  log('speedtest', `Fastest: ${best.tabs} tabs (${best.seconds} s for 2 s of video). Saved; budget set to 100 % (full speed).`);
+  send('state', state());
 };
 
 const episodes = createEpisodes({cwd, SKILL_DIR, getSettings: () => settings, log, send, renderTo, cancelSignals, getCompositions: () => compositions, jobs});
@@ -520,6 +562,10 @@ const server = http.createServer(async (req, res) => {
       const found = episodes.findEpisode(body.episodeId);
       const job = enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} ${found.ep.topic}`, options: {episodeId: body.episodeId, videos: body.videos || [], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}});
       return json(res, 200, job);
+    }
+    if (req.method === 'POST' && p === '/api/speedtest') {
+      const body = await readBody(req);
+      return json(res, 200, enqueue({kind: 'speedtest', title: `Speed test (${(body.fourK ?? settings.fourK) ? '4K' : '1080p'})`, options: {fourK: body.fourK ?? settings.fourK, videoId: body.videoId}}));
     }
     if (req.method === 'POST' && p === '/api/pick') return json(res, 200, await pickNative(await readBody(req)));
     if (req.method === 'GET' && p === '/api/browse') return json(res, 200, browse(url.searchParams.get('dir'), url.searchParams.get('files') === '1'));

@@ -159,6 +159,22 @@ localhost. Example from a shell:
 
 The queue runs jobs one at a time, oldest first.
 
+## Full speed
+
+The budget slider (default 50 %) trades render speed for a responsive Mac. For maximum speed:
+
+- **Full speed** (header button): budget 100 %, hardware encoder (VideoToolbox, the Mac's media engine) on.
+- **Speed test** (header button): renders the same 2 seconds with 2, 3, 4, 5, 6, 8 and all-core tab counts
+  at the current 4K setting, keeps the fastest and uses it whenever the budget is 100 %. Too few tabs
+  leave cores idle and too many thrash memory, so the best value is measured, not guessed (Remotion
+  recommends `npx remotion benchmark` for the same reason). Re-run it after a macOS or skill update.
+- Background dashboard at normal priority: `bash <skill>/scripts/install-dashboard.sh --full-speed`
+  (Nice 0, ProcessType Interactive instead of Nice 10).
+- The GPU is used for WebGL scenes (ANGLE on Metal) and, with the hardware encoder, for encoding; frame
+  capture itself is CPU work in Chrome, which is why the tab count matters most.
+- A fanless MacBook Air slows its CPU under long full loads (the Thermal gauge shows it). A 4K master
+  has four times the pixels of 1080p and takes roughly three to four times longer; untick 4K for drafts.
+
 ## Run it in the background (macOS)
 
 `npm run dashboard:install` (or `bash <skill>/scripts/install-dashboard.sh` from the project root) installs
