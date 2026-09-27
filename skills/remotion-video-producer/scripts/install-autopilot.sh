@@ -55,6 +55,10 @@ fi
 
 # PATH for launchd jobs: Homebrew, nvm/volta shims, system.
 JOB_PATH="$(dirname "$NODE"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin"
+# The same claude your Terminal runs (an alias in ~/.zshrc is followed), so the writer uses your login.
+. "$SKILL_DIR/scripts/lib/resolve-claude.sh"
+CLAUDE_BIN="$(resolve_claude)"
+[ -n "$CLAUDE_BIN" ] && JOB_PATH="$(dirname "$CLAUDE_BIN"):$JOB_PATH"
 
 cat > "$PRODUCE" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -67,7 +71,7 @@ cat > "$PRODUCE" <<EOF
     <string>cd "$PROJECT" &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" plan &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" run</string>
   </array>
   <key>WorkingDirectory</key><string>$PROJECT</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string><key>CLAUDE_BIN</key><string>${CLAUDE_BIN:-claude}</string></dict>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>$HOUR</integer><key>Minute</key><integer>$MINUTE</integer></dict>
   <key>StandardOutPath</key><string>$PROJECT/automation/logs/launchd-produce.log</string>
   <key>StandardErrorPath</key><string>$PROJECT/automation/logs/launchd-produce.log</string>
@@ -86,7 +90,7 @@ cat > "$PUBLISH" <<EOF
     <string>cd "$PROJECT" &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" publish-due</string>
   </array>
   <key>WorkingDirectory</key><string>$PROJECT</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string><key>CLAUDE_BIN</key><string>${CLAUDE_BIN:-claude}</string></dict>
   <key>StartInterval</key><integer>$((EVERY * 60))</integer>
   <key>StandardOutPath</key><string>$PROJECT/automation/logs/launchd-publish.log</string>
   <key>StandardErrorPath</key><string>$PROJECT/automation/logs/launchd-publish.log</string>

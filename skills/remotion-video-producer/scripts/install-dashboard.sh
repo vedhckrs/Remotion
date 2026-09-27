@@ -69,7 +69,9 @@ fi
 
 # launchd starts with a minimal PATH: add node's folder, Homebrew, and where claude usually lives.
 JOB_PATH="$(dirname "$NODE"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin:$HOME/.claude/local"
-CLAUDE_BIN="$(command -v claude || true)"
+# The same claude your Terminal runs (an alias in ~/.zshrc is followed), so the script writer uses your login.
+. "$SKILL_DIR/scripts/lib/resolve-claude.sh"
+CLAUDE_BIN="$(resolve_claude)"
 [ -n "$CLAUDE_BIN" ] && JOB_PATH="$(dirname "$CLAUDE_BIN"):$JOB_PATH"
 
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -91,6 +93,7 @@ cat > "$PLIST" <<EOF
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>$(xml "$JOB_PATH")</string>
     <key>HOME</key><string>$(xml "$HOME")</string>
+    <key>CLAUDE_BIN</key><string>$(xml "${CLAUDE_BIN:-claude}")</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -110,6 +113,7 @@ for _ in $(seq 1 30); do
   if curl -s -o /dev/null "http://localhost:$PORT/api/plan"; then
     echo "Dashboard is running in the background: http://localhost:$PORT ($([ "$NICE" -eq 0 ] && echo "full-speed priority" || echo "low priority; add --full-speed for maximum speed"))"
     echo "  starts at every login, restarts if it stops; no Terminal window needed"
+    if [ -n "$CLAUDE_BIN" ]; then echo "  script writer: $CLAUDE_BIN"; else echo "  script writer: claude not found (install Claude Code, or add script-*.md files to episode folders)"; fi
     echo "  log:     $LOG"
     echo "  restart: launchctl kickstart -k gui/$UID_NUM/$LABEL"
     echo "  remove:  bash \"$SKILL_DIR/scripts/install-dashboard.sh\" --uninstall"

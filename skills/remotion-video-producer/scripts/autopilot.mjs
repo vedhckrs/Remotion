@@ -178,7 +178,8 @@ const writeScript = (item) => {
     log(item.id, `waiting for ${scriptFile} (writer=${writer}). Claude Code: follow SKILL.md Phase 1-2 for topic "${item.topic}".`);
     return false;
   }
-  const claude = spawnSync('which', ['claude'], {encoding: 'utf8'}).stdout.trim();
+  // CLAUDE_BIN is set by install-autopilot.sh to the claude your Terminal runs.
+  const claude = (process.env.CLAUDE_BIN && fs.existsSync(process.env.CLAUDE_BIN) ? process.env.CLAUDE_BIN : '') || spawnSync('which', ['claude'], {encoding: 'utf8'}).stdout.trim();
   if (!claude) {
     item.status = 'needs-script';
     log(item.id, 'claude CLI not found on PATH; set "writer": "manual" or install Claude Code.');

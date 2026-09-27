@@ -195,6 +195,10 @@ The budget slider (default 50 %) trades render speed for a responsive Mac. For m
 a LaunchAgent, `com.remotion.dashboard`, that starts the dashboard at login, restarts it if it stops and
 runs it at nice 10, so no Terminal window has to stay open. Stop any dashboard running in a Terminal
 first (Ctrl+C); the installer refuses while the port is taken. Log: `tools/dashboard/dashboard.log`.
+launchd does not read `~/.zshrc`, so the installer asks your login shell which `claude` it runs (following an
+alias) and bakes that path in as `CLAUDE_BIN`; the script writer then uses the same Claude Code login as your
+Terminal. If a job says "Claude Code is not logged in", run `claude` in Terminal, type `/login`, and generate
+again; after installing or moving Claude Code, re-run the installer.
 After `scaffold.sh --update`, restart it to load the new code:
 `launchctl kickstart -k gui/$(id -u)/com.remotion.dashboard`. Remove it with `--uninstall`. For a Dock
 icon, open the page in Chrome and use Cast, save and share > Install page as app. The first save to an
