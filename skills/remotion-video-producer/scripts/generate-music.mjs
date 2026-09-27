@@ -56,13 +56,20 @@ if (!key) {
 }
 
 console.log(`Composing ${seconds}s of "${mood}" (${bpm} BPM) with ElevenLabs Music...`);
+// 192 kbps needs the Creator plan or above; fall back to 128 kbps on plans that do not allow it.
+let musicFormat = args.format || 'mp3_44100_192';
 const compose = async (modelId) => {
-  const url = `https://api.elevenlabs.io/v1/music?output_format=${encodeURIComponent(args.format || 'mp3_44100_192')}`;
+  const url = `https://api.elevenlabs.io/v1/music?output_format=${encodeURIComponent(musicFormat)}`;
   const body = {prompt, music_length_ms: lengthMs, force_instrumental: true};
   if (modelId) body.model_id = modelId;
   const res = await fetch(url, {method: 'POST', headers: {'xi-api-key': key, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 403 && /output_format_not_allowed|Output format/i.test(text) && musicFormat !== 'mp3_44100_128' && !args.format) {
+      console.warn(`  Your ElevenLabs plan does not allow ${musicFormat}; retrying with mp3_44100_128.`);
+      musicFormat = 'mp3_44100_128';
+      return compose(modelId);
+    }
     throw new Error(`ElevenLabs Music ${res.status}: ${text.slice(0, 400)}`);
   }
   return Buffer.from(await res.arrayBuffer());

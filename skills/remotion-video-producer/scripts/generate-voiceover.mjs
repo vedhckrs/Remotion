@@ -23,7 +23,8 @@
  *   --only scene-03[,scene-04]     regenerate only these scene ids
  *   --out <dir>                    default public/voiceover/<videoId>
  *   --trim                         strip leading/trailing silence with ffmpeg
- *   --format mp3_44100_192         ElevenLabs output_format
+ *   --format mp3_44100_192         ElevenLabs output_format (falls back to mp3_44100_128 automatically
+ *                                  when the plan does not allow 192 kbps, e.g. Free and Starter)
  *   --dry-run                      print what would be generated
  *
  * Output: <out>/<sceneId>.mp3, <out>/manifest.json, <out>/captions.json (when word timing is available)
@@ -97,7 +98,7 @@ if (args['list-voices']) {
     voices = await fetchVoices();
   } catch (error) {
     console.error(`Could not list ElevenLabs voices: ${error.message}`);
-    if (/\b401\b/.test(error.message)) console.error('Check ELEVENLABS_API_KEY in .env: the key is wrong, revoked, or lacks the "Voices: read" permission.');
+    if (/\b401\b|invalid_api_key/.test(error.message)) console.error('Check ELEVENLABS_API_KEY in .env: the key is wrong, revoked, or lacks the "Voices: read" permission.');
     process.exit(1);
   }
   voices.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
@@ -175,9 +176,13 @@ const withRetry = async (fn, label) => {
   throw lastError;
 };
 
+// 192 kbps needs the Creator plan or above; 128 kbps works on every plan and is plenty for speech.
+const FALLBACK_FORMAT = 'mp3_44100_128';
+let elevenFormat = args.format || DEFAULTS.elevenlabs.format;
+
 const generateElevenLabs = async (scene) => {
   const apiKey = requireEnv('ELEVENLABS_API_KEY');
-  const format = args.format || DEFAULTS.elevenlabs.format;
+  const format = elevenFormat;
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=${encodeURIComponent(format)}`;
   const body = {
     text: `${deliveryTag(scene)}${scene.voiceover}`,
@@ -189,7 +194,15 @@ const generateElevenLabs = async (scene) => {
     headers: {'xi-api-key': apiKey, 'Content-Type': 'application/json'},
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 403 && /output_format_not_allowed|Output format/i.test(text) && format !== FALLBACK_FORMAT && !args.format) {
+      console.warn(`  Your ElevenLabs plan does not allow ${format}; switching to ${FALLBACK_FORMAT} for this run.`);
+      elevenFormat = FALLBACK_FORMAT;
+      return generateElevenLabs(scene);
+    }
+    throw new Error(`ElevenLabs ${res.status}: ${text.slice(0, 300)}`);
+  }
   const json = await res.json();
   const audio = Buffer.from(json.audio_base64, 'base64');
   const alignment = json.normalized_alignment || json.alignment;
@@ -264,7 +277,16 @@ for (const scene of script.scenes) {
     manifestScenes.push({id: scene.id, file: `${scene.id}.mp3`, durationSeconds: 0.8 + scene.voiceover.split(/\s+/).length * 0.42, text: scene.voiceover});
     continue;
   }
-  const result = await withRetry(() => generators[provider](scene), scene.id);
+  let result;
+  try {
+    result = await withRetry(() => generators[provider](scene), scene.id);
+  } catch (error) {
+    console.error(`\n${scene.id} failed: ${error.message}`);
+    if (/\b401\b|invalid_api_key/.test(error.message)) console.error('Check the API key in .env (wrong, revoked, or missing the Text to Speech permission).');
+    else if (/quota_exceeded|insufficient|credits/i.test(error.message)) console.error('Your ElevenLabs quota is used up for this period. Top up, or draft with --provider macos.');
+    if (manifestScenes.length) console.error(`Scenes finished before the error are saved; rerun the same command to continue.`);
+    process.exit(1);
+  }
   const file = `${scene.id}.${result.extension}`;
   const abs = path.join(outDir, file);
   fs.writeFileSync(abs, result.audio);
