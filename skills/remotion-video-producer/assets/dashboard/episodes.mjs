@@ -351,7 +351,9 @@ export const createEpisodes = (ctx) => {
       } else if (fs.existsSync(scriptFile)) {
         setStep(k('script'), 'done', 'existing script');
       } else if ((o.writer || getSettings().writer) === 'claude') {
-        const r = await runChild(job, 'writer', process.env.CLAUDE_BIN || 'claude', ['-p', writerPrompt(plan, week, ep, v), '--output-format', 'text', '--max-turns', '80', '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npx remotion compositions*),Bash(ls *),Bash(cat *)'], {timeoutMs: 25 * 60_000, env: {CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: ''}});
+        // Sonnet by default: a script does not need the largest model, and it uses less of a Claude plan.
+        const model = o.writerModel || getSettings().writerModel || 'sonnet';
+        const r = await runChild(job, 'writer', process.env.CLAUDE_BIN || 'claude', ['-p', writerPrompt(plan, week, ep, v), ...(model === 'default' ? [] : ['--model', model]), '--output-format', 'text', '--max-turns', '80', '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npx remotion compositions*),Bash(ls *),Bash(cat *)'], {timeoutMs: 25 * 60_000, env: {CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: ''}});
         if (!fs.existsSync(scriptFile)) {
           fail('script', r.code === -1 ? 'claude CLI not found: install Claude Code or add script-*.md files to the episode folder'
             : /not logged in|\/login|invalid api key|authentication/i.test(r.out) ? 'Claude Code is not logged in: open Terminal, run claude, type /login, then Generate again (or add ' + `script-${v.variant}.md` + ' to the episode folder)'

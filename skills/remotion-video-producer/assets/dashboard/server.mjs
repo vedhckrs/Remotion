@@ -57,7 +57,7 @@ const memoryGb = os.totalmem() / 1024 ** 3;
 const isMac = process.platform === 'darwin';
 
 const readSettings = () => {
-  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', tested: null, voiceProvider: 'elevenlabs', music: 'library', writer: 'claude'};
+  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', tested: null, voiceProvider: 'elevenlabs', music: 'library', writer: 'claude', writerModel: 'sonnet'};
   try {
     return {...defaults, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))};
   } catch {
@@ -634,7 +634,7 @@ const server = http.createServer(async (req, res) => {
       if (!videos.length) return json(res, 400, {error: 'Select at least one video and one aspect ratio'});
       const label = {long: 'Long video', 'short-a': 'Short A', 'short-b': 'Short B'};
       const queued = videos.map((v, i) =>
-        enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} · ${label[v.variant] || v.variant} (${i + 1}/${videos.length})`, topic: found.ep.topic, options: {episodeId: body.episodeId, videos: [v], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}}),
+        enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} · ${label[v.variant] || v.variant} (${i + 1}/${videos.length})`, topic: found.ep.topic, options: {episodeId: body.episodeId, videos: [v], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, writerModel: ['sonnet', 'opus', 'default'].includes(body.writerModel) ? body.writerModel : settings.writerModel || 'sonnet', voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}}),
       );
       return json(res, 200, {jobs: queued.map((j) => ({id: j.id, title: j.title}))});
     }
@@ -672,6 +672,7 @@ const server = http.createServer(async (req, res) => {
       if (['elevenlabs', 'openai', 'macos'].includes(body.voiceProvider)) clean.voiceProvider = body.voiceProvider;
       if (['library', 'generate', 'off'].includes(body.music)) clean.music = body.music;
       if (['claude', 'manual'].includes(body.writer)) clean.writer = body.writer;
+      if (['sonnet', 'opus', 'default'].includes(body.writerModel)) clean.writerModel = body.writerModel;
       settings = {...settings, ...clean};
       saveSettings();
       return json(res, 200, {settings, machine: machine()});

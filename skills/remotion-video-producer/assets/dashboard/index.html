@@ -465,6 +465,7 @@ function formFor(ep) {
       voiceProvider: saved.voiceProvider || S.settings.voiceProvider || 'elevenlabs',
       music: saved.music || S.settings.music || 'library',
       writer: saved.writer || S.settings.writer || 'claude',
+      writerModel: saved.writerModel || S.settings.writerModel || 'sonnet',
       regenerate: false,
     };
   }
@@ -495,24 +496,25 @@ function renderDetail() {
       <select id="ep-music" title="Music"><option value="library">Music · from my library</option><option value="generate">Music · generate new</option><option value="off">Music · none</option></select>
     </div>
     <details class="more" ${f.moreOpen ? 'open' : ''}><summary>More options</summary>
-      <div class="row"><select id="ep-writer"><option value="claude">Missing script · Claude Code writes it</option><option value="manual">Missing script · stop and tell me</option></select></div>
+      <div class="row"><select id="ep-writer"><option value="claude">Missing script · Claude Code writes it</option><option value="manual">Missing script · stop and tell me</option></select><select id="ep-wmodel" title="Model Claude Code uses to write missing scripts"><option value="sonnet">Writer · Sonnet (uses less of your plan)</option><option value="opus">Writer · Opus (best, uses more)</option><option value="default">Writer · Claude Code default</option></select></div>
       <label class="check"><input type="checkbox" id="ep-redo" ${f.regenerate ? 'checked' : ''} /> Redo: re-read the script .md, then voice, thumbnails and renders again</label>
     </details>
     <div class="savebar"><span title="${esc(f.outDir)}">Saves to ${esc(f.outDir === ep.exportDir ? 'episode folder › exports' : f.outDir)}</span><button class="small" id="ep-choose">Change</button>${f.outDir !== ep.exportDir ? '<button class="small" id="ep-reset">Reset</button>' : ''}</div>
     <button class="primary go" id="ep-go" ${count ? '' : 'disabled'}>Generate ${count} video${count === 1 ? '' : 's'}</button>
     <div class="empty" id="ep-msg" style="min-height:20px">${esc(f.msg || '')}</div>`;
   $('#ep-detail details.more').ontoggle = (e) => { f.moreOpen = e.target.open; };
-  $('#ep-voice').value = f.voiceProvider; $('#ep-music').value = f.music; $('#ep-writer').value = f.writer;
+  $('#ep-voice').value = f.voiceProvider; $('#ep-music').value = f.music; $('#ep-writer').value = f.writer; $('#ep-wmodel').value = f.writerModel; $('#ep-wmodel').disabled = f.writer !== 'claude';
   $$('#ep-detail [data-on]').forEach(cb => cb.onchange = () => { f.videos[cb.dataset.on].on = cb.checked; renderDetail(); });
   $$('#ep-detail [data-ratio]').forEach(b => b.onclick = () => {
     const [variant, r] = b.dataset.ratio.split('|'); const list = f.videos[variant].ratios;
     const i = list.indexOf(r); if (i >= 0) { if (list.length > 1) list.splice(i, 1); } else list.push(r);
     renderDetail();
   });
-  const remember = () => store.set('form', {voiceProvider: f.voiceProvider, music: f.music, writer: f.writer});
+  const remember = () => store.set('form', {voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, writerModel: f.writerModel});
   $('#ep-voice').onchange = () => { f.voiceProvider = $('#ep-voice').value; remember(); };
   $('#ep-music').onchange = () => { f.music = $('#ep-music').value; remember(); };
-  $('#ep-writer').onchange = () => { f.writer = $('#ep-writer').value; remember(); };
+  $('#ep-writer').onchange = () => { f.writer = $('#ep-writer').value; $('#ep-wmodel').disabled = f.writer !== 'claude'; remember(); };
+  $('#ep-wmodel').onchange = () => { f.writerModel = $('#ep-wmodel').value; remember(); };
   $('#ep-redo').onchange = () => { f.regenerate = $('#ep-redo').checked; };
   $('#ep-choose').onclick = async () => { const dir = await chooseFolder(f.outDir || ep.folder, `Save the videos for ${ep.id.toUpperCase()} to`); if (dir) { f.outDir = dir; renderDetail(); } };
   if ($('#ep-reset')) $('#ep-reset').onclick = () => { f.outDir = ep.exportDir; renderDetail(); };
@@ -524,7 +526,7 @@ async function generate(ep, f) {
   const videos = Object.entries(f.videos).filter(([, v]) => v.on && v.ratios.length).map(([variant, v]) => ({variant, ratios: v.ratios}));
   if (!videos.length) return;
   $('#ep-go').disabled = true;
-  const r = await api('/api/episodes/generate', 'POST', {episodeId: ep.id, videos, outDir: f.outDir, voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, regenerate: f.regenerate});
+  const r = await api('/api/episodes/generate', 'POST', {episodeId: ep.id, videos, outDir: f.outDir, voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, writerModel: f.writerModel, regenerate: f.regenerate});
   f.regenerate = false;
   if ($('#ep-redo')) $('#ep-redo').checked = false;
   f.msg = r.error ? r.error : `Queued: ${r.jobs.map(j => j.title).join(' → ')}`;

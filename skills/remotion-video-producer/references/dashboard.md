@@ -17,7 +17,8 @@ status (No script yet, Script ready, Voiced, Rendered, Saved, Queued, Working N%
   API call asking for 9:16 on a long video (or 16:9 on a short) skips that ratio.
 - **Saves to** defaults to `<episode folder>/exports` (Change / Reset); every video gets its own subfolder.
 - Voice (ElevenLabs, OpenAI or the free macOS draft) and music (library track, generated bed or none).
-  **More options** holds the script writer (Claude Code headless, or stop when a script is missing) and
+  **More options** holds the script writer (Claude Code headless, or stop when a script is missing), the
+  writer model (Sonnet by default, which uses less of a Claude plan; Opus; or Claude Code's default) and
   **Redo** (re-read the episode's script .md, then voice, thumbnails and renders again).
 - **Generate N videos**. Each ticked video becomes its own job, queued in plan order (Short A, Long, Short B),
   and the queue runs one job at a time: a video is fully rendered and saved before the next starts.
