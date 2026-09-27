@@ -50,7 +50,7 @@ export const createEpisodes = (ctx) => {
   const loadPlan = () => {
     const file = planPath();
     if (!file) return {plan: null, error: 'No content plan yet. Choose a plan file (JSON) or create automation/plan.json.', file: null};
-    if (!fs.existsSync(file)) return {plan: null, error: `Plan file not found: ${file}`, file};
+    if (!fs.existsSync(file)) return {plan: null, error: `Plan file not found: ${file}${file.startsWith('/Volumes/') ? ' (is the drive connected? Plug it in and reload)' : ''}`, file};
     const m = mtime(file);
     if (cache.file === file && cache.mtime === m) return cache;
     try {

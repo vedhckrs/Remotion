@@ -444,6 +444,7 @@ function renderPlan() {
   $('#plan-title').textContent = P.title || 'Content plan';
   $('#plan-file').textContent = P.file || '';
   $('#plan-error').textContent = P.error || '';
+  $('#plan-choose').textContent = P.weeks?.length ? 'Change plan…' : 'Choose plan file…';
   if (!P.weeks?.length) { $('#weeks').innerHTML = ''; $('#episodes').innerHTML = '<small class="muted">No plan loaded. Click "Choose plan file…" and pick your season JSON (for Wiresplained: Tech/01-plan/season-1.json).</small>'; $('#ep-detail').innerHTML = ''; return; }
   if (selWeek == null || !P.weeks.find(w => w.number === selWeek)) selWeek = store.get('week', P.weeks[0].number);
   if (!P.weeks.find(w => w.number === selWeek)) selWeek = P.weeks[0].number;
