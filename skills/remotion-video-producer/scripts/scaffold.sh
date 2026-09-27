@@ -51,8 +51,9 @@ $RUNX remotion add @remotion/media @remotion/transitions @remotion/google-fonts 
   @remotion/shapes @remotion/paths @remotion/noise @remotion/layout-utils @remotion/media-utils @remotion/sfx \
   @remotion/zod-types @remotion/motion-blur @remotion/fonts @remotion/install-whisper-cpp zod
 
-echo "Adding icon and logo sources (simple-icons: 3000+ brand marks with official colors)"
+echo "Adding icon and logo sources (simple-icons: 3000+ brand marks; lucide-react: 1800+ UI icons, bundled, no network at render)"
 $INSTALL simple-icons >/dev/null 2>&1 || npm install simple-icons >/dev/null 2>&1 || echo "  simple-icons install skipped (fetch-icons.mjs falls back to jsDelivr)"
+npm install --save-exact lucide-react@1.48.0 >/dev/null 2>&1 || echo "  lucide-react install failed: packaged episodes need it (npm install lucide-react@1.48.0)"
 
 if [ "$UPDATE" -eq 1 ]; then
   BACKUP=".skill-backup/$(date +%Y%m%d-%H%M%S)"
@@ -79,6 +80,22 @@ if [ "$UPDATE" -eq 1 ] && [ -f "$BACKUP/src/lib/styles.ts" ]; then
   fi
 fi
 cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
+# Bundled fonts (Inter, Space Grotesk; SIL OFL) so packaged episodes render without any network access.
+mkdir -p public/fonts public/packages
+cp "$TEMPLATES/public/fonts/"* public/fonts/
+# Register the packaged-episode compositions next to the project's own Root (Root.tsx is kept on update).
+node -e '
+const fs = require("fs");
+const f = "src/index.ts";
+if (!fs.existsSync(f)) process.exit(0);
+let s = fs.readFileSync(f, "utf8");
+if (s.includes("episode/AllCompositions")) process.exit(0);
+s = s.replace(/import \{RemotionRoot\} from ["\x27]\.\/Root["\x27];?\n?/, "");
+s = s.replace(/registerRoot\(RemotionRoot\);?/, "registerRoot(AllCompositions);");
+s = s.replace(/(import \{registerRoot\} from ["\x27]remotion["\x27];?)/, "$1\nimport {AllCompositions} from \x27./episode/AllCompositions\x27;");
+fs.writeFileSync(f, s);
+console.log("  src/index.ts now registers the packaged-episode compositions (EpisodeLong, EpisodeShort)");
+'
 
 # create-video installs Tailwind v4 in the blank template (src/index.css imports it).
 # Keep it wired in the config so the CSS is processed; templates themselves use inline styles.
@@ -148,7 +165,7 @@ fi
 
 # Keep secrets and large generated files out of git.
 touch .gitignore
-for line in ".env" "out/" ".skill-backup/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
+for line in ".env" "out/" ".skill-backup/" "public/packages/" "cache/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
   grep -qxF "$line" .gitignore || echo "$line" >> .gitignore
 done
 [ -f .env ] || printf '# ELEVENLABS_API_KEY=\n# OPENAI_API_KEY=\n# YouTube (scripts/auth-youtube.mjs): YT_CLIENT_ID= YT_CLIENT_SECRET= YT_REFRESH_TOKEN=\n# Meta: IG_USER_ID= META_ACCESS_TOKEN= META_PAGE_ID= META_PAGE_TOKEN=\n' > .env
