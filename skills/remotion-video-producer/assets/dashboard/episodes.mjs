@@ -204,6 +204,7 @@ export const createEpisodes = (ctx) => {
   const runChild = (job, label, cmd, args, {okCodes = [], timeoutMs = 60 * 60_000, env = {}} = {}) =>
     new Promise((resolve) => {
       let out = '';
+      let stdout = '';
       let child;
       try {
         child = spawn(cmd, args, {cwd, stdio: ['ignore', 'pipe', 'pipe'], env: {...process.env, REMOTION_GL: getSettings().gl, REMOTION_BUDGET: String(getSettings().budget), ...env}}); // no stdin: claude -p would wait 3 s for it
@@ -216,7 +217,10 @@ export const createEpisodes = (ctx) => {
         out = (out + text).slice(-50_000);
         text.split('\n').forEach((l) => log(label, l));
       };
-      child.stdout.on('data', onData);
+      child.stdout.on('data', (d) => {
+        stdout += String(d);
+        onData(d);
+      });
       child.stderr.on('data', onData);
       const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
       cancelSignals.set(job.id, {cancel: () => child.kill('SIGTERM')});
@@ -227,39 +231,47 @@ export const createEpisodes = (ctx) => {
       child.on('close', (code) => {
         clearTimeout(timer);
         cancelSignals.delete(job.id);
-        resolve({code, ok: code === 0 || okCodes.includes(code), out});
+        resolve({code, ok: code === 0 || okCodes.includes(code), out, stdout});
       });
     });
 
   const skillScript = (name) => path.join(SKILL_DIR, 'scripts', name);
   const node = process.execPath;
 
+  // The writer returns the script as Markdown in one reply (no tools, no agent loop): fast, cheap, and the
+  // file lands in the episode folder where it can be read and edited. The pipeline's analyzer does the rest.
   const writerPrompt = (plan, week, ep, video) => {
-    const own = path.join(cwd, 'automation', 'writer-prompt.md');
-    const file = fs.existsSync(own) ? own : path.join(SKILL_DIR, 'assets', 'automation', 'writer-prompt.md');
+    const own = path.join(cwd, 'automation', 'writer-prompt-md.md');
+    const file = fs.existsSync(own) ? own : path.join(SKILL_DIR, 'assets', 'automation', 'writer-prompt-md.md');
     const hook = video.hook || ep.videos.find((x) => x.variant === 'short-a')?.hook || '';
-    const topic = video.kind === 'long' ? `${video.title} (episode topic: ${ep.topic})` : `${ep.topic}. On-screen hook at frame 1: "${hook}"`;
+    const seconds = plan.targetSeconds?.[video.kind] || (video.kind === 'long' ? 420 : 45);
     const vars = {
-      videoId: video.videoId,
-      topic,
-      kind: video.kind,
-      style: plan.style || 'auto',
-      targetSeconds: String(plan.targetSeconds?.[video.kind] || (video.kind === 'long' ? 420 : 45)),
-      voicePreset: plan.voicePreset || 'young-male-pro',
+      kind: video.kind === 'long' ? 'a long YouTube video' : 'a vertical short',
+      topic: ep.topic,
+      targetSeconds: String(seconds),
+      targetWords: String(Math.round((seconds * (video.kind === 'long' ? 165 : 185)) / 60)),
       handle: plan.handle || '@yourhandle',
-      skillDir: SKILL_DIR,
-      platforms: video.kind === 'long' ? 'youtube, facebook-video' : 'youtube-shorts, instagram, facebook',
+      platforms: video.kind === 'long' ? 'YouTube and Facebook' : 'YouTube Shorts, Instagram Reels and Facebook Reels',
     };
     const extra = [
       '',
-      'Episode context (from the content plan):',
-      `- Series: week ${week.number} "${week.title}" (${week.pillar || ''}); episode ${ep.id} "${ep.topic}", publishes ${ep.date || ''} ${video.time || ''}.`,
+      'This episode (from the content plan):',
+      `- Series: week ${week.number} "${week.title}"; episode ${ep.id.toUpperCase()} "${ep.topic}".`,
       `- Title: "${video.title || ep.topic}".`,
-      hook ? `- Scene 1 opens with this hook on screen and in the voiceover: "${hook}".` : '',
-      plan.signOff ? `- Last line of the voiceover: "${plan.signOff}".` : '',
+      hook ? `- Scene 1 opens with this hook, on screen and in the voiceover: "${hook}".` : '',
+      plan.signOff ? `- The last line of the voiceover is: "${plan.signOff}".` : '',
       plan.writerNotes ? `- ${plan.writerNotes}` : '',
     ].filter(Boolean);
     return fs.readFileSync(file, 'utf8').replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '') + extra.join('\n') + '\n';
+  };
+
+  // Keep only the Markdown script from the writer's reply (drops code fences and any preamble).
+  const extractMarkdown = (text) => {
+    const body = String(text || '').replace(/```[a-z]*\n?/gi, '');
+    const start = body.search(/^# \S/m);
+    if (start < 0) return null;
+    const md = body.slice(start).trim() + '\n';
+    return (md.match(/^## \S/gm) || []).length >= 3 ? md : null;
   };
 
   const pickLibraryTrack = (plan, id) => {
@@ -335,10 +347,37 @@ export const createEpisodes = (ctx) => {
 
       // 1. Script: the episode folder's Markdown wins when it is newer (or on Redo); else the existing JSON; else the writer.
       setStep(k('script'), 'running');
-      const md = ep.folderAbs ? path.join(ep.folderAbs, `script-${v.variant}.md`) : null;
+      let md = ep.folderAbs ? path.join(ep.folderAbs, `script-${v.variant}.md`) : path.join(cwd, 'automation', 'scripts', `${id}.md`);
       const topicKeyword = ep.topic?.toLowerCase();
       const keywords = uniq([...(plan.keywords || []), topicKeyword]).join(', ');
       let scriptSource = null;
+      let written = false;
+      if (!fs.existsSync(md) && !fs.existsSync(scriptFile) && (o.writer || getSettings().writer) === 'claude') {
+        // Sonnet by default: a script does not need the largest model, and it uses less of a Claude plan.
+        const model = o.writerModel || getSettings().writerModel || 'sonnet';
+        const started = Date.now();
+        log('writer', `${id}: Claude Code is writing ${path.basename(md)} (${model === 'default' ? 'default model' : model}), usually under a minute`);
+        const tick = setInterval(() => setStep(k('script'), 'running', `Claude is writing · ${Math.round((Date.now() - started) / 1000)} s`), 5000);
+        // One reply, no tools, no user hooks or agents: --setting-sources skips ~/.claude/settings.json.
+        const base = ['-p', writerPrompt(plan, week, ep, v), ...(model === 'default' ? [] : ['--model', model]), '--output-format', 'text', '--max-turns', '1', '--disallowedTools', 'Bash,Edit,MultiEdit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,Agent,NotebookEdit,TodoWrite'];
+        const env = {CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: ''};
+        let r = await runChild(job, 'writer', process.env.CLAUDE_BIN || 'claude', [...base, '--setting-sources', 'project,local'], {timeoutMs: 6 * 60_000, env});
+        if (!r.ok && /unknown option|setting-sources/i.test(r.out)) r = await runChild(job, 'writer', process.env.CLAUDE_BIN || 'claude', base, {timeoutMs: 6 * 60_000, env});
+        clearInterval(tick);
+        if (cancelled()) break;
+        const text = extractMarkdown(r.stdout);
+        if (!text) {
+          fail('script', r.code === -1 ? 'claude CLI not found: install Claude Code or add ' + path.basename(md) + ' to the episode folder'
+            : /not logged in|\/login|invalid api key|authentication/i.test(r.out) ? 'Claude Code is not logged in: open Terminal, run claude, type /login, then Generate again (or add ' + path.basename(md) + ' to the episode folder)'
+            : /usage limit|rate limit|limit reached|quota/i.test(r.out) ? 'Claude usage limit reached: try again later, or add ' + path.basename(md) + ' to the episode folder'
+            : 'Claude did not return a script' + (r.out.trim() ? ': ' + r.out.trim().split('\n').pop().slice(0, 160) : '') + '. Generate again, or add ' + path.basename(md) + ' to the episode folder');
+          continue;
+        }
+        fs.mkdirSync(path.dirname(md), {recursive: true});
+        fs.writeFileSync(md, text);
+        written = true;
+        log('writer', `${id}: wrote ${md} (${(text.match(/^## /gm) || []).length} scenes) in ${Math.round((Date.now() - started) / 1000)} s`);
+      }
       if (md && fs.existsSync(md) && (o.regenerate || !fs.existsSync(scriptFile) || mtime(md) > mtime(scriptFile))) {
         const pacing = plan.defaults?.[v.kind]?.pacing || (v.kind === 'long' ? 'medium' : 'fast');
         const r = await runChild(job, 'analyze', node, [skillScript('analyze-script.mjs'), md, '--id', id, '--pacing', pacing, '--voice-preset', plan.voicePreset || 'young-male-pro', ...(plan.style ? ['--style', plan.style] : []), ...(keywords ? ['--keywords', keywords] : []), '--out', path.join('public', 'script', `${id}.json`)]);
@@ -347,22 +386,11 @@ export const createEpisodes = (ctx) => {
           continue;
         }
         scriptSource = 'md';
-        setStep(k('script'), 'done', 'from episode folder');
+        setStep(k('script'), 'done', written ? `written by Claude · ${path.basename(md)}` : 'from episode folder');
       } else if (fs.existsSync(scriptFile)) {
         setStep(k('script'), 'done', 'existing script');
-      } else if ((o.writer || getSettings().writer) === 'claude') {
-        // Sonnet by default: a script does not need the largest model, and it uses less of a Claude plan.
-        const model = o.writerModel || getSettings().writerModel || 'sonnet';
-        const r = await runChild(job, 'writer', process.env.CLAUDE_BIN || 'claude', ['-p', writerPrompt(plan, week, ep, v), ...(model === 'default' ? [] : ['--model', model]), '--output-format', 'text', '--max-turns', '80', '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash(node *),Bash(npx remotion compositions*),Bash(ls *),Bash(cat *)'], {timeoutMs: 25 * 60_000, env: {CLAUDECODE: '', CLAUDE_CODE_ENTRYPOINT: ''}});
-        if (!fs.existsSync(scriptFile)) {
-          fail('script', r.code === -1 ? 'claude CLI not found: install Claude Code or add script-*.md files to the episode folder'
-            : /not logged in|\/login|invalid api key|authentication/i.test(r.out) ? 'Claude Code is not logged in: open Terminal, run claude, type /login, then Generate again (or add ' + `script-${v.variant}.md` + ' to the episode folder)'
-            : 'the writer finished without public/script/' + id + '.json');
-          continue;
-        }
-        setStep(k('script'), 'done', 'written by Claude Code');
       } else {
-        fail('script', `no script: add ${md ? path.basename(md) + ' to the episode folder' : 'public/script/' + id + '.json'} or switch the writer to Claude Code`);
+        fail('script', `no script: add ${path.basename(md)} to ${ep.folderAbs ? 'the episode folder' : 'automation/scripts'} or switch the writer to Claude Code`);
         continue;
       }
       if (cancelled()) break;

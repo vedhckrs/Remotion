@@ -26,11 +26,15 @@ status (No script yet, Script ready, Voiced, Rendered, Saved, Queued, Working N%
   music → thumbnails → one render per ratio → upload details → save to folder) and can be cancelled (✕),
   queued or running. The tab bar shows the running job and how many are waiting on every tab.
 
-Script source, in order: `script-<variant>.md` in the episode folder (analyzed when newer than the JSON),
-an existing `public/script/<episodeId>-<variant>.json`, then Claude Code (`claude -p` with
-`automation/writer-prompt.md` plus the episode's title, hook and sign-off). The plan's style, title,
-category, hashtags, CTA and logo are written into the script so thumbnails and copy match the brand.
-Every step is skipped when its output exists; tick **Redo** to rebuild (it also re-reads `script-<variant>.md`).
+Script source, in order: `script-<variant>.md` in the episode folder (analyzed when newer than the JSON, or on
+Redo), an existing `public/script/<episodeId>-<variant>.json`, then the writer. The writer asks Claude Code
+for the script as Markdown in a single reply (`claude -p`, Sonnet by default, `--max-turns 1`, no tools, user
+settings such as hooks and agents skipped), with a live timer on the step; it usually takes under a minute.
+The reply is saved as `script-<variant>.md` in the episode folder, where you can read and edit it (tick Redo
+after editing), and then analyzed like a hand-written one. The prompt is
+`assets/automation/writer-prompt-md.md`; put your own copy at `automation/writer-prompt-md.md` to change it.
+The plan's style, title, category, hashtags, CTA and logo are written into the script so thumbnails and copy
+match the brand.
 
 Saved folder layout:
 ```

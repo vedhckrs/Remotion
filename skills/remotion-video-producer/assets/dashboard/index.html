@@ -540,7 +540,7 @@ function renderEpisodeJobs() {
     const active = ACTIVE.includes(j.status);
     const running = (j.steps || []).find(s => s.status === 'running');
     const failedStep = (j.steps || []).find(s => s.status === 'failed' && s.detail); // the real reason, in full
-    const now = j.render ? `Rendering ${j.render.ratio} · ${Math.round((j.render.progress || 0) * 100)}%${j.render.etaSeconds != null ? ' · ' + fmtTime(j.render.etaSeconds) + ' left' : ''}` : running ? running.label + '…' : j.status === 'queued' ? 'Waiting for the video before it' : '';
+    const now = j.render ? `Rendering ${j.render.ratio} · ${Math.round((j.render.progress || 0) * 100)}%${j.render.etaSeconds != null ? ' · ' + fmtTime(j.render.etaSeconds) + ' left' : ''}` : running ? running.label + (running.detail ? ' · ' + running.detail : '…') : j.status === 'queued' ? 'Waiting for the video before it' : '';
     const steps = (j.steps || []).map(st => `<div class="s ${st.status}"><span>${st.status === 'done' ? '✓' : st.status === 'skipped' ? '–' : st.status === 'failed' ? '✗' : st.status === 'running' ? '▸' : '·'} ${esc(st.label)}${st.status === 'notrun' ? ' · not run' : ''}</span><small title="${esc(st.detail || '')}">${esc(st.detail || '')}</small></div>`).join('');
     const results = j.kind === 'speedtest' ? (j.results || []).map(r => `<div class="s ${j.best && j.best.tabs === r.tabs ? 'done' : ''}"><span>${r.tabs} tabs</span><small>${r.seconds} s${j.best && j.best.tabs === r.tabs ? ' · fastest' : ''}</small></div>`).join('') : '';
     return `<div class="item">

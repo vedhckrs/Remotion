@@ -798,7 +798,16 @@ server.listen(PORT, '127.0.0.1', async () => {
   console.log(`  compositions: ${compositions.join(', ') || compositionsError || 'none'}`);
 });
 
-process.on('SIGINT', () => {
+// launchd restarts (skill-update, kickstart) send SIGTERM: stop running renders and child processes too,
+// so no Chrome or writer keeps the CPU busy after the dashboard is gone.
+const shutdown = () => {
+  for (const signal of cancelSignals.values()) {
+    try {
+      signal.cancel();
+    } catch {}
+  }
   stopStudio();
-  process.exit(0);
-});
+  setTimeout(() => process.exit(0), 300);
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
