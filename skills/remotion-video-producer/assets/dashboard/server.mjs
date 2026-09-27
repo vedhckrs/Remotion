@@ -85,6 +85,19 @@ const thermal = () => {
   return m ? Number(m[1]) : null;
 };
 
+/** Memory apps can use now. macOS keeps idle memory as cache, so os.freemem() reads near zero on a healthy
+ * Mac; vm_stat's free + inactive + speculative + purgeable pages is what Activity Monitor calls available. */
+const availableMemoryGb = () => {
+  if (isMac) {
+    const out = spawnSync('vm_stat', {encoding: 'utf8'}).stdout || '';
+    const page = Number((out.match(/page size of (\d+) bytes/) || [])[1]) || 16384;
+    const pages = (name) => Number((out.match(new RegExp(`Pages ${name}:\\s+(\\d+)`)) || [])[1]) || 0;
+    const bytes = (pages('free') + pages('inactive') + pages('speculative') + pages('purgeable')) * page;
+    if (bytes > 0) return Math.round((bytes / 1024 ** 3) * 10) / 10;
+  }
+  return Math.round((os.freemem() / 1024 ** 3) * 10) / 10;
+};
+
 const machine = () => {
   const load = os.loadavg()[0];
   return {
@@ -93,7 +106,7 @@ const machine = () => {
     chip: isMac ? (spawnSync('sysctl', ['-n', 'machdep.cpu.brand_string'], {encoding: 'utf8'}).stdout || '').trim() : os.cpus()[0]?.model || '',
     cores,
     memoryGb: Math.round(memoryGb),
-    freeMemoryGb: Math.round((os.freemem() / 1024 ** 3) * 10) / 10,
+    freeMemoryGb: availableMemoryGb(),
     load1: Math.round(load * 10) / 10,
     loadPercent: Math.min(100, Math.round((load / cores) * 100)),
     cpuSpeedLimit: thermal(),
@@ -399,7 +412,10 @@ const pump = async () => {
 const enqueue = (job) => {
   const full = {id: nextId++, status: 'queued', createdAt: Date.now(), progress: 0, ...job};
   jobs.unshift(full);
-  if (jobs.length > 60) jobs.pop();
+  if (jobs.length > 120) {
+    const i = jobs.map((j) => ['queued', 'bundling', 'selecting', 'rendering', 'running'].includes(j.status)).lastIndexOf(false);
+    if (i !== -1) jobs.splice(i, 1);
+  }
   send('jobs', jobs);
   pump();
   return full;
@@ -560,8 +576,15 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       if (!episodes.findEpisode(body.episodeId)) return json(res, 404, {error: 'episode not in plan'});
       const found = episodes.findEpisode(body.episodeId);
-      const job = enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} ${found.ep.topic}`, options: {episodeId: body.episodeId, videos: body.videos || [], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}});
-      return json(res, 200, job);
+      // One job per video, in plan order: each renders and saves completely before the next starts.
+      const order = found.ep.videos.map((v) => v.variant);
+      const videos = (body.videos || []).filter((v) => v.ratios?.length).sort((a, b) => order.indexOf(a.variant) - order.indexOf(b.variant));
+      if (!videos.length) return json(res, 400, {error: 'Select at least one video and one aspect ratio'});
+      const label = {long: 'Long video', 'short-a': 'Short A', 'short-b': 'Short B'};
+      const queued = videos.map((v, i) =>
+        enqueue({kind: 'episode', title: `${found.ep.id.toUpperCase()} · ${label[v.variant] || v.variant} (${i + 1}/${videos.length})`, topic: found.ep.topic, options: {episodeId: body.episodeId, videos: [v], outDir: body.outDir || null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, regenerate: Boolean(body.regenerate), writer: body.writer || settings.writer, voiceProvider: body.voiceProvider || settings.voiceProvider, music: body.music || settings.music}}),
+      );
+      return json(res, 200, {jobs: queued.map((j) => ({id: j.id, title: j.title}))});
     }
     if (req.method === 'POST' && p === '/api/speedtest') {
       const body = await readBody(req);

@@ -17,9 +17,11 @@ video ratios, upload details, saved). Pick an episode, then:
 - pick the voice (ElevenLabs, OpenAI, or the free macOS draft), music (a track from the plan's music
   library, a newly generated bed, or none) and what happens when a script is missing (Claude Code
   headless writes it, or stop);
-- **Generate**. One queued job runs the whole episode and shows each step live:
-  script → icons → voice → captions → music → thumbnails → one render per ratio → upload details →
-  save to folder. **Queue whole week** adds every episode of the week with its defaults.
+- **Generate**. Each ticked video becomes its own job, queued in plan order (Short A, Long, Short B),
+  and the queue runs one job at a time: a video is fully rendered and saved before the next starts.
+  Each job shows its steps live: script → icons → voice → captions → music → thumbnails → one render per
+  ratio → upload details → save to folder. **Queue whole week** adds every video of the week the same way.
+  The tab bar shows the running job and how many are waiting on every tab.
 
 Script source, in order: `script-<variant>.md` in the episode folder (analyzed when newer than the JSON),
 an existing `public/script/<episodeId>-<variant>.json`, then Claude Code (`claude -p` with
@@ -43,7 +45,9 @@ videos; YouTube Shorts, Instagram Reels caption (2,200 limit shown) and Facebook
 **Schedule…** pre-fills the plan's slot (`date` + `time` + `utcOffset`) and runs `publish.mjs`
 (dry run first). **Download UPLOAD-DETAILS.md** saves the same text as a file.
 
-**Control room.** Everything below (scripts, render panel, queue, autopilot, outputs, Studio, log).
+**Control room.** Scripts, render panel, queue, autopilot and an outputs gallery (click a card to play it
+in a player window). The page fits the window; each panel scrolls on its own. The Memory gauge shows
+memory available to apps (free plus cache, as Activity Monitor counts it), not the near-zero free figure.
 
 ## Content plan (JSON)
 

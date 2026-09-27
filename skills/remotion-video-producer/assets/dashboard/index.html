@@ -5,223 +5,285 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Remotion Control Room</title>
 <style>
-  :root { --bg:#0b0b0f; --panel:#15151c; --panel2:#1c1c25; --line:#262633; --text:#f5f5f7; --muted:#9a9aa6; --accent:#7c5cff; --accent2:#22d3ee; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  :root { --bg:#0b0b0f; --panel:#14141b; --panel2:#1b1b24; --line:#262633; --text:#f5f5f7; --muted:#9a9aa6; --accent:#7c5cff; --accent2:#22d3ee; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 -apple-system, Inter, system-ui, sans-serif; }
-  header { display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
-  header h1 { font-size:16px; margin:0 12px 0 0; letter-spacing:-0.01em; }
-  header h1 span { color:var(--accent); }
-  .gauge { display:flex; flex-direction:column; min-width:110px; }
-  .gauge label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
-  .bar { height:6px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:4px; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 -apple-system, Inter, system-ui, sans-serif; overflow:hidden; }
+  .app { display:flex; flex-direction:column; height:100vh; }
+
+  /* ---- header ---- */
+  header.top { flex:none; display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; padding:10px 18px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .brand { display:flex; gap:10px; align-items:center; min-width:0; max-width:270px; }
+  .brand > div { min-width:0; }
+  .brand .dot { width:10px; height:10px; border-radius:50%; background:var(--accent); flex:none; }
+  .brand b { display:block; font-size:15px; letter-spacing:-0.01em; }
+  .brand small { color:var(--muted); font-size:11.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gauges { display:flex; gap:14px; }
+  .gauge { display:flex; flex-direction:column; min-width:84px; }
+  .gauge label, .hlabel { font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; }
+  .gauge b { font-weight:600; font-size:12.5px; }
+  .bar { height:5px; background:var(--line); border-radius:4px; overflow:hidden; margin:3px 0 2px; }
   .bar i { display:block; height:100%; background:var(--accent); transition:width .4s; }
   .bar i.warn { background:var(--warn); } .bar i.bad { background:var(--bad); } .bar i.ok { background:var(--ok); }
-  .gauge b { font-weight:600; font-size:13px; }
-  main { display:grid; grid-template-columns: 360px 1fr 380px; gap:16px; padding:16px 20px; }
-  @media (max-width:1200px) { main { grid-template-columns:1fr; } }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
-  section h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+  .speed { display:flex; flex-direction:column; gap:3px; min-width:250px; max-width:360px; flex:1; }
+  .speed .line { display:flex; gap:8px; align-items:center; }
+  .speed input[type=range] { flex:1; accent-color:var(--accent); }
+  .toggles { display:flex; gap:14px; align-items:center; margin-left:auto; }
+  .toggles .stack { display:flex; flex-direction:column; gap:2px; }
+  .toggles label.check { font-size:12.5px; }
+
+  /* ---- tabs ---- */
+  nav.tabs { flex:none; display:flex; align-items:center; gap:2px; padding:0 18px; border-bottom:1px solid var(--line); background:var(--bg); }
+  nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0; background:none; padding:11px 14px; color:var(--muted); font-weight:600; }
+  nav.tabs button:hover { color:var(--text); border-color:transparent; }
+  nav.tabs button.on { color:var(--text); border-bottom-color:var(--accent); }
+  .qpill { margin-left:auto; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px; max-width:48%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .qpill .mini { width:90px; height:5px; background:var(--line); border-radius:3px; overflow:hidden; flex:none; } .qpill .mini i { display:block; height:100%; background:var(--accent); }
+
+  /* ---- views and panels: the page never scrolls, panels do ---- */
+  main.views { flex:1; min-height:0; }
+  .view { display:none; height:100%; padding:14px 18px; }
+  .view.on { display:flex; flex-direction:column; gap:12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; display:flex; flex-direction:column; min-height:0; min-width:0; }
+  .panel-head { flex:none; display:flex; justify-content:space-between; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--line); }
+  .panel-head h2 { margin:0; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); }
+  .panel-body { flex:1; min-height:0; overflow:auto; padding:12px 14px; }
+  .col { display:flex; flex-direction:column; gap:12px; min-height:0; min-width:0; }
+  .grow { flex:1; }
+  .ep-grid { flex:1; min-height:0; display:grid; grid-template-columns: 330px minmax(0, 1fr) 360px; gap:12px; }
+  .cr-grid { flex:1; min-height:0; display:grid; grid-template-columns: 340px minmax(0, 1fr) 420px; gap:12px; }
+  @media (max-width:1180px) {
+    body { overflow:auto; } .app { height:auto; min-height:100vh; } .view { height:auto; }
+    .ep-grid, .cr-grid { grid-template-columns:1fr; } .panel-body { max-height:70vh; } .log { height:240px; flex:none; }
+  }
+  ::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:#2e2e3b; border-radius:6px; border:2px solid var(--panel); } ::-webkit-scrollbar-track { background:transparent; }
+
+  /* ---- controls ---- */
   button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 11px; font:inherit; cursor:pointer; }
   button:hover { border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
-  button.small { padding:4px 8px; font-size:12px; }
-  button.danger { color:var(--bad); }
-  select, input[type=text], input[type=number], textarea { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; width:100%; }
-  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; min-height:260px; resize:vertical; }
+  button.small { padding:4px 9px; font-size:12px; }
+  button.danger { color:#fca5a5; }
+  select, input[type=text], input[type=number], textarea { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; width:100%; min-width:0; }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; min-height:300px; resize:vertical; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   .row > * { flex:1; }
-  .row > button, .row > label.check { flex:0 0 auto; }
-  label.check { display:flex; gap:6px; align-items:center; color:var(--muted); font-size:13px; }
+  .row > button, .row > label.check, .row > a { flex:0 0 auto; }
+  label.check { display:flex; gap:6px; align-items:center; color:var(--muted); font-size:13px; cursor:pointer; }
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-  .chip { padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); cursor:pointer; font-size:12px; }
+  .chip { padding:5px 10px; border-radius:999px; border:1px solid var(--line); background:var(--panel2); cursor:pointer; font-size:12px; }
   .chip.on { border-color:var(--accent); background:rgba(124,92,255,.18); }
   .list { display:flex; flex-direction:column; gap:8px; }
   .item { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
-  .item .top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
-  .item small { color:var(--muted); }
-  .status { font-size:11px; padding:2px 7px; border-radius:6px; background:var(--line); text-transform:uppercase; letter-spacing:.05em; }
+  .item .top { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+  .item small, .muted { color:var(--muted); }
+  .status { font-size:10.5px; padding:2px 7px; border-radius:6px; background:var(--line); text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
   .status.rendering, .status.running, .status.bundling, .status.selecting { background:rgba(124,92,255,.25); color:#c9bcff; }
   .status.done { background:rgba(34,197,94,.2); color:#86efac; } .status.failed { background:rgba(239,68,68,.2); color:#fca5a5; } .status.cancelled { background:rgba(245,158,11,.2); color:#fcd34d; }
-  .progress { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:8px; }
-  .progress i { display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .3s; }
-  video { width:100%; border-radius:8px; background:#000; }
-  .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px; background:#07070a; border:1px solid var(--line); border-radius:10px; padding:10px; height:220px; overflow:auto; white-space:pre-wrap; color:#c8c8d0; }
+  .progress { height:7px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:8px; }
+  .progress i { display:block; height:100%; background:var(--accent); transition:width .3s; }
+  .log { flex:1; min-height:0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11.5px; background:#07070a; border:1px solid var(--line); border-radius:10px; margin:0 12px 12px; padding:10px; overflow:auto; white-space:pre-wrap; color:#c8c8d0; }
   .log .src { color:var(--accent2); }
-  .muted { color:var(--muted); }
-  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--line); font-size:11px; margin-right:4px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--line); font-size:11px; margin:0 4px 4px 0; }
   .pill.ok { background:rgba(34,197,94,.18); color:#86efac; }
-  .budget { display:flex; align-items:center; gap:8px; min-width:230px; }
-  .budget input[type=range] { flex:1; accent-color:var(--accent); }
   a { color:var(--accent2); }
   .kbd { font-family:ui-monospace, Menlo, monospace; background:var(--line); padding:1px 5px; border-radius:4px; font-size:11px; }
-  nav.tabs { display:flex; gap:4px; padding:10px 20px 0; border-bottom:1px solid var(--line); background:var(--bg); position:sticky; top:0; z-index:4; }
-  nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0; background:none; padding:10px 14px; color:var(--muted); font-weight:600; }
-  nav.tabs button.on { color:var(--text); border-bottom-color:var(--accent); }
-  .view { display:none; } .view.on { display:block; } main.view.on { display:grid; }
-  .pad { padding:16px 20px; }
-  .planbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+
+  /* ---- episodes ---- */
+  .planbar { flex:none; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   .planbar b { font-size:15px; }
-  .weeks { display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:12px; }
-  .weeks .month { flex:0 0 auto; align-self:center; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:0 6px 0 12px; }
-  .wk { flex:0 0 auto; text-align:left; min-width:150px; max-width:190px; }
-  .wk b { display:block; font-size:12px; } .wk small { color:var(--muted); font-size:11px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .planbar small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
+  .weeks { flex:none; display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; }
+  .weeks .month { flex:0 0 auto; align-self:center; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:0 6px 0 10px; max-width:140px; white-space:normal; line-height:1.3; }
+  .wk { flex:0 0 auto; text-align:left; width:172px; padding:8px 10px; }
+  .wk b { display:block; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .wk small { color:var(--muted); font-size:11px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .wk.on { border-color:var(--accent); background:rgba(124,92,255,.14); }
   .wk .meter { height:3px; background:var(--line); border-radius:2px; margin-top:6px; overflow:hidden; } .wk .meter i { display:block; height:100%; background:var(--ok); }
-  .ep-grid { display:grid; grid-template-columns: 340px 1fr 360px; gap:16px; }
-  @media (max-width:1300px) { .ep-grid { grid-template-columns:1fr; } }
-  .ep { cursor:pointer; } .ep.on { border-color:var(--accent); }
-  .dots { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+  .ep { cursor:pointer; } .ep.on { border-color:var(--accent); background:rgba(124,92,255,.08); }
+  .dots { display:flex; gap:4px; margin-top:5px; flex-wrap:wrap; }
   .dot { font-size:10.5px; padding:1px 6px; border-radius:5px; background:var(--line); color:var(--muted); }
   .dot.ok { background:rgba(34,197,94,.18); color:#86efac; } .dot.part { background:rgba(245,158,11,.18); color:#fcd34d; }
-  .vrow { display:grid; grid-template-columns: 26px 1fr; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
+  .vrow { display:grid; grid-template-columns: 26px 1fr; gap:8px; padding:12px 0; border-top:1px solid var(--line); }
   .vrow:first-child { border-top:none; }
   .vrow .t { font-weight:600; } .vrow .h { color:var(--muted); font-size:12.5px; }
-  .ratio { font-size:12px; padding:5px 9px; }
-  .ratio.on { border-color:var(--accent); background:rgba(124,92,255,.18); }
+  .ratio { font-size:12px; padding:5px 10px; } .ratio.on { border-color:var(--accent); background:rgba(124,92,255,.18); }
   .steps { display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:12px; }
   .steps .s { display:flex; justify-content:space-between; gap:8px; color:var(--muted); }
   .steps .s.done, .steps .s.skipped { color:#86efac; } .steps .s.running { color:#c9bcff; font-weight:600; } .steps .s.failed { color:#fca5a5; }
-  .steps .s small { color:var(--muted); font-weight:400; text-align:right; }
-  .vgroup { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:6px; }
-  .field { margin-bottom:10px; } .field label { display:flex; justify-content:space-between; align-items:center; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px; }
-  .field .val { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; font-size:13px; max-height:260px; overflow:auto; }
+  .steps .s small { color:var(--muted); font-weight:400; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
+  .vgroup { font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:7px; }
+  .field { margin-bottom:10px; } .field label { display:flex; justify-content:space-between; align-items:center; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:4px; }
+  .field .val { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; white-space:pre-wrap; word-break:break-word; font-size:13px; max-height:240px; overflow:auto; }
+
+  /* ---- upload details ---- */
+  .up-list { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:14px; padding-right:4px; }
+  .up-row { display:grid; grid-template-columns: 340px minmax(0, 1fr); gap:12px; align-items:start; }
+  .up-row > .panel:first-child { position:sticky; top:0; }
+  @media (max-width:1100px) { .up-row { grid-template-columns:1fr; } }
   .plat { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  .plat:last-child { margin-bottom:0; }
   .plat h3 { margin:0 0 10px; font-size:14px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .up-grid { display:grid; grid-template-columns: 320px 1fr; gap:16px; }
-  @media (max-width:1100px) { .up-grid { grid-template-columns:1fr; } }
-  .thumbs { display:grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap:6px; margin-top:8px; } .thumbs img { width:100%; border-radius:6px; border:1px solid var(--line); }
-  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:20; }
+
+  /* ---- media: fixed frames, videos never stretch the layout ---- */
+  .player { background:#000; border-radius:10px; height:300px; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+  .player video { max-width:100%; max-height:100%; display:block; }
+  .thumbs { display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-top:8px; }
+  .thumbs a { display:block; aspect-ratio:1; background:#000; border-radius:6px; overflow:hidden; border:1px solid var(--line); }
+  .thumbs img { width:100%; height:100%; object-fit:contain; }
+  .gallery { display:grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap:10px; }
+  .card { background:var(--panel2); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .card .frame { aspect-ratio: 16 / 10; background:#000; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+  .card .frame img, .card .frame video { max-width:100%; max-height:100%; object-fit:contain; pointer-events:none; }
+  .card .frame .play { position:absolute; width:38px; height:38px; border-radius:50%; background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.4); display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .card .meta { padding:8px 9px; font-size:11.5px; }
+  .card .meta b { display:block; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .acts { display:flex; gap:4px; padding:0 9px 9px; }
+  .card .acts button, .card .acts a button { padding:3px 7px; font-size:11px; }
+
+  /* ---- modals ---- */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
   .modal.on { display:flex; }
-  .modal .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; width:min(640px, 94vw); max-height:80vh; display:flex; flex-direction:column; padding:14px 16px; }
-  .modal .entries { overflow:auto; flex:1; margin:8px 0; border:1px solid var(--line); border-radius:8px; }
+  .modal .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; width:min(680px, 96vw); max-height:88vh; display:flex; flex-direction:column; padding:14px 16px; gap:8px; }
+  .modal .box.wide { width:min(900px, 96vw); }
+  .modal .entries { overflow:auto; flex:1; border:1px solid var(--line); border-radius:8px; min-height:200px; }
   .modal .entries div { padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--line); font-size:13px; } .modal .entries div:hover { background:var(--panel2); }
+  .modal .stage { background:#000; border-radius:10px; display:flex; align-items:center; justify-content:center; height:min(72vh, 900px); }
+  .modal .stage video, .modal .stage img { max-width:100%; max-height:100%; }
   .copied { color:var(--ok) !important; border-color:var(--ok) !important; }
 </style>
 </head>
 <body>
-<header>
-  <h1><span>●</span> Remotion Control Room <small class="muted" id="project"></small></h1>
-  <div class="gauge"><label>CPU load</label><div class="bar"><i id="g-load"></i></div><b id="t-load">–</b></div>
-  <div class="gauge"><label>Memory free</label><div class="bar"><i id="g-mem"></i></div><b id="t-mem">–</b></div>
-  <div class="gauge"><label>Thermal</label><div class="bar"><i id="g-therm"></i></div><b id="t-therm">–</b></div>
-  <div class="gauge"><label>Disk free</label><b id="t-disk">–</b></div>
-  <div class="gauge budget"><label>Machine budget</label><div style="display:flex;gap:8px;align-items:center;width:100%"><input type="range" id="budget" min="10" max="100" step="5" /><b id="t-budget">50%</b></div><small class="muted" id="t-conc"></small><div style="display:flex;gap:6px;margin-top:4px"><button class="small" id="full-speed" title="Budget 100 %, hardware encoder on">Full speed</button><button class="small" id="speed-test" title="Times 2 s of video with different tab counts and keeps the fastest">Speed test</button></div></div>
-  <div class="gauge"><label>Encoder</label><label class="check"><input type="checkbox" id="hw" /> <span id="t-hw">hardware</span></label></div>
-  <div class="gauge"><label>Master</label><label class="check"><input type="checkbox" id="fourk" /> 4K (scale 2)</label></div>
-  <div class="gauge"><label>Studio</label><div class="row" style="margin:0"><button class="small" id="studio-btn">Start</button><a id="studio-link" href="#" target="_blank" style="display:none">open</a></div></div>
+<div class="app">
+<header class="top">
+  <div class="brand"><span class="dot"></span><div><b>Remotion Control Room</b><small id="project"></small></div></div>
+  <div class="gauges">
+    <div class="gauge"><label>CPU load</label><div class="bar"><i id="g-load"></i></div><b id="t-load">–</b></div>
+    <div class="gauge" title="Memory apps can use now (free + cached), as Activity Monitor counts it"><label>Memory</label><div class="bar"><i id="g-mem"></i></div><b id="t-mem">–</b></div>
+    <div class="gauge"><label>Thermal</label><div class="bar"><i id="g-therm"></i></div><b id="t-therm">–</b></div>
+    <div class="gauge"><label>Disk free</label><div class="bar"><i id="g-disk" class="ok" style="width:100%"></i></div><b id="t-disk">–</b></div>
+  </div>
+  <div class="speed">
+    <div class="line"><span class="hlabel">Machine budget</span><input type="range" id="budget" min="10" max="100" step="5" /><b id="t-budget">50%</b></div>
+    <div class="line"><small class="muted" id="t-conc" style="flex:1"></small><button class="small" id="full-speed" title="Budget 100 %, hardware encoder on">Full speed</button><button class="small" id="speed-test" title="Times 2 s of video with different tab counts and keeps the fastest">Speed test</button></div>
+  </div>
+  <div class="toggles">
+    <div class="stack">
+      <label class="check" title="Capture at scale 2: 3840x2160 / 2160x3840"><input type="checkbox" id="fourk" /> 4K master</label>
+      <label class="check"><input type="checkbox" id="hw" /> <span id="t-hw">Hardware encoder</span></label>
+    </div>
+    <span class="check"><button class="small" id="studio-btn">Start Studio</button><a id="studio-link" href="#" target="_blank" style="display:none">open</a></span>
+  </div>
 </header>
 
 <nav class="tabs">
   <button data-view="episodes" class="on">Episodes</button>
   <button data-view="upload">Upload details</button>
   <button data-view="control">Control room</button>
+  <span class="qpill" id="qpill"></span>
 </nav>
 
-<div class="view on pad" id="view-episodes">
-  <div class="planbar">
-    <b id="plan-title">Content plan</b>
-    <small class="muted" id="plan-file"></small>
-    <button class="small" id="plan-choose">Choose plan file…</button>
-  </div>
-  <div id="plan-error" class="muted"></div>
-  <div class="weeks" id="weeks"></div>
-  <div class="ep-grid">
-    <section>
-      <h2><span id="week-title">Week</span> <button class="small" id="week-all" title="Queue every episode of this week with the default ratios">Queue whole week</button></h2>
-      <small class="muted" id="week-meta"></small>
-      <div class="list" id="episodes" style="margin-top:10px"></div>
-    </section>
-    <section id="ep-detail"><small class="muted">Pick an episode.</small></section>
-    <div>
-      <section>
-        <h2>Progress</h2>
-        <div class="list" id="ep-jobs"></div>
-      </section>
-      <section>
-        <h2>Log</h2>
-        <div class="log" id="log2"></div>
-      </section>
+<main class="views">
+  <section class="view on" id="view-episodes">
+    <div class="planbar">
+      <b id="plan-title">Content plan</b>
+      <small class="muted" id="plan-file"></small>
+      <button class="small" id="plan-choose">Choose plan file…</button>
+      <span id="plan-error" class="muted"></span>
     </div>
-  </div>
+    <div class="weeks" id="weeks"></div>
+    <div class="ep-grid">
+      <div class="panel">
+        <div class="panel-head"><h2 id="week-title">Week</h2><button class="small" id="week-all" title="Queue every video of this week, one after another">Queue whole week</button></div>
+        <div class="panel-body"><small class="muted" id="week-meta"></small><div class="list" id="episodes" style="margin-top:10px"></div></div>
+      </div>
+      <div class="panel"><div class="panel-body" id="ep-detail"><small class="muted">Pick an episode.</small></div></div>
+      <div class="col">
+        <div class="panel grow"><div class="panel-head"><h2>Progress</h2><small class="muted">one video at a time</small></div><div class="panel-body"><div class="list" id="ep-jobs"></div></div></div>
+        <div class="panel" style="height:32%"><div class="panel-head"><h2>Log</h2></div><div class="log" id="log2"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-upload">
+    <div class="planbar">
+      <select id="up-week" style="max-width:320px"></select>
+      <select id="up-ep" style="max-width:440px"></select>
+      <button class="small" id="up-refresh">Refresh</button>
+      <a id="up-md" href="#"><button class="small">Download UPLOAD-DETAILS.md</button></a>
+      <button class="small" id="up-open">Open saved folder</button>
+    </div>
+    <div class="up-list" id="up-body"><small class="muted">Pick an episode.</small></div>
+  </section>
+
+  <section class="view" id="view-control">
+    <div class="cr-grid">
+      <div class="panel">
+        <div class="panel-head"><h2>Scripts</h2><button class="small" id="new-script">New from text</button></div>
+        <div class="panel-body"><div class="list" id="scripts"></div></div>
+      </div>
+      <div class="col">
+        <div class="panel" style="flex:none">
+          <div class="panel-head"><h2>Render</h2><button class="small" id="refresh-comps">Refresh compositions</button></div>
+          <div class="panel-body" style="overflow:visible">
+            <div class="row"><select id="comp"></select><input type="text" id="frames" placeholder="frames e.g. 0-300 (blank = all)" /></div>
+            <div class="chips" id="presets"></div>
+            <div class="row" style="margin:0">
+              <button class="primary" id="queue-render">Queue render</button>
+              <button id="queue-preview">Quick preview</button>
+              <button id="queue-all">All platforms</button>
+            </div>
+            <small class="muted" id="render-hint"></small>
+          </div>
+        </div>
+        <div class="panel grow"><div class="panel-head"><h2>Queue</h2></div><div class="panel-body"><div class="list" id="jobs"></div></div></div>
+        <div class="panel" style="height:30%"><div class="panel-head"><h2>Log</h2></div><div class="log" id="log"></div></div>
+      </div>
+      <div class="col">
+        <div class="panel" style="max-height:38%">
+          <div class="panel-head"><h2>Autopilot</h2><span><button class="small" id="ap-plan">Plan tomorrow</button> <button class="small" id="ap-run">Produce now</button> <button class="small" id="ap-due">Publish due</button></span></div>
+          <div class="panel-body"><div class="list" id="autopilot"></div><small class="muted">2 Shorts + 1 long per day from <span class="kbd">automation/topics.md</span>; install the nightly job with <span class="kbd">npm run autopilot:install</span>.</small></div>
+        </div>
+        <div class="panel grow">
+          <div class="panel-head"><h2>Outputs</h2><button class="small" id="refresh-out">Refresh</button></div>
+          <div class="panel-body"><div class="gallery" id="outputs"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
 </div>
 
-<div class="view pad" id="view-upload">
-  <div class="planbar">
-    <select id="up-week" style="max-width:320px"></select>
-    <select id="up-ep" style="max-width:420px"></select>
-    <button class="small" id="up-refresh">Refresh</button>
-    <a id="up-md" href="#"><button class="small">Download UPLOAD-DETAILS.md</button></a>
-    <button class="small" id="up-open">Open saved folder</button>
-  </div>
-  <div id="up-body"><small class="muted">Pick an episode.</small></div>
-</div>
+<div class="modal" id="player"><div class="box wide">
+  <div class="row" style="margin:0"><b id="pl-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button class="small" id="pl-reveal">Reveal in Finder</button><a id="pl-dl" href="#" download><button class="small">Download</button></a><button class="small" id="pl-close">Close</button></div>
+  <div class="stage" id="pl-stage"></div>
+</div></div>
+
+<div class="modal" id="editor-section"><div class="box wide">
+  <div class="row" style="margin:0"><b style="flex:1">Edit <span id="editor-id" class="muted"></span></b><button class="small primary" id="save-script">Save</button><button class="small" id="close-editor">Close</button></div>
+  <textarea id="editor" style="flex:1;min-height:50vh"></textarea>
+  <small class="muted" id="editor-msg"></small>
+</div></div>
+
+<div class="modal" id="analyze-section"><div class="box wide">
+  <b>New script from text</b>
+  <div class="row"><input type="text" id="an-id" placeholder="videoId (e.g. launch-teaser)" /><select id="an-pacing"><option value="fast">fast</option><option value="medium">medium</option><option value="calm">calm</option></select></div>
+  <div class="row"><input type="text" id="an-logo" placeholder="logo text (optional)" /><select id="an-voice"><option value="young-male-pro">young-male-pro</option><option value="young-male-hype">young-male-hype</option><option value="male-deep-narrator">male-deep-narrator</option><option value="female-warm">female-warm</option><option value="female-energetic">female-energetic</option></select></div>
+  <div class="row"><select id="an-grade"><option value="none">grade: none</option><option value="teal-orange">teal-orange</option><option value="warm-film">warm-film</option><option value="cool-noir">cool-noir</option><option value="vibrant-pop">vibrant-pop</option><option value="bleach-bypass">bleach-bypass</option><option value="matte-fade">matte-fade</option><option value="neon-night">neon-night</option></select><select id="an-music"><option value="">music: none</option><option value="energetic-tech">energetic-tech</option><option value="hype">hype</option><option value="corporate">corporate</option><option value="cinematic">cinematic</option><option value="lofi">lofi</option><option value="ambient">ambient</option><option value="luxury">luxury</option></select></div>
+  <textarea id="an-text" placeholder="# Title&#10;&#10;## Hook headline&#10;Voiceover sentence with a **highlight** word.&#10;&#10;## Data scene&#10;- Label: 42%&#10;- Other: 31%&#10;- Third: 27%&#10;&#10;[neon] A punchy one-liner. (delivery: excited)"></textarea>
+  <div class="row" style="margin:0"><button class="primary" id="an-run">Analyze → script JSON</button><button id="an-close">Close</button></div>
+  <small class="muted">Runs scripts/analyze-script.mjs. Claude Code usually writes this text; paste it here or run <span class="kbd">npm run analyze -- file.md --id name</span>.</small>
+</div></div>
 
 <div class="modal" id="browser">
   <div class="box">
     <b id="br-title">Choose a folder</b>
-    <div class="chips" id="br-roots" style="margin-top:8px"></div>
+    <div class="chips" id="br-roots"></div>
     <div class="row" style="margin:0"><input type="text" id="br-dir" /><button class="small" id="br-up">Up</button></div>
     <div class="entries" id="br-list"></div>
     <div class="row" style="margin:0"><button class="primary" id="br-ok">Use this folder</button><button id="br-new">New folder…</button><button id="br-cancel">Cancel</button></div>
   </div>
 </div>
-
-<main class="view" id="view-control">
-  <div>
-    <section>
-      <h2>Scripts <button class="small" id="new-script">New from text</button></h2>
-      <div class="list" id="scripts"></div>
-    </section>
-    <section id="editor-section" style="display:none">
-      <h2>Edit <span id="editor-id" class="muted"></span> <span><button class="small" id="save-script">Save</button> <button class="small" id="close-editor">Close</button></span></h2>
-      <textarea id="editor"></textarea>
-      <small class="muted" id="editor-msg"></small>
-    </section>
-    <section id="analyze-section" style="display:none">
-      <h2>New script from text</h2>
-      <div class="row"><input type="text" id="an-id" placeholder="videoId (e.g. launch-teaser)" /><select id="an-pacing"><option value="fast">fast</option><option value="medium">medium</option><option value="calm">calm</option></select></div>
-      <div class="row"><input type="text" id="an-logo" placeholder="logo text (optional)" /><select id="an-voice"><option value="young-male-pro">young-male-pro</option><option value="young-male-hype">young-male-hype</option><option value="male-deep-narrator">male-deep-narrator</option><option value="female-warm">female-warm</option><option value="female-energetic">female-energetic</option></select></div>
-      <div class="row"><select id="an-grade"><option value="none">grade: none</option><option value="teal-orange">teal-orange</option><option value="warm-film">warm-film</option><option value="cool-noir">cool-noir</option><option value="vibrant-pop">vibrant-pop</option><option value="bleach-bypass">bleach-bypass</option><option value="matte-fade">matte-fade</option><option value="neon-night">neon-night</option></select><select id="an-music"><option value="">music: none</option><option value="energetic-tech">energetic-tech</option><option value="hype">hype</option><option value="corporate">corporate</option><option value="cinematic">cinematic</option><option value="lofi">lofi</option><option value="ambient">ambient</option><option value="luxury">luxury</option></select></div>
-      <textarea id="an-text" placeholder="# Title&#10;&#10;## Hook headline&#10;Voiceover sentence with a **highlight** word.&#10;&#10;## Data scene&#10;- Label: 42%&#10;- Other: 31%&#10;- Third: 27%&#10;&#10;[neon] A punchy one-liner. (delivery: excited)"></textarea>
-      <div class="row"><button class="primary" id="an-run">Analyze → script JSON</button><button id="an-close">Close</button></div>
-      <small class="muted">Runs scripts/analyze-script.mjs. Claude Code usually writes this text; paste it here or save it as a file and run <span class="kbd">npm run analyze -- file.md --id name</span>.</small>
-    </section>
-  </div>
-
-  <div>
-    <section>
-      <h2>Render <span><button class="small" id="refresh-comps">Refresh compositions</button></span></h2>
-      <div class="row"><select id="comp"></select><input type="text" id="frames" placeholder="frames e.g. 0-300 (blank = all)" /></div>
-      <div class="chips" id="presets"></div>
-      <div class="row">
-        <button class="primary" id="queue-render">Queue render</button>
-        <button id="queue-preview">Quick preview (half size, all frames)</button>
-        <button id="queue-all">All platforms</button>
-      </div>
-      <small class="muted" id="render-hint"></small>
-    </section>
-    <section>
-      <h2>Queue</h2>
-      <div class="list" id="jobs"></div>
-    </section>
-    <section>
-      <h2>Log</h2>
-      <div class="log" id="log"></div>
-    </section>
-  </div>
-
-  <div>
-    <section>
-      <h2>Autopilot <span><button class="small" id="ap-plan">Plan tomorrow</button> <button class="small" id="ap-run">Produce now</button> <button class="small" id="ap-due">Publish due</button></span></h2>
-      <div class="list" id="autopilot"></div>
-      <small class="muted">2 Shorts + 1 long per day from <span class="kbd">automation/topics.md</span>; scripts by Claude Code headless, uploads scheduled per platform. Install the nightly job with <span class="kbd">npm run autopilot:install</span>.</small>
-    </section>
-    <section>
-      <h2>Outputs <span><button class="small" id="refresh-out">Refresh</button></span></h2>
-      <div class="list" id="outputs"></div>
-    </section>
-  </div>
-</main>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -240,7 +302,7 @@ const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','
 
 function renderMachine() {
   const m = S.machine; if (!m.cores) return;
-  $('#project').textContent = ` ${S.project || ''} · ${m.chip || m.platform} · ${m.cores} cores · ${m.memoryGb} GB`;
+  $('#project').textContent = `${S.project || ''} · ${m.chip || m.platform} · ${m.cores} cores · ${m.memoryGb} GB`;
   const load = $('#g-load'); load.style.width = m.loadPercent+'%'; load.className = m.loadPercent > 85 ? 'bad' : m.loadPercent > 60 ? 'warn' : '';
   $('#t-load').textContent = `${m.loadPercent}% (${m.load1})`;
   const memPct = Math.round((m.freeMemoryGb / m.memoryGb) * 100);
@@ -250,9 +312,10 @@ function renderMachine() {
   th.style.width = (lim ?? 100)+'%'; th.className = lim == null ? '' : lim < 70 ? 'bad' : lim < 100 ? 'warn' : 'ok';
   $('#t-therm').textContent = lim == null ? 'n/a' : lim < 100 ? `throttled to ${lim}%` : 'full speed';
   $('#t-disk').textContent = m.freeDiskGb == null ? '–' : `${m.freeDiskGb} GB` + (m.freeDiskGb < 30 ? ' ⚠' : '');
+  $('#g-disk').className = m.freeDiskGb != null && m.freeDiskGb < 30 ? 'warn' : 'ok';
   const t4 = S.settings?.tested?.fourK;
   $('#t-conc').textContent = `${m.recommendedConcurrency} tabs 1080p · ${m.recommendedConcurrency4k} tabs 4K` + (t4 ? ` · tested best 4K: ${t4.best}` : '');
-  $('#t-hw').textContent = m.hardwareEncoder ? `hardware (${m.hardwareEncoder})` : 'hardware (unavailable)';
+  $('#t-hw').textContent = m.hardwareEncoder ? `HW encoder (${m.hardwareEncoder})` : 'HW encoder (n/a)';
   $('#hw').disabled = !m.hardwareEncoder;
 }
 function renderSettings() {
@@ -306,7 +369,16 @@ function renderScripts() {
     }
   });
 }
+function renderQueuePill() {
+  const active = S.jobs.find(j => ['bundling', 'selecting', 'rendering', 'running'].includes(j.status));
+  const waiting = S.jobs.filter(j => j.status === 'queued').length;
+  if (!active && !waiting) { $('#qpill').innerHTML = ''; return; }
+  const name = active ? (active.title || (active.kind === 'render' ? active.compositionId : active.task) || '') : '';
+  const pct = active ? Math.round((active.progress || 0) * 100) : 0;
+  $('#qpill').innerHTML = active ? `<span>▸ ${esc(name)} · ${pct}%${waiting ? ` · ${waiting} waiting` : ''}</span><span class="mini"><i style="width:${pct}%"></i></span>` : `<span>${waiting} waiting</span>`;
+}
 function renderJobs() {
+  renderQueuePill();
   $('#jobs').innerHTML = S.jobs.map(j => {
     const pct = Math.round((j.progress||0)*100);
     const title = j.kind === 'episode' ? `episode ${esc(j.title||'')}` : j.kind === 'speedtest' ? esc(j.title||'speed test') : j.kind === 'render' ? `${esc(j.compositionId)} · ${esc(j.preset)}${j.fourK?' · 4K':''}${j.frames?' · '+esc(j.frames):''}` : `${esc(j.task)} ${esc(j.options?.videoId||'')}`;
@@ -320,17 +392,32 @@ function renderJobs() {
   }).join('') || '<small class="muted">Nothing queued.</small>';
   document.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => api(`/api/jobs/${b.dataset.cancel}/cancel`, 'POST'));
 }
+const outUrl = (f) => '/out/' + f.split('/').map(encodeURIComponent).join('/');
 function renderOutputs() {
-  $('#outputs').innerHTML = S.outputs.slice(0, 12).map(o => `
-    <div class="item">
-      ${/\.(mp4|mov|webm)$/i.test(o.file) ? `<video controls preload="metadata" src="/out/${encodeURIComponent(o.file)}"></video>` : /\.(png|jpg)$/i.test(o.file) ? `<img src="/out/${encodeURIComponent(o.file)}" style="width:100%;border-radius:8px" />` : ''}
-      <div class="top" style="margin-top:6px"><b style="font-size:12px;word-break:break-all">${esc(o.file)}</b></div>
-      <small>${fmtBytes(o.size)} · ${new Date(o.mtime).toLocaleString()}</small>
-      <div class="row" style="margin:6px 0 0"><button class="small" data-reveal="${esc(o.file)}">Reveal in Finder</button><a class="small" href="/out/${encodeURIComponent(o.file)}" download><button class="small">Download</button></a><button class="small danger" data-del="${esc(o.file)}">Delete</button></div>
-    </div>`).join('') || '<small class="muted">No renders yet.</small>';
+  $('#outputs').innerHTML = S.outputs.slice(0, 60).map(o => {
+    const isVideo = /\.(mp4|mov|webm)$/i.test(o.file); const isImg = /\.(png|jpg)$/i.test(o.file);
+    return `<div class="card">
+      <div class="frame" data-play="${esc(o.file)}">${isVideo ? `<video preload="metadata" muted src="${outUrl(o.file)}#t=1.5"></video><span class="play">▶</span>` : isImg ? `<img loading="lazy" src="${outUrl(o.file)}" />` : '<small class="muted">file</small>'}</div>
+      <div class="meta"><b title="${esc(o.file)}">${esc(o.file.split('/').pop())}</b><small>${esc(o.file.includes('/') ? o.file.split('/')[0] + ' · ' : '')}${fmtBytes(o.size)} · ${new Date(o.mtime).toLocaleDateString(undefined, {day: 'numeric', month: 'short'})}</small></div>
+      <div class="acts"><button data-reveal="${esc(o.file)}" title="Reveal in Finder">Finder</button><a href="${outUrl(o.file)}" download><button>Save</button></a><button class="danger" data-del="${esc(o.file)}" title="Delete">Delete</button></div>
+    </div>`;
+  }).join('') || '<small class="muted">No renders yet.</small>';
+  document.querySelectorAll('[data-play]').forEach(el => el.onclick = () => openPlayer(el.dataset.play));
   document.querySelectorAll('[data-reveal]').forEach(b => b.onclick = () => api('/api/reveal','POST',{file:b.dataset.reveal}));
   document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (confirm('Delete '+b.dataset.del+'?')) { const r = await api('/api/outputs/'+encodeURIComponent(b.dataset.del),'DELETE'); S.outputs = r.outputs; renderOutputs(); } });
 }
+function openPlayer(file) {
+  const isVideo = /\.(mp4|mov|webm)$/i.test(file);
+  $('#pl-title').textContent = file;
+  $('#pl-stage').innerHTML = isVideo ? `<video controls autoplay src="${outUrl(file)}"></video>` : `<img src="${outUrl(file)}" />`;
+  $('#pl-dl').href = outUrl(file);
+  $('#pl-reveal').onclick = () => api('/api/reveal', 'POST', {file});
+  $('#player').classList.add('on');
+}
+function closePlayer() { $('#pl-stage').innerHTML = ''; $('#player').classList.remove('on'); }
+$('#pl-close').onclick = closePlayer;
+$('#player').onclick = (e) => { if (e.target.id === 'player') closePlayer(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePlayer(); $('#editor-section').classList.remove('on'); $('#analyze-section').classList.remove('on'); } });
 function renderAutopilot() {
   const q = S.queue;
   if (!q) { $('#autopilot').innerHTML = '<small class="muted">No automation/queue.json yet. Click "Plan tomorrow" or run <span class="kbd">npm run autopilot -- plan</span>.</small>'; return; }
@@ -345,7 +432,7 @@ function renderAutopilot() {
   document.querySelectorAll('[data-ap-run]').forEach(b => b.onclick = () => api('/api/tasks','POST',{task:'autopilot-run', options:{id:b.dataset.apRun}}));
 }
 function renderStudio() {
-  $('#studio-btn').textContent = S.studio.running ? 'Stop' : 'Start';
+  $('#studio-btn').textContent = S.studio.running ? 'Stop Studio' : 'Start Studio';
   const a = $('#studio-link'); if (S.studio.url) { a.href = S.studio.url; a.style.display = 'inline'; } else a.style.display = 'none';
 }
 function appendLog(e) {
@@ -361,7 +448,7 @@ function renderAll() { renderMachine(); renderSettings(); renderComps(); renderS
 
 async function openEditor(id) {
   const res = await fetch('/api/scripts/'+encodeURIComponent(id)); const text = await res.text();
-  $('#editor').value = JSON.stringify(JSON.parse(text), null, 2); $('#editor-id').textContent = id; $('#editor-msg').textContent = ''; $('#editor-section').style.display = 'block';
+  $('#editor').value = JSON.stringify(JSON.parse(text), null, 2); $('#editor-id').textContent = id; $('#editor-msg').textContent = ''; $('#editor-section').classList.add('on');
 }
 $('#save-script').onclick = async () => {
   const id = $('#editor-id').textContent; let body;
@@ -370,9 +457,9 @@ $('#save-script').onclick = async () => {
   $('#editor-msg').textContent = r.ok ? 'Saved. Studio and calculateMetadata pick it up on reload.' : r.error;
   refresh();
 };
-$('#close-editor').onclick = () => $('#editor-section').style.display = 'none';
-$('#new-script').onclick = () => $('#analyze-section').style.display = 'block';
-$('#an-close').onclick = () => $('#analyze-section').style.display = 'none';
+$('#close-editor').onclick = () => $('#editor-section').classList.remove('on');
+$('#new-script').onclick = () => $('#analyze-section').classList.add('on');
+$('#an-close').onclick = () => $('#analyze-section').classList.remove('on');
 $('#an-run').onclick = async () => {
   const id = $('#an-id').value.trim(); const text = $('#an-text').value;
   if (!id || !text.trim()) return alert('videoId and text are required');
@@ -550,12 +637,12 @@ async function generate(ep, f) {
   const videos = Object.entries(f.videos).filter(([, v]) => v.on && v.ratios.length).map(([variant, v]) => ({variant, ratios: v.ratios}));
   if (!videos.length) { $('#ep-msg').textContent = 'Tick at least one video and one aspect ratio.'; return; }
   const r = await api('/api/episodes/generate', 'POST', {episodeId: ep.id, videos, outDir: f.outDir, voiceProvider: f.voiceProvider, music: f.music, writer: f.writer, fourK: f.fourK, hw: f.hw, regenerate: f.regenerate});
-  $('#ep-msg').textContent = r.error ? r.error : `Queued job #${r.id}: ${videos.map(v => v.variant + ' ' + v.ratios.join('+')).join(', ')} → ${f.outDir}`;
+  $('#ep-msg').textContent = r.error ? r.error : `Queued ${r.jobs.length} video${r.jobs.length > 1 ? 's' : ''}, one after another: ${r.jobs.map(j => j.title).join(' → ')}. Saved to ${f.outDir}`;
 }
 
 $('#week-all').onclick = async () => {
   const w = P.weeks.find(x => x.number === selWeek); if (!w) return;
-  if (!confirm(`Queue all ${w.episodes.length} episodes of week ${w.number} (${w.episodes.length * 3} videos) with their default ratios? They run one after another.`)) return;
+  if (!confirm(`Queue all ${w.episodes.length} episodes of week ${w.number} (${w.episodes.reduce((n, e) => n + e.videos.length, 0)} videos) with their default ratios? They render one video at a time, in order.`)) return;
   for (const ep of w.episodes) {
     const f = formFor(ep);
     const videos = Object.entries(f.videos).filter(([, v]) => v.on && v.ratios.length).map(([variant, v]) => ({variant, ratios: v.ratios}));
@@ -647,17 +734,18 @@ function platCard(title, platform, v, body) {
 function renderUpload() {
   COPY.length = 0;
   if (!D || D.error) { $('#up-body').innerHTML = `<small class="muted">${esc(D?.error || 'Pick an episode.')}</small>`; return; }
-  $('#up-body').innerHTML = `<h2 style="margin:4px 0 12px">${esc(D.id.toUpperCase())} · ${esc(D.topic)} <small class="muted">· Week ${D.week.number}: ${esc(D.week.title)} · playlist "${esc(D.week.playlist || '')}"</small></h2>` + D.videos.map(v => {
+  $('#up-body').innerHTML = `<h2 style="margin:0">${esc(D.id.toUpperCase())} · ${esc(D.topic)} <small class="muted">· Week ${D.week.number}: ${esc(D.week.title)} · playlist "${esc(D.week.playlist || '')}"</small></h2>` + D.videos.map(v => {
     const p = v.pack?.platforms;
-    const media = `<section>
-        <h2>${esc(VARIANT_LABEL[v.variant] || v.variant)} <small class="muted">${esc(v.time || '')}</small></h2>
-        ${v.videos.map(f => `<div style="margin-bottom:8px"><video controls preload="metadata" src="/out/${f.file.split('/').map(encodeURIComponent).join('/')}"></video><small class="muted">${esc(f.ratio)} · ${esc(f.file.split('/').pop())}</small></div>`).join('') || '<small class="muted">No video yet.</small>'}
-        <div class="thumbs">${v.thumbnails.map(t => `<a href="/out/${t.split('/').map(encodeURIComponent).join('/')}" target="_blank"><img src="/out/${t.split('/').map(encodeURIComponent).join('/')}" /></a>`).join('')}</div>
+    const media = `<div class="panel">
+      <div class="panel-head"><h2>${esc(VARIANT_LABEL[v.variant] || v.variant)}</h2><small class="muted">${esc(v.time || '')}</small></div>
+      <div class="panel-body" style="overflow:visible">
+        ${v.videos.map(f => `<div style="margin-bottom:10px"><div class="player"><video controls preload="metadata" src="${outUrl(f.file)}"></video></div><div class="row" style="margin:6px 0 0"><small class="muted" style="flex:1">${esc(f.ratio)} · ${esc(f.file.split('/').pop())}</small><button class="small" data-play="${esc(f.file)}">Open large</button></div></div>`).join('') || '<small class="muted">No video yet.</small>'}
+        <div class="thumbs">${v.thumbnails.map(t => `<a href="${outUrl(t)}" data-play="${esc(t)}"><img loading="lazy" src="${outUrl(t)}" /></a>`).join('')}</div>
         ${v.when ? `<small class="muted" style="display:block;margin-top:8px">Scheduled slot: ${esc(v.when.replace('T', ' ').slice(0, 16))}</small>` : ''}
         ${v.exported ? `<small class="muted" style="display:block;margin-top:4px">Saved in ${esc(v.exported)}</small>` : ''}
-        ${v.srt ? `<a href="/out/${v.srt.split('/').map(encodeURIComponent).join('/')}" download><button class="small" style="margin-top:8px">Captions .srt</button></a>` : ''}
-      </section>`;
-    if (!p) return `<div class="up-grid">${media}<section><small class="muted">No upload details yet. Generate this video on the Episodes tab; titles, descriptions, tags and hashtags are written for every platform.</small></section></div>`;
+        ${v.srt ? `<a href="${outUrl(v.srt)}" download><button class="small" style="margin-top:8px">Captions .srt</button></a>` : ''}
+      </div></div>`;
+    if (!p) return `<div class="up-row">${media}<div class="panel"><div class="panel-body"><small class="muted">No upload details yet. Generate this video on the Episodes tab; titles, descriptions, tags and hashtags are written for every platform.</small></div></div></div>`;
     let cards = '';
     if (v.kind === 'long') {
       const yt = p.youtube;
@@ -669,8 +757,9 @@ function renderUpload() {
       cards += platCard('Instagram Reels', 'instagram', v, copyable('Caption', p.instagram.caption, ` · ${p.instagram.caption.length}/2200`) + `<small class="muted">Cover: cover.jpg · share to feed on</small>`);
       cards += platCard('Facebook Reels', 'facebook', v, copyable('Title', p.facebook.title) + copyable('Description', p.facebook.description));
     }
-    return `<div class="up-grid">${media}<div>${cards}</div></div>`;
+    return `<div class="up-row">${media}<div>${cards}</div></div>`;
   }).join('');
+  document.querySelectorAll('#up-body [data-play]').forEach(b => b.onclick = (e) => { e.preventDefault(); openPlayer(b.dataset.play); });
   document.querySelectorAll('[data-copy]').forEach(b => b.onclick = async () => {
     try { await navigator.clipboard.writeText(COPY[Number(b.dataset.copy)]); b.textContent = 'Copied'; b.classList.add('copied'); setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1400); } catch { alert('Clipboard blocked by the browser; select the text and copy it.'); }
   });
