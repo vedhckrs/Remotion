@@ -40,21 +40,6 @@ import {elevenLabsAlignmentToCaptions, shiftCaptions} from './lib/alignment.mjs'
 loadEnv();
 const args = parseArgs(process.argv.slice(2));
 
-if (!args.script) {
-  console.error('Usage: node scripts/generate-voiceover.mjs --script public/script/<videoId>.json [--provider elevenlabs|openai|macos] [--only scene-01] [--gap 0.6] [--trim]');
-  process.exit(1);
-}
-
-const script = loadScript(args.script);
-const provider = args.provider || script.voice?.provider || 'elevenlabs';
-const gap = Number(args.gap ?? 0.6);
-const outDir = path.resolve(args.out || path.join('public', 'voiceover', script.videoId));
-const only = args.only ? String(args.only).split(',').map((s) => s.trim()) : null;
-const manifestFile = path.join(outDir, 'manifest.json');
-const previous = readManifest(manifestFile);
-
-fs.mkdirSync(outDir, {recursive: true});
-
 const DEFAULTS = {
   elevenlabs: {
     voiceId: 'JBFqnCBsd6RMkjVDRZzb', // "George", a warm narrator. Replace per brief.
@@ -107,12 +92,35 @@ const fetchVoices = async () => {
 };
 
 if (args['list-voices']) {
-  const voices = await fetchVoices();
+  let voices;
+  try {
+    voices = await fetchVoices();
+  } catch (error) {
+    console.error(`Could not list ElevenLabs voices: ${error.message}`);
+    if (/\b401\b/.test(error.message)) console.error('Check ELEVENLABS_API_KEY in .env: the key is wrong, revoked, or lacks the "Voices: read" permission.');
+    process.exit(1);
+  }
   voices.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
   for (const v of voices) console.log(`${v.id}  ${v.name.padEnd(18)} ${(v.category || '').padEnd(12)} ${[v.gender, v.age, v.accent, v.useCase].filter(Boolean).join(' / ')}`);
   console.log(`\n${voices.length} voices. Use --voice <id> or a preset: ${Object.keys(VOICE_PRESETS).join(', ')}`);
   process.exit(0);
 }
+
+// Everything below needs a script; --list-voices above does not.
+if (!args.script) {
+  console.error('Usage: node scripts/generate-voiceover.mjs --script public/script/<videoId>.json [--provider elevenlabs|openai|macos] [--only scene-01] [--gap 0.6] [--trim]');
+  process.exit(1);
+}
+
+const script = loadScript(args.script);
+const provider = args.provider || script.voice?.provider || 'elevenlabs';
+const gap = Number(args.gap ?? 0.6);
+const outDir = path.resolve(args.out || path.join('public', 'voiceover', script.videoId));
+const only = args.only ? String(args.only).split(',').map((s) => s.trim()) : null;
+const manifestFile = path.join(outDir, 'manifest.json');
+const previous = readManifest(manifestFile);
+
+if (!args['dry-run']) fs.mkdirSync(outDir, {recursive: true});
 
 const presetName = args['voice-preset'] || script.voice?.preset;
 const preset = presetName ? VOICE_PRESETS[presetName] : null;
