@@ -46,44 +46,67 @@ const Headline: React.FC<{readonly text: string; readonly highlight?: string; re
   );
 };
 
-/** Word-timed captions: the phrase being spoken, active word in the accent. Chunks are cut at pauses and length. */
+type Word = {readonly text: string; readonly start: number; readonly end: number};
+
+/**
+ * Subtitle pages of 2-3 words. A page never runs across a sentence or clause break or a pause, never leaves one
+ * word alone when it can be avoided (4 -> 2 + 2), and stays within `maxChars` so it fits on one small line.
+ */
+export const subtitlePages = (words: readonly Word[], maxChars: number): Word[][] => {
+  const phrases: Word[][] = [];
+  let cur: Word[] = [];
+  words.forEach((w, i) => {
+    cur.push(w);
+    const next = words[i + 1];
+    if (!next || /[.!?;:,]["”’)]?$/.test(w.text) || next.start - w.end > 0.3) {
+      phrases.push(cur);
+      cur = [];
+    }
+  });
+  const pages: Word[][] = [];
+  const len = (p: Word[]) => p.map((w) => w.text).join(' ').length;
+  for (const phrase of phrases) {
+    let rest = phrase;
+    while (rest.length) {
+      let take = rest.length <= 3 ? rest.length : rest.length === 4 ? 2 : 3;
+      while (take > 1 && len(rest.slice(0, take)) > maxChars) take--;
+      pages.push(rest.slice(0, take));
+      rest = rest.slice(take);
+    }
+  }
+  return pages;
+};
+
+/** Sentence case: lower case except the first letter; acronyms and names with inner capitals (CDN, Wi-Fi, YouTube) and "I" stay as written. Trailing . , ; : are dropped. */
+export const subtitleText = (page: readonly Word[]) =>
+  page
+    .map((w, i) => {
+      let t = w.text.replace(/[.,;:]+(["”’)]?)$/, '$1');
+      const keep = (t.match(/[A-Z]/g) ?? []).length >= 2 || /^I(['’]|$)/.test(t);
+      if (!keep) t = t.toLowerCase();
+      if (i === 0) t = t.replace(/[a-z]/, (c) => c.toUpperCase());
+      return t;
+    })
+    .join(' ');
+
+/**
+ * Subtitles: one short line, white text on a 70% black box, centred, bottom edge 20% up from the bottom of the
+ * frame (above the Shorts title and channel UI). Timed from the measured voice.
+ */
 const Captions: React.FC<{readonly scene: TimedScene; readonly vertical: boolean}> = ({scene, vertical}) => {
   const frame = useCurrentFrame();
   const L = vertical ? LAYOUT.port : LAYOUT.land;
   if (!scene.voice || !scene.voice.words.length) return null;
   const t = frame / FPS - LEAD_SECONDS;
-  const maxWords = vertical ? 4 : 9;
-  const chunks: {start: number; end: number; words: typeof scene.voice.words}[] = [];
-  let cur: typeof scene.voice.words[number][] = [];
-  scene.voice.words.forEach((w, i, all) => {
-    cur.push(w);
-    const next = all[i + 1];
-    const pause = next ? next.start - w.end > 0.35 : true;
-    const punct = /[.!?;:,]$/.test(w.text);
-    if (cur.length >= maxWords || pause || (punct && cur.length >= (vertical ? 2 : 4)) || !next) {
-      chunks.push({start: cur[0].start, end: cur[cur.length - 1].end, words: cur});
-      cur = [];
-    }
-  });
-  const idx = chunks.findIndex((c, i) => t >= c.start - 0.05 && t < (chunks[i + 1]?.start ?? c.end + 0.4));
+  const pages = subtitlePages(scene.voice.words, L.captions.maxChars);
+  const idx = pages.findIndex((p, i) => t >= p[0].start - 0.05 && t < Math.min(pages[i + 1]?.[0].start ?? Infinity, p[p.length - 1].end + 0.35));
   if (idx < 0) return null;
-  const chunk = chunks[idx];
-  const size = L.captions.size;
-  const text = chunk.words.map((w) => w.text).join(' ');
-  const fitted = fitSize(text, size, L.captions.w - size, 700);
-  const appear = clamp((t - chunk.start + 0.05) / 0.12);
+  const text = subtitleText(pages[idx]);
+  const size = fitSize(text, L.captions.size, L.w * 0.8, 500);
   return (
-    <div style={{position: 'absolute', left: (L.w - L.captions.w) / 2 - (vertical ? 36 : 0), width: L.captions.w, top: L.captions.y, display: 'flex', justifyContent: 'center', opacity: appear}}>
-      <div style={{background: 'rgba(8,11,22,0.86)', borderRadius: size * 0.42, padding: `${size * 0.22}px ${size * 0.5}px`, fontFamily: FONT.body, fontWeight: 700, fontSize: fitted, lineHeight: 1.2, color: C.text, textAlign: 'center', maxWidth: L.captions.w}}>
-        {chunk.words.map((w, i) => {
-          const active = t >= w.start && t < w.end + 0.05;
-          return (
-            <span key={i} style={{color: active ? C.accent : t >= w.end ? C.text : 'rgba(245,247,251,0.55)'}}>
-              {i ? ' ' : ''}
-              {w.text}
-            </span>
-          );
-        })}
+    <div style={{position: 'absolute', left: 0, right: 0, bottom: L.h * L.captions.bottom, display: 'flex', justifyContent: 'center'}}>
+      <div style={{background: 'rgba(0,0,0,0.7)', color: '#FFFFFF', fontFamily: FONT.body, fontWeight: 500, fontSize: size, lineHeight: 1.25, padding: `${Math.round(size * 0.24)}px ${Math.round(size * 0.55)}px`, borderRadius: Math.round(size * 0.18), whiteSpace: 'nowrap', letterSpacing: 0.1}}>
+        {text}
       </div>
     </div>
   );

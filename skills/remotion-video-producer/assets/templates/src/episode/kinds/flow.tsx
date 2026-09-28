@@ -30,7 +30,8 @@ export const Flow: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
   const H = h - badgeSpace;
 
   // Tile size: large enough to read on a phone, small enough for the longest row.
-  const size = layout === 'free' || layout === 'tree' ? (vertical ? 132 : n <= 4 ? 140 : 124) : vertical ? (layout === 'column' ? Math.min(150, ((H - 40) / Math.max(1, n)) * 0.66) : layout === 'hub' ? 140 : n <= 2 ? 220 : 190) : n <= 3 ? 160 : n <= 5 ? 136 : 112;
+  // A landscape tree stacks two rows plus labels in H, so its tiles follow the height available.
+  const size = layout === 'tree' && !vertical ? Math.min(140, Math.max(96, (H - 130) / 2)) : layout === 'free' || layout === 'tree' ? (vertical ? 132 : n <= 4 ? 140 : 124) : vertical ? (layout === 'column' ? Math.min(150, ((H - 40) / Math.max(1, n)) * 0.66) : layout === 'hub' ? 140 : n <= 2 ? 220 : 190) : n <= 3 ? 160 : n <= 5 ? 136 : 112;
 
   const place = (i: number, node: FlowNode): Pt => {
     const c = custom[node.id];
@@ -41,10 +42,13 @@ export const Flow: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
     }
     if (layout === 'tree') {
       // Root on top, branches in a row underneath, in both ratios.
-      if (i === 0) return [w / 2, H * 0.2];
+      // Landscape: root tile at the top, branches below the root's label (it needs ~86 px), so a short diagram
+      // area never stacks a branch over the root label.
+      const rootY = vertical ? H * 0.2 : size / 2 + 4;
+      if (i === 0) return [w / 2, rootY];
       const k = n - 1;
       const j = i - 1;
-      return [vertical ? w * ((j + 0.5) / k) : w * (0.18 + (0.64 * (j + 0.5)) / k), H * 0.72];
+      return [vertical ? w * ((j + 0.5) / k) : w * (0.18 + (0.64 * (j + 0.5)) / k), vertical ? H * 0.72 : Math.max(H * 0.72, rootY + size + 86)];
     }
     if (layout === 'hub') {
       if (i === 0) return [w / 2, H / 2];

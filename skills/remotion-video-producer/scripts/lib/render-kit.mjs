@@ -53,6 +53,12 @@ export const rendererHash = (project) => {
   return sha256([RENDERER_VERSION, hashTree(path.join(project, 'src', 'episode')), hashTree(path.join(project, 'public', 'fonts')), version].join('|'));
 };
 
+/** Bundle entry for package renders: only the episode compositions (offline). Older projects: the full root. */
+export const episodeEntry = (project) => {
+  const own = path.join(project, 'src', 'episode', 'entry.ts');
+  return fs.existsSync(own) ? own : path.join(project, 'src', 'index.ts');
+};
+
 export const loadRemotion = async (project) => {
   const {bundle} = await import(path.join(project, 'node_modules', '@remotion', 'bundler', 'dist', 'index.js'));
   const r = await import(path.join(project, 'node_modules', '@remotion', 'renderer', 'dist', 'index.js'));
@@ -69,6 +75,23 @@ export const tabsFor = (budget, fourK) => {
   let c = Math.max(1, Math.min(Math.floor((os.cpus().length * b) / 100), Math.floor(os.totalmem() / 2 ** 30 / 4)));
   if (fourK) c = Math.max(1, Math.floor(c / 2));
   return c;
+};
+
+/**
+ * Print a failure as one readable line ("ERROR <message>") that the dashboard shows as the reason, instead of
+ * Node's raw dump of a browser error object.
+ */
+export const readableErrors = () => {
+  const out = (e) => {
+    const msg = String(e?.message ?? e).split('\n').find((l) => l.trim()) ?? 'unknown error';
+    const where = e?.stackFrame?.[0] ? ` (${e.stackFrame[0].functionName || 'anonymous'} in ${String(e.stackFrame[0].fileName || '').split('/').pop()})` : '';
+    console.error(e?.stack ?? e); // full detail for the log
+    console.error(`ERROR ${msg}${where}`);
+    if (/Failed to fetch|ERR_|net::/i.test(msg)) console.error('ERROR hint: a file could not be loaded. Check that the package files exist and run "Check again" in the Library.');
+    process.exit(1);
+  };
+  process.on('unhandledRejection', out);
+  process.on('uncaughtException', out);
 };
 
 export const lowerPriority = () => {

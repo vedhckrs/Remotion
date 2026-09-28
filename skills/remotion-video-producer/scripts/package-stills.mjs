@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {parseArgs} from './lib/env.mjs';
 import {sha256, validatePackage} from './lib/package-schema.mjs';
-import {chromiumFor, loadRemotion, lowerPriority, packageId, rendererHash, syncPackage} from './lib/render-kit.mjs';
+import {chromiumFor, episodeEntry, loadRemotion, lowerPriority, readableErrors, packageId, rendererHash, syncPackage} from './lib/render-kit.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const src = path.resolve(String(args._[0] ?? ''));
@@ -22,6 +22,7 @@ if (!fs.existsSync(path.join(src, 'production.json')) || !fs.existsSync(path.joi
   process.exit(1);
 }
 lowerPriority();
+readableErrors();
 const report = validatePackage(src, {projectDir: project});
 // Stills need no voice or music (timing is estimated until the voice exists).
 if (report.errors.length) {
@@ -39,7 +40,7 @@ const rh = rendererHash(project);
 const {bundle, openBrowser, renderStill, selectComposition} = await loadRemotion(project);
 
 console.log('Bundling the project...');
-const serveUrl = await bundle({entryPoint: path.join(project, 'src', 'index.ts'), onProgress: () => undefined});
+const serveUrl = await bundle({entryPoint: episodeEntry(project), onProgress: () => undefined});
 const browser = await openBrowser('chrome', {chromiumOptions, logLevel: 'error'});
 // Cancel from the dashboard (SIGTERM) or Ctrl+C: close Chrome; finished scenes stay for the next run.
 for (const sig of ['SIGTERM', 'SIGINT']) {

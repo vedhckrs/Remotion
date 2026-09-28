@@ -115,7 +115,25 @@ The licence is stored in `music/credits.json`. Free sources checked in 2026:
 Beds are set to -14 LUFS; the renderer plays them at `level` (0.16 long, 0.2 Short) and ducks them to 40% under
 speech with 12-frame ramps.
 
+## Subtitles
+
+Every packaged video carries burned-in subtitles timed to the measured voice (`SceneFrame.tsx`, `LAYOUT.*.captions`
+in `theme.ts`):
+- one short line of **2-3 words**, never across a sentence or clause break or a pause, never a lone word when it
+  can be avoided (4 words -> 2 + 2), within `maxChars` (22 on 9:16, 30 on 16:9);
+- **sentence case**: lower case with the first letter capitalised; acronyms and names with inner capitals (CDN,
+  DNS, Wi-Fi, YouTube) and "I" stay as written; trailing . , ; : are dropped;
+- white Inter 500 on a **70% black box**, small (40 px on 1080x1920, 32 px on 1920x1080, doubled in 4K);
+- centred, the box's bottom edge **20% up from the bottom** of the frame, above the Shorts title and channel UI.
+  The 16:9 diagram area ends above it (y 290-740), and the 9:16 source note sits just above it.
+
+Change `size`, `bottom` or `maxChars` in `theme.ts` to adjust; every scene re-renders because the renderer code
+changed.
+
 ## Render, sound and QC
+
+Package renders bundle `src/episode/entry.ts`, which registers only the episode compositions: no web fonts, no
+network, so nothing outside the package can break a render. Studio keeps using `src/index.ts`.
 
 - Picture: `renderMedia` per scene (`frameRange`, muted), H.264 yuv420p bt709; 4K = scale 2 of the 1920x1080 /
   1080x1920 compositions. Hardware encoding (VideoToolbox) uses 60M (16:9) / 50M (9:16) at 4K.

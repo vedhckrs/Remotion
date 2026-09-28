@@ -47,8 +47,11 @@ export const LAYOUT = {
     eyebrow: {x: 112, y: 58},
     headline: {x: 112, y: 96, w: 1560, size: 84, maxLines: 2},
     subhead: {size: 30},
-    diagram: {x: 112, y: 318, w: 1696, h: 560},
-    captions: {y: 912, w: 1320, size: 38},
+    // Ends ~65 px above the subtitle line (its bottom edge sits 20% up from the bottom of the frame), leaving room
+    // for the labels drawn under a bottom row of nodes.
+    diagram: {x: 112, y: 290, w: 1696, h: 450},
+    // Subtitles: one small line, 2-3 words, `bottom` = distance of the box's bottom edge as a share of the height.
+    captions: {bottom: 0.2, size: 32, maxChars: 30},
     source: {right: 64, bottom: 30, size: 19},
   },
   port: {
@@ -58,8 +61,9 @@ export const LAYOUT = {
     subhead: {size: 34},
     // Kept clear of the Shorts right-hand rail (x > 972 from ~45% height) and the bottom caption/title UI.
     diagram: {x: 72, y: 540, w: 900, h: 720},
-    captions: {y: 1300, w: 900, size: 58},
-    source: {right: 112, bottom: 420, size: 22},
+    captions: {bottom: 0.2, size: 40, maxChars: 22},
+    // Just above the subtitle line, clear of the right-hand rail.
+    source: {right: 112, bottom: 480, size: 22},
   },
 } as const;
 export type Layout = (typeof LAYOUT)['land'] | (typeof LAYOUT)['port'];

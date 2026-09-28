@@ -152,6 +152,7 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
       const child = spawn(process.execPath, [path.join(SKILL_DIR, 'scripts', script), ...args], {cwd, env: {...process.env, REMOTION_GL: settings.gl}});
       cancelSignals.set(job.id, {cancel: () => child.kill('SIGTERM')});
       let last = '';
+      let reason = '';
       const onData = (d) => {
         for (const line of String(d).split('\n')) {
           if (!line.trim()) continue;
@@ -164,6 +165,8 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
             continue;
           }
           last = line.trim();
+          // The scripts print failures as "ERROR <message>"; that line (not Node's stack dump) is the reason.
+          if (/^ERROR /.test(last) && !/^ERROR hint:/.test(last)) reason = last.slice(6);
           log(step.key, line);
         }
       };
@@ -184,9 +187,9 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
           return resolve();
         }
         step.status = 'failed';
-        step.detail = last.slice(0, 300);
+        step.detail = (reason || last).slice(0, 300);
         send('jobs', jobs);
-        reject(new Error(`${step.label}: ${last || `exited with code ${code}`}`));
+        reject(new Error(`${step.label}: ${reason || last || `exited with code ${code}`}`));
       });
     });
 

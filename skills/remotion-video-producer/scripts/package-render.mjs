@@ -30,7 +30,7 @@ import {parseArgs} from './lib/env.mjs';
 import {RENDERER_VERSION, renderInputs, sha256, validatePackage} from './lib/package-schema.mjs';
 import {integratedLoudness, normalizeLoudness, peaks, readWav, writeWav} from './lib/audio.mjs';
 import {ffmpeg, ffmpegBuffer, ffprobe} from './lib/media.mjs';
-import {chromiumFor, loadRemotion, lowerPriority, packageId, rendererHash as rendererHashOf, syncPackage, tabsFor} from './lib/render-kit.mjs';
+import {chromiumFor, episodeEntry, loadRemotion, lowerPriority, readableErrors, packageId, rendererHash as rendererHashOf, syncPackage, tabsFor} from './lib/render-kit.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const src = path.resolve(String(args._[0] ?? ''));
@@ -44,10 +44,12 @@ if (!fs.existsSync(path.join(project, 'src', 'episode'))) {
   process.exit(1);
 }
 lowerPriority();
+readableErrors();
 
 const progress = (o) => console.log(`PROGRESS ${JSON.stringify(o)}`);
 const fail = (msg) => {
   console.error(`\n${msg}`);
+  console.error(`ERROR ${msg.replace(/\n\s*/g, ' ').slice(0, 280)}`);
   process.exit(1);
 };
 
@@ -86,7 +88,7 @@ const rendererHash = rendererHashOf(project);
 const {bundle, openBrowser, renderMedia, selectComposition} = await loadRemotion(project);
 
 console.log(`Bundling the project...`);
-const serveUrl = await bundle({entryPoint: path.join(project, 'src', 'index.ts'), onProgress: () => undefined});
+const serveUrl = await bundle({entryPoint: episodeEntry(project), onProgress: () => undefined});
 const browser = await openBrowser('chrome', {chromiumOptions, logLevel: 'error'});
 // Cancel from the dashboard (SIGTERM) or Ctrl+C: close Chrome; finished scenes stay for the next run.
 for (const sig of ['SIGTERM', 'SIGINT']) {
