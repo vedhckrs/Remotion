@@ -120,6 +120,40 @@
   .steps .s.done, .steps .s.skipped { color:#86efac; } .steps .s.running { color:#c9bcff; font-weight:600; } .steps .s.failed { color:#fca5a5; }
   .steps .s small { color:var(--dim); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%; }
 
+  /* library */
+  .lib-main { flex:1; min-height:0; display:grid; grid-template-columns: 280px minmax(0, 1fr) 360px; gap:12px; }
+  .lib-item { display:block; width:100%; text-align:left; padding:9px 11px; border-radius:10px; }
+  .lib-item + .lib-item { margin-top:6px; }
+  .lib-item.on { border-color:var(--accent); background:rgba(124,92,255,.14); }
+  .lib-item b { display:block; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lib-item small { display:block; font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lib-item .vs { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; }
+  .lib-week { font-size:10.5px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em; margin:12px 2px 6px; }
+  .lib-week:first-child { margin-top:0; }
+  .kv { display:grid; grid-template-columns: 92px minmax(0, 1fr); gap:4px 10px; font-size:12.5px; margin-top:10px; }
+  .kv span:nth-child(odd) { color:var(--muted); }
+  .kv .warnc { color:#fcd34d; } .kv .okc { color:#86efac; } .kv .badc { color:#fca5a5; }
+  .lvid { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  .lvid + .lvid { margin-top:10px; }
+  .lvid .head { display:flex; gap:8px; align-items:center; }
+  .lvid .head b { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .storyboard { display:flex; gap:6px; overflow-x:auto; padding:10px 0 4px; }
+  .storyboard a { flex:0 0 auto; display:block; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:#000; position:relative; }
+  .storyboard a img { display:block; height:92px; }
+  .storyboard a span { position:absolute; left:3px; top:3px; font-size:9.5px; background:rgba(0,0,0,.7); padding:0 4px; border-radius:4px; }
+  .scenes { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
+  .scenes td { border-top:1px solid var(--line); padding:6px 6px; vertical-align:top; }
+  .scenes td:first-child { color:var(--muted); white-space:nowrap; }
+  .scenes .nar { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .msgs { margin:10px 0 0; padding-left:18px; font-size:12.5px; }
+  .msgs.err li { color:#fca5a5; } .msgs.warn li { color:#fcd34d; }
+  audio { width:100%; height:32px; margin-top:8px; }
+  .genopt { display:flex; flex-direction:column; gap:8px; }
+  .genopt .line { display:flex; gap:8px; align-items:center; }
+  .genopt .line label.check { flex:1; }
+  .genopt select { width:auto; }
+  .hint { font-size:11.5px; color:var(--dim); }
+
   /* upload details */
   .upbar { flex:none; display:flex; gap:8px; align-items:center; }
   .upbar select { width:auto; max-width:340px; }
@@ -203,14 +237,28 @@
 </header>
 
 <nav class="tabs">
-  <button data-view="episodes" class="on">Episodes</button>
+  <button data-view="library" class="on">Library</button>
+  <button data-view="episodes">Episodes</button>
   <button data-view="upload">Upload details</button>
   <button data-view="control">Control room</button>
   <span class="qpill" id="qpill"></span>
 </nav>
 
 <main class="views">
-  <section class="view on" id="view-episodes">
+  <section class="view on" id="view-library">
+    <div class="planline"><b>Library</b><small class="muted" id="lib-root" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50vw"></small><button class="ghost small" id="lib-choose">Choose folder…</button><button class="ghost small" id="lib-import">Import zip…</button><button class="ghost small" id="lib-refresh">Refresh</button></div>
+    <div class="lib-main">
+      <div class="panel"><div class="panel-head"><h2>Topics</h2><small class="muted" id="lib-count"></small></div><div class="panel-body" id="lib-list"></div></div>
+      <div class="panel"><div class="panel-head"><h2 id="lib-head">Topic</h2><span class="fixed"><button class="small" id="lib-validate">Check again</button> <button class="small" id="lib-open">Open folder</button></span></div><div class="panel-body" id="lib-detail"><div class="empty">Pick a topic.</div></div></div>
+      <div class="col">
+        <div class="panel" style="flex:none"><div class="panel-head"><h2>Generate</h2><small class="muted">no Claude calls</small></div><div class="panel-body" id="lib-gen" style="overflow:visible"><div class="empty">Pick a topic.</div></div></div>
+        <div class="panel grow"><div class="panel-head"><h2>Progress</h2><small class="muted">one job at a time</small></div><div class="panel-body" id="lib-jobs"></div></div>
+        <div class="panel" style="height:26%"><div class="panel-head"><h2>Log</h2></div><div class="log" id="log3"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="view-episodes">
     <div class="planline"><b id="plan-title">Content plan</b><button class="ghost small" id="plan-choose">Choose plan…</button><small class="muted" id="plan-error"></small></div>
     <div class="strip" id="weeks"></div>
     <div class="strip" id="eps"></div>
@@ -368,7 +416,7 @@ function renderSettings() {
   $('#hw').checked = !!S.settings.hw; $('#fourk').checked = !!S.settings.fourK;
   $('#render-hint').textContent = `${preset} · ${S.settings.fourK ? '4K master' : 'native size'} · ${S.settings.hw && S.machine.hardwareEncoder ? S.machine.hardwareEncoder : 'x264'} · gl=${S.settings.gl || ''}`;
 }
-async function saveSettings(patch) { const r = await api('/api/settings', 'POST', patch); if (r.settings) { S.settings = r.settings; S.machine = r.machine || S.machine; } renderMachine(); renderSettings(); }
+async function saveSettings(patch) { const r = await api('/api/settings', 'POST', patch); if (r.settings) { S.settings = r.settings; S.machine = r.machine || S.machine; } renderMachine(); renderSettings(); if (PK) renderGen(); }
 $('#budget').oninput = () => { $('#t-budget').textContent = $('#budget').value + '%'; };
 $('#budget').onchange = () => saveSettings({budget: Number($('#budget').value)});
 $('#hw').onchange = () => saveSettings({hw: $('#hw').checked});
@@ -386,11 +434,12 @@ $('#studio-btn').onclick = async () => { const r = await api('/api/studio', 'POS
 
 // ---------------- tabs + queue pill ----------------
 function setView(v) {
-  if (!['episodes', 'upload', 'control'].includes(v)) v = 'episodes';
+  if (!['library', 'episodes', 'upload', 'control'].includes(v)) v = 'library';
   view = v; store.set('view', v);
   $$('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $$('.view').forEach(el => el.classList.toggle('on', el.id === 'view-' + v));
   if (v === 'upload') { syncUploadSelectors(); loadDetails(); }
+  if (v === 'library') loadLibrary();
 }
 $$('nav.tabs button').forEach(b => b.onclick = () => setView(b.dataset.view));
 function jobName(j) {
@@ -851,17 +900,187 @@ $('#an-run').onclick = async () => {
   $('#an-msg').textContent = 'Queued; watch the log.';
 };
 
+// ---------------- library ----------------
+let L = {items: []};
+let selPkg = store.get('pkg', null);
+let PK = null;
+const GEN = {};
+const libUrl = (id, rel) => `/lib/file?id=${encodeURIComponent(id)}&path=${encodeURIComponent(rel)}`;
+const STAGE_CLASS = {planned: 'script', researched: 'script', scripted: 'script', storyboarded: 'script', voiced: 'voiced', 'assets-ready': 'rendered', 'render-ready': 'rendered'};
+const RATIO_NAME = {'16:9': 'Long · 16:9', '9:16': 'Short · 9:16'};
+const secs = (s) => s == null ? '–' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+function renderStatus(r) {
+  if (!r) return '';
+  if (r.stale) return 'out of date';
+  return r.qc === 'passed' ? 'rendered' : r.qc === 'failed' ? 'QC failed' : 'rendered*';
+}
+async function loadLibrary() {
+  const r = await api('/api/library');
+  if (r.items) { L = r; renderLibList(); if (selPkg) loadPkg(selPkg, true); }
+}
+function renderLibList() {
+  $('#lib-root').textContent = L.root ? L.root + (L.exists ? '' : ' (not created yet)') : '';
+  $('#lib-count').textContent = L.items.length ? `${L.items.length} topic${L.items.length === 1 ? '' : 's'}` : '';
+  let week = undefined;
+  $('#lib-list').innerHTML = L.items.map(it => {
+    const head = it.week !== week ? `<div class="lib-week">${it.week != null ? 'Week ' + esc(it.week) : 'No week'}</div>` : '';
+    week = it.week;
+    const vs = Object.entries(it.videos).map(([v, x]) => { const st = renderStatus(x.render); return `<span class="st ${st === 'rendered' ? 'saved' : st ? 'script' : ''}" style="min-width:0">${esc(v)}${st ? ' · ' + esc(st) : ''}</span>`; }).join('');
+    return `${head}<button class="lib-item ${selPkg === it.id ? 'on' : ''}" data-pkg="${esc(it.id)}"><b>${esc(String(it.episode).toUpperCase())} · ${esc(it.title)}</b><small>${esc(fmtDate(it.date))}${it.date ? ' · ' : ''}${esc(it.id)}</small><div class="vs"><span class="st ${STAGE_CLASS[it.stage] || ''}" style="min-width:0">${esc(it.stage || 'invalid')}</span>${it.errors ? `<span class="st" style="min-width:0;color:#fca5a5">${it.errors} error${it.errors > 1 ? 's' : ''}</span>` : ''}${vs}</div></button>`;
+  }).join('') || `<div class="empty">No topic packages in this folder yet. Use <b>Import zip…</b> or <b>Choose folder…</b>.</div>`;
+  $$('#lib-list [data-pkg]').forEach(b => b.onclick = () => loadPkg(b.dataset.pkg));
+}
+async function loadPkg(id, quiet) {
+  selPkg = id; store.set('pkg', id);
+  $$('#lib-list [data-pkg]').forEach(b => b.classList.toggle('on', b.dataset.pkg === id));
+  if (!quiet) $('#lib-detail').innerHTML = '<div class="empty">Loading…</div>';
+  const d = await api('/api/library/details?id=' + encodeURIComponent(id));
+  if (d.error) { PK = null; $('#lib-detail').innerHTML = `<div class="empty">${esc(d.error)}</div>`; $('#lib-gen').innerHTML = ''; return; }
+  PK = d; renderPkg(); renderGen();
+}
+function lenClass(v, target) {
+  if (v == null || !target) return '';
+  return v < target[0] * 0.97 || v > target[1] * 1.03 ? 'warnc' : 'okc';
+}
+function renderPkg() {
+  const d = PK;
+  $('#lib-head').textContent = String(d.pkg.id || d.id).toUpperCase();
+  COPY.length = 0;
+  const vids = d.videos.map(v => {
+    const r = v.report || {};
+    const t = v.target;
+    const render = v.render ? `<span class="${v.report?.render?.stale ? 'warnc' : v.render.qc === 'passed' ? 'okc' : 'badc'}">${esc(v.render.width)}x${esc(v.render.height)} · QC ${esc(v.render.qc)}${v.report?.render?.stale ? ' · out of date' : ''} · ${fmtBytes(v.render.bytes)}</span> <button class="small" data-lplay="${esc(v.render.file)}">Play</button> <button class="small ghost" data-lreveal="${esc(v.render.file)}">Finder</button>` : '<span class="dim">not rendered</span>';
+    const draft = v.draft ? ` <button class="small ghost" data-lplay="${esc(v.draft.file)}">Play draft</button>` : '';
+    const voice = v.voice ? `${esc(v.voice.provider === 'elevenlabs' ? 'ElevenLabs' : v.voice.provider)} · ${v.voice.characters.toLocaleString()} characters · ${v.voice.chunks.length} file${v.voice.chunks.length > 1 ? 's' : ''}` : '<span class="dim">not voiced</span>';
+    const music = v.music ? (v.music.exists ? `${esc(v.music.credits?.source === 'import' ? (v.music.credits.title || v.music.credits.file) + ' · ' + v.music.credits.licence : `${v.music.credits?.style || ''} · ${v.music.credits?.key_signature || ''} · ${v.music.credits?.bpm || ''} BPM`)} · level ${v.music.level}` : '<span class="dim">not made yet</span>') : '<span class="dim">none</span>';
+    const stills = v.scenes.filter(s => s.still);
+    const qc = v.qc ? `<details class="more"><summary>QC · ${v.qc.checks.filter(c => c.pass).length}/${v.qc.checks.length} checks passed</summary>${v.qc.checks.map(c => `<div class="steps"><div class="s ${c.pass ? 'done' : c.level === 'error' ? 'failed' : 'running'}"><span>${c.pass ? '✓' : c.level === 'error' ? '✗' : '!'} ${esc(c.name)}</span><small title="${esc(c.detail)}">${esc(c.detail)}</small></div></div>`).join('')}</details>` : '';
+    const up = v.upload ? `<details class="more"><summary>Upload details</summary>${copyField('Title', v.upload.title)}${copyField('Description', v.upload.description)}${v.upload.tags ? copyField('Tags', (v.upload.tags || []).join(', ')) : ''}${v.upload.hashtags ? copyField('Hashtags', (v.upload.hashtags || []).join(' ')) : ''}</details>` : '';
+    const scenes = `<details class="more"><summary>Script · ${v.scenes.length} scenes</summary><table class="scenes">${v.scenes.map(s => `<tr><td>${esc(s.id)}<br><span class="dim">${esc(s.kind || '')}</span></td><td><b>${esc(String(s.headline).replace(/\n/g, ' '))}</b><div class="nar">${esc(s.narration)}</div>${s.sources.length ? `<div class="dim" style="font-size:11px">${esc(s.sources.join(', '))}</div>` : ''}</td></tr>`).join('')}</table></details>`;
+    return `<div class="lvid">
+      <div class="head"><b>${esc(RATIO_NAME[v.ratio] || v.id)} <span class="muted" style="font-weight:400">· ${esc(v.title || '')}</span></b></div>
+      <div class="kv">
+        <span>Length</span><span>target ${t ? secs(t[0]) + '–' + secs(t[1]) : '–'} · estimated ${secs(r.estimatedSeconds)} · <span class="${lenClass(r.measuredSeconds, t)}">voiced ${secs(r.measuredSeconds)}</span></span>
+        <span>Voice</span><span>${voice}</span>
+        <span>Music</span><span>${music}</span>
+        <span>Render</span><span>${render}${draft}</span>
+      </div>
+      ${v.music?.exists ? `<audio controls preload="none" src="${libUrl(d.id, v.music.file)}"></audio>` : ''}
+      ${stills.length ? `<div class="storyboard">${stills.map(s => `<a href="#" data-lstill="${esc(s.still)}" title="${esc(s.id + ' · ' + String(s.headline).replace(/\n/g, ' '))}"><img loading="lazy" src="${libUrl(d.id, s.still)}"><span>${esc(s.id)}</span></a>`).join('')}</div>` : '<div class="hint" style="margin-top:8px">No storyboard yet: tick “Storyboard stills” and Generate to check every scene before paying for the voice.</div>'}
+      ${qc}${up}${scenes}
+    </div>`;
+  }).join('');
+  const srcs = d.sources.length ? `<details class="more"><summary>Sources · ${d.sources.length}</summary>${d.sources.map(x => `<div style="font-size:12px;margin-bottom:6px"><b>${esc(x.id)}</b> ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title || x.url)}</a>` : esc(x.title || '')} <span class="dim">${esc(x.publisher || '')}</span></div>`).join('')}</details>` : '';
+  $('#lib-detail').innerHTML = `
+    <div class="ep-title">${esc(d.pkg.title || d.id)}</div>
+    <div class="row" style="margin-top:-8px"><span class="st ${STAGE_CLASS[d.stage] || ''}" style="flex:0 0 auto">${esc(d.stage || 'invalid')}</span><small class="muted">${esc(d.pkg.topic || '')}${d.pkg.date ? ' · ' + esc(fmtDate(d.pkg.date)) : ''}${d.pkg.week != null ? ' · week ' + esc(d.pkg.week) : ''}</small></div>
+    ${d.errors.length ? `<ul class="msgs err">${d.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
+    ${d.warnings.length ? `<details class="more"><summary>${d.warnings.length} warning${d.warnings.length > 1 ? 's' : ''}</summary><ul class="msgs warn">${d.warnings.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
+    <div style="margin-top:12px">${vids}</div>${srcs}`;
+  $$('#lib-detail [data-lplay]').forEach(b => b.onclick = () => libPlay(d.id, b.dataset.lplay));
+  $$('#lib-detail [data-lstill]').forEach(a => a.onclick = (e) => { e.preventDefault(); libPlay(d.id, a.dataset.lstill); });
+  $$('#lib-detail [data-lreveal]').forEach(b => b.onclick = () => api('/api/library/reveal', 'POST', {id: d.id, path: b.dataset.lreveal}));
+  $$('#lib-detail [data-copy]').forEach(b => b.onclick = () => { navigator.clipboard.writeText(COPY[Number(b.dataset.copy)]); b.textContent = 'Copied'; b.classList.add('copied'); setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('copied'); }, 1200); });
+}
+function genDefaults(d) {
+  const any = (f) => d.videos.some(f);
+  return {videos: d.videos.map(v => v.id), stills: !any(v => v.scenes.some(s => s.still)), voice: any(v => !v.voice), voiceProvider: 'elevenlabs', music: any(v => !v.music?.exists), render: true, quality: 'final', force: false};
+}
+function renderGen() {
+  const d = PK;
+  const f = GEN[d.id] || (GEN[d.id] = genDefaults(d));
+  const busy = S.jobs.some(j => j.kind === 'package' && ACTIVE.includes(j.status) && j.options?.id === d.id);
+  $('#lib-gen').innerHTML = `<div class="genopt">
+    <div class="line">${d.videos.map(v => `<label class="check"><input type="checkbox" data-gv="${esc(v.id)}" ${f.videos.includes(v.id) ? 'checked' : ''}/> ${esc(RATIO_NAME[v.ratio] || v.id)}</label>`).join('')}</div>
+    <div class="line"><label class="check"><input type="checkbox" data-gs="stills" ${f.stills ? 'checked' : ''}/> Storyboard stills</label></div>
+    <div class="line"><label class="check"><input type="checkbox" data-gs="voice" ${f.voice ? 'checked' : ''}/> Voice</label><select id="g-vp"><option value="elevenlabs" ${f.voiceProvider === 'elevenlabs' ? 'selected' : ''}>ElevenLabs</option><option value="macos" ${f.voiceProvider === 'macos' ? 'selected' : ''}>macOS draft (free)</option></select></div>
+    <div class="line"><label class="check"><input type="checkbox" data-gs="music" ${f.music ? 'checked' : ''}/> Music (made on this Mac)</label></div>
+    <div class="line"><label class="check"><input type="checkbox" data-gs="render" ${f.render ? 'checked' : ''}/> Render</label><select id="g-q"><option value="final" ${f.quality === 'final' ? 'selected' : ''}>Final</option><option value="draft" ${f.quality === 'draft' ? 'selected' : ''}>Draft (half size)</option></select></div>
+    <label class="check"><input type="checkbox" data-gs="force" ${f.force ? 'checked' : ''}/> Redo finished work (ignore what is kept)</label>
+    <div class="hint">Final: ${S.settings.fourK ? '4K' : '1080p'} 60 fps · ${S.settings.hw ? 'hardware encoder' : 'x264'} · budget ${S.settings.budget}% (header). Finished scenes, voice chunks and music are kept, so a stopped job carries on where it left off.</div>
+    <button class="primary go" id="g-go" ${busy ? 'disabled' : ''}>${busy ? 'Working…' : 'Generate'}</button>
+    <small class="muted" id="g-msg"></small>
+  </div>`;
+  $$('#lib-gen [data-gv]').forEach(c => c.onchange = () => { f.videos = $$('#lib-gen [data-gv]').filter(x => x.checked).map(x => x.dataset.gv); });
+  $$('#lib-gen [data-gs]').forEach(c => c.onchange = () => { f[c.dataset.gs] = c.checked; });
+  $('#g-vp').onchange = (e) => { f.voiceProvider = e.target.value; };
+  $('#g-q').onchange = (e) => { f.quality = e.target.value; };
+  $('#g-go').onclick = () => libGenerate(d, f);
+}
+async function libGenerate(d, f) {
+  const msg = $('#g-msg');
+  if (!f.videos.length) { msg.textContent = 'Select at least one video.'; return; }
+  if (!['stills', 'voice', 'music', 'render'].some(k => f[k])) { msg.textContent = 'Select at least one step.'; return; }
+  if (f.voice && f.voiceProvider === 'elevenlabs') {
+    msg.textContent = 'Checking the voice cost…';
+    const e = await api(`/api/library/estimate?id=${encodeURIComponent(d.id)}&provider=elevenlabs`);
+    const rows = (e.videos || []).filter(r => f.videos.includes(r.video));
+    if (e.error && !rows.length) { msg.textContent = 'Could not estimate: ' + e.error; return; }
+    // "Redo finished work" voices everything again, so every narration character counts.
+    const per = f.force ? d.videos.filter(v => f.videos.includes(v.id)).map(v => ({video: v.id, characters: v.scenes.reduce((b, s) => b + s.narration.length + 1, 0)})) : rows;
+    const chars = per.reduce((a, r) => a + r.characters, 0);
+    if (chars > 0 && !confirm(`The voice will use about ${chars.toLocaleString()} ElevenLabs characters (${per.map(r => `${r.video}: ${r.characters.toLocaleString()}`).join(', ')}).\n\nContinue?`)) { msg.textContent = 'Cancelled: nothing was spent.'; return; }
+    if (!chars) msg.textContent = 'Voice already made: nothing to pay.';
+  }
+  const r = await api('/api/library/run', 'POST', {id: d.id, videos: f.videos, stills: f.stills, voice: f.voice, voiceProvider: f.voiceProvider, music: f.music, render: f.render, draft: f.quality === 'draft', force: f.force});
+  msg.textContent = r.error ? r.error : 'Queued. Progress on the right.';
+}
+function renderLibJobs() {
+  const list = S.jobs.filter(j => j.kind === 'package');
+  $('#lib-jobs').innerHTML = list.map(j => {
+    const pct = Math.round((j.progress || 0) * 100);
+    const active = ACTIVE.includes(j.status);
+    const running = (j.steps || []).find(s => s.status === 'running');
+    const failedStep = (j.steps || []).find(s => s.status === 'failed' && s.detail);
+    const steps = (j.steps || []).map(st => `<div class="s ${st.status}"><span>${st.status === 'done' ? '✓' : st.status === 'failed' ? '✗' : st.status === 'running' ? '▸' : '·'} ${esc(st.label)}${st.status === 'notrun' ? ' · not run' : ''}</span><small title="${esc(st.detail || '')}">${esc(st.detail || '')}</small></div>`).join('');
+    return `<div class="item">
+      <div class="top"><b>${esc(jobName(j))}</b><span class="fixed"><span class="status ${j.status}">${esc(j.status)}</span>${active ? ` <button class="small ghost danger" data-cancel="${j.id}" title="Stop (finished work is kept)">✕</button>` : ''}${['failed', 'cancelled'].includes(j.status) ? ` <button class="small" data-retry="${j.id}" title="Run again; finished steps and scenes are kept">Resume</button>` : ''}</span></div>
+      ${active && j.status !== 'queued' || j.status === 'done' ? `<div class="progress"><i style="width:${j.status === 'done' ? 100 : pct}%"></i></div>` : ''}
+      ${running && active ? `<div class="job-now">${esc(running.label)}${running.detail ? ' · ' + esc(running.detail) : '…'}</div>` : ''}
+      ${failedStep ? `<div class="job-now" style="color:#fca5a5;white-space:normal">${esc(failedStep.label)}: ${esc(failedStep.detail)}</div>` : j.error ? `<div class="job-now" style="color:#fca5a5;white-space:normal">${esc(j.error)}</div>` : ''}
+      ${steps ? `<details class="steps" ${j.status === 'failed' || active ? 'open' : ''}><summary>Steps</summary>${steps}</details>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty">Nothing generating.</div>';
+  $$('#lib-jobs [data-cancel]').forEach(b => b.onclick = () => api(`/api/jobs/${b.dataset.cancel}/cancel`, 'POST'));
+  $$('#lib-jobs [data-retry]').forEach(b => b.onclick = () => { const j = S.jobs.find(x => x.id === Number(b.dataset.retry)); if (j) api('/api/library/run', 'POST', {...j.options, draft: j.options.draft, force: false}); });
+  if (PK) { const g = $('#g-go'); const busy = list.some(j => ACTIVE.includes(j.status) && j.options?.id === PK.id); if (g) { g.disabled = busy; g.textContent = busy ? 'Working…' : 'Generate'; } }
+}
+function libPlay(id, rel) {
+  const url = libUrl(id, rel);
+  const isVideo = /\.(mp4|mov|webm)$/i.test(rel);
+  $('#pl-title').textContent = rel;
+  $('#pl-stage').innerHTML = isVideo ? `<video controls autoplay src="${url}"></video>` : `<img src="${url}" />`;
+  $('#pl-dl').href = url;
+  $('#pl-reveal').onclick = () => api('/api/library/reveal', 'POST', {id, path: rel});
+  $('#pl-qc').style.display = 'none';
+  $('#player').classList.add('on');
+}
+$('#lib-refresh').onclick = () => loadLibrary();
+$('#lib-validate').onclick = () => { if (selPkg) loadPkg(selPkg); loadLibrary(); };
+$('#lib-open').onclick = () => { if (selPkg) api('/api/library/reveal', 'POST', {id: selPkg}); };
+$('#lib-choose').onclick = async () => { const dir = await chooseFolder(L.root, 'Folder that holds your topic packages'); if (dir) { await saveSettings({libraryDir: dir}); loadLibrary(); } };
+$('#lib-import').onclick = async () => {
+  let r = await api('/api/pick', 'POST', {kind: 'zip', prompt: 'Choose a topic package .zip'});
+  let file = r.path;
+  if (!file && !r.cancelled) file = await browseModal(L.root, true, 'Choose a topic package .zip');
+  if (!file) return;
+  const res = await api('/api/library/import', 'POST', {path: file});
+  if (res.error) { alert(res.error); return; }
+  L = res.library; renderLibList();
+  if (res.imported?.[0]) loadPkg(res.imported[0]);
+};
+
 // ---------------- log + live updates ----------------
 function appendLog(e) {
-  for (const el of [$('#log'), $('#log2')]) {
+  for (const el of [$('#log'), $('#log2'), $('#log3')]) {
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
     const div = document.createElement('div'); div.innerHTML = `<span class="src">${esc(e.source)}</span> ${esc(e.line)}`; el.appendChild(div);
     while (el.children.length > 400) el.removeChild(el.firstChild);
     if (atBottom) el.scrollTop = el.scrollHeight;
   }
 }
-function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderAutopilot(); renderStudio(); renderEpisodeJobs(); }
-function applyState(st) { if (!st || st.error || !st.settings) return; S = st; renderAll(); $('#log').innerHTML = ''; $('#log2').innerHTML = ''; (S.log || []).forEach(appendLog); }
+function renderAll() { renderMachine(); renderSettings(); renderComps(); renderScripts(); renderJobs(); renderOutputs(); renderAutopilot(); renderStudio(); renderEpisodeJobs(); renderLibJobs(); if (PK) renderGen(); }
+function applyState(st) { if (!st || st.error || !st.settings) return; S = st; renderAll(); $('#log').innerHTML = ''; $('#log2').innerHTML = ''; $('#log3').innerHTML = ''; (S.log || []).forEach(appendLog); }
 async function refresh() { applyState(await api('/api/state')); }
 let soonTimer; function refreshSoon() { clearTimeout(soonTimer); soonTimer = setTimeout(async () => { const st = await api('/api/state'); if (st.error || !st.settings) return; S.scripts = st.scripts; S.compositions = st.compositions; S.queue = st.queue; S.outputs = st.outputs; renderScripts(); renderComps(); renderAutopilot(); renderOutputs(); }, 800); }
 const es = new EventSource('/api/events');
@@ -869,16 +1088,17 @@ es.addEventListener('state', (e) => applyState(JSON.parse(e.data)));
 es.addEventListener('machine', (e) => { S.machine = JSON.parse(e.data); renderMachine(); });
 let lastDone = -1;
 es.addEventListener('jobs', (e) => {
-  S.jobs = JSON.parse(e.data); renderJobs(); renderEpisodeJobs();
+  S.jobs = JSON.parse(e.data); renderJobs(); renderEpisodeJobs(); renderLibJobs();
   const done = S.jobs.filter(j => ['done', 'failed', 'cancelled'].includes(j.status)).length;
   if (done !== lastDone) { lastDone = done; refreshSoon(); }
 });
 es.addEventListener('outputs', (e) => { S.outputs = JSON.parse(e.data); renderOutputs(); });
 es.addEventListener('studio', (e) => { S.studio = JSON.parse(e.data); renderStudio(); });
 es.addEventListener('log', (e) => appendLog(JSON.parse(e.data)));
+es.addEventListener('library', (e) => { L = JSON.parse(e.data); renderLibList(); if (selPkg) loadPkg(selPkg, true); });
 es.addEventListener('plan', (e) => { const p = JSON.parse(e.data); if (p.weeks) { P = p; renderPlan(); if (view === 'upload') loadDetails(); } });
 
-setView(store.get('view', 'episodes'));
+setView(store.get('view', 'library'));
 loadPlan();
 </script>
 </body>

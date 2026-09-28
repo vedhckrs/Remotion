@@ -21,6 +21,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {RATIOS_FOR_KIND, createEpisodes} from './episodes.mjs';
+import {createLibrary} from './library.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cwd = process.cwd();
@@ -57,7 +58,7 @@ const memoryGb = os.totalmem() / 1024 ** 3;
 const isMac = process.platform === 'darwin';
 
 const readSettings = () => {
-  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', tested: null, voiceProvider: 'elevenlabs', music: 'library', writer: 'claude', writerModel: 'sonnet'};
+  const defaults = {budget: 50, hw: isMac, gl: process.env.REMOTION_GL || (process.platform === 'linux' ? 'swangle' : 'angle'), fourK: true, studioPort: 3000, planFile: '', tested: null, voiceProvider: 'elevenlabs', music: 'library', writer: 'claude', writerModel: 'sonnet', libraryDir: ''};
   try {
     return {...defaults, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))};
   } catch {
@@ -433,6 +434,7 @@ const pump = async () => {
     if (job.kind === 'render') await runRender(job);
     else if (job.kind === 'episode') await episodes.runEpisode(job);
     else if (job.kind === 'speedtest') await runSpeedTest(job);
+    else if (job.kind === 'package') await library.run(job);
     else await runTask(job);
     job.status = job.status === 'cancelled' ? 'cancelled' : 'done';
   } catch (error) {
@@ -507,6 +509,7 @@ const runSpeedTest = async (job) => {
 };
 
 const episodes = createEpisodes({cwd, SKILL_DIR, getSettings: () => settings, log, send, renderTo, cancelSignals, getCompositions: () => compositions, jobs});
+const library = createLibrary({cwd, SKILL_DIR, getSettings: () => settings, log, send, cancelSignals, jobs});
 
 // ---------- folder picker ------------------------------------------------------------------------
 /** Native Finder dialog on macOS; resolves {path} or {cancelled: true}. Other systems use /api/browse. */
@@ -515,7 +518,8 @@ const pickNative = ({kind, prompt, start}) =>
     if (!isMac) return resolve({unsupported: true});
     const esc = (t) => String(t || '').replace(/[\\"]/g, '');
     const where = start && fs.existsSync(start) ? ` default location (POSIX file "${esc(start)}")` : '';
-    const what = kind === 'file' ? `choose file with prompt "${esc(prompt || 'Choose a file')}" of type {"public.json"}${where}` : `choose folder with prompt "${esc(prompt || 'Choose a folder')}"${where}`;
+    const type = kind === 'zip' ? '"public.zip-archive"' : '"public.json"';
+    const what = kind === 'file' || kind === 'zip' ? `choose file with prompt "${esc(prompt || 'Choose a file')}" of type {${type}}${where}` : `choose folder with prompt "${esc(prompt || 'Choose a folder')}"${where}`;
     const child = spawn('osascript', ['-e', 'tell application "System Events"', '-e', 'activate', '-e', `set chosen to POSIX path of (${what})`, '-e', 'end tell', '-e', 'return chosen']);
     let out = '';
     child.stdout.on('data', (d) => (out += d));
@@ -532,7 +536,7 @@ const browse = (dir, withFiles) => {
   try {
     entries = fs
       .readdirSync(target, {withFileTypes: true})
-      .filter((e) => !e.name.startsWith('.') && (e.isDirectory() || (withFiles && e.name.endsWith('.json'))))
+      .filter((e) => !e.name.startsWith('.') && (e.isDirectory() || (withFiles && /\.(json|zip)$/i.test(e.name))))
       .map((e) => ({name: e.name, path: path.join(target, e.name), dir: e.isDirectory()}))
       .sort((a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name));
   } catch (error) {
@@ -568,6 +572,22 @@ const stopStudio = () => {
 };
 
 // ---------- http ---------------------------------------------------------------------------------
+const MIME = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.mov': 'video/quicktime', '.srt': 'text/plain', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.mp4': 'video/mp4'};
+/** Stream a file with HTTP range support (video and audio seeking). */
+const serveFile = (req, res, file) => {
+  const st = fs.statSync(file);
+  const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
+  const range = req.headers.range;
+  if (range) {
+    const [startStr, endStr] = range.replace('bytes=', '').split('-');
+    const start = Number(startStr);
+    const end = endStr ? Math.min(Number(endStr), st.size - 1) : st.size - 1;
+    res.writeHead(206, {'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type});
+    return fs.createReadStream(file, {start, end}).pipe(res);
+  }
+  res.writeHead(200, {'Content-Length': st.size, 'Content-Type': type, 'Accept-Ranges': 'bytes'});
+  return fs.createReadStream(file).pipe(res);
+};
 const json = (res, code, data) => {
   res.writeHead(code, {'Content-Type': 'application/json'});
   res.end(JSON.stringify(data));
@@ -669,6 +689,7 @@ const server = http.createServer(async (req, res) => {
       if (['angle', 'angle-egl', 'swangle', 'egl', 'swiftshader', 'vulkan'].includes(body.gl)) clean.gl = body.gl;
       if (Number.isInteger(body.studioPort) && body.studioPort > 1023 && body.studioPort < 65536) clean.studioPort = body.studioPort;
       if (typeof body.planFile === 'string') clean.planFile = body.planFile.trim();
+      if (typeof body.libraryDir === 'string') clean.libraryDir = body.libraryDir.trim();
       if (['elevenlabs', 'openai', 'macos'].includes(body.voiceProvider)) clean.voiceProvider = body.voiceProvider;
       if (['library', 'generate', 'off'].includes(body.music)) clean.music = body.music;
       if (['claude', 'manual'].includes(body.writer)) clean.writer = body.writer;
@@ -766,18 +787,50 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(404);
         return res.end();
       }
-      const st = fs.statSync(file);
-      const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg' : file.endsWith('.mov') ? 'video/quicktime' : file.endsWith('.srt') ? 'text/plain' : 'video/mp4';
-      const range = req.headers.range;
-      if (range) {
-        const [startStr, endStr] = range.replace('bytes=', '').split('-');
-        const start = Number(startStr);
-        const end = endStr ? Number(endStr) : st.size - 1;
-        res.writeHead(206, {'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type});
-        return fs.createReadStream(file, {start, end}).pipe(res);
+      return serveFile(req, res, file);
+    }
+    if (req.method === 'GET' && p === '/api/library') return json(res, 200, await library.summary());
+    if (req.method === 'GET' && p === '/api/library/details') {
+      const d = await library.details(url.searchParams.get('id'));
+      return d ? json(res, 200, d) : json(res, 404, {error: 'package not found'});
+    }
+    if (req.method === 'GET' && p === '/api/library/estimate') {
+      const e = library.estimate(url.searchParams.get('id'), url.searchParams.get('provider'));
+      return e ? json(res, 200, e) : json(res, 404, {error: 'package not found'});
+    }
+    if (req.method === 'GET' && p === '/lib/file') {
+      const file = library.file(url.searchParams.get('id'), url.searchParams.get('path'));
+      if (!file) {
+        res.writeHead(404);
+        return res.end();
       }
-      res.writeHead(200, {'Content-Length': st.size, 'Content-Type': type, 'Accept-Ranges': 'bytes'});
-      return fs.createReadStream(file).pipe(res);
+      return serveFile(req, res, file);
+    }
+    if (req.method === 'POST' && p === '/api/library/import') {
+      const body = await readBody(req);
+      try {
+        return json(res, 200, {imported: library.importZip(body.path), library: await library.summary()});
+      } catch (error) {
+        return json(res, 400, {error: error.message});
+      }
+    }
+    if (req.method === 'POST' && p === '/api/library/reveal') {
+      const body = await readBody(req);
+      const target = body.id ? (body.path ? library.file(body.id, body.path) : library.dirOf(body.id)) : library.root();
+      if (!target || !fs.existsSync(target)) return json(res, 404, {error: 'not found'});
+      if (isMac) spawn('open', fs.statSync(target).isDirectory() ? [target] : ['-R', target]);
+      else spawn('xdg-open', [fs.statSync(target).isDirectory() ? target : path.dirname(target)]);
+      return json(res, 200, {ok: true});
+    }
+    if (req.method === 'POST' && p === '/api/library/run') {
+      const body = await readBody(req);
+      if (!library.dirOf(body.id)) return json(res, 404, {error: 'package not found'});
+      const videos = (Array.isArray(body.videos) ? body.videos : []).filter((v) => /^[a-z0-9-]{1,40}$/.test(v));
+      if (!videos.length) return json(res, 400, {error: 'Select at least one video'});
+      const pick = (k) => Boolean(body[k]);
+      if (!['stills', 'voice', 'music', 'render'].some(pick)) return json(res, 400, {error: 'Select at least one step'});
+      const options = {id: body.id, videos, stills: pick('stills'), voice: pick('voice'), voiceProvider: ['elevenlabs', 'macos'].includes(body.voiceProvider) ? body.voiceProvider : 'elevenlabs', music: pick('music'), render: pick('render'), draft: pick('draft'), fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, force: pick('force')};
+      return json(res, 200, enqueue({kind: 'package', title: `${body.id} · ${videos.join(' + ')}${options.draft ? ' · draft' : ''}`, options}));
     }
     res.writeHead(404);
     res.end('not found');

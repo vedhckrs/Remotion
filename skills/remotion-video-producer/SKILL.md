@@ -19,6 +19,7 @@ Pick the production lane:
 
 | User has | Lane |
 |---|---|
+| A topic package (episode folder with `production.json`) | Package lane: validate -> stills -> voice -> music -> cached render + QC. Local, no Claude calls. See `references/topic-packages.md` |
 | A topic or brief only | Full pipeline: write script -> analyze -> voiceover -> build -> captions -> render |
 | A script (Markdown or text) | `scripts/analyze-script.mjs` turns it into scene JSON; continue at voiceover |
 | Voiceover audio already | Skip TTS; run `scripts/audio-durations.mjs` then transcribe for captions |
@@ -161,9 +162,14 @@ Scripts (`scripts/`, Node 20+, no build step):
 - `autopilot.mjs` / `install-autopilot.sh` - daily plan / produce / publish queue and its launchd agents.
 - `render-preset.sh` - platform presets with `--4k`, `--hw`, `--budget`, `--background`, `nice`.
 - `machine-check.sh` - machine profile, recommended settings, GL render test.
-- `lib/` - alignment, env, media, script schema helpers.
+- `validate-package.mjs` - topic package check: stage, errors, warnings, estimated and measured lengths, stale renders.
+- `package-stills.mjs` - one storyboard picture per scene, kept until the scene changes.
+- `package-voice.mjs` - ElevenLabs voice per chunk of whole scenes with measured word timing, chunk reuse, `--dry-run` cost; macOS draft.
+- `package-music.mjs` - original seeded music bed made locally (-14 LUFS), or an imported track with its licence recorded.
+- `package-render.mjs` - scene-cached render (resume after a stop), sound at -14 LUFS / -1 dBTP, join, media QC, render manifest.
+- `lib/` - alignment, env, media, script schema, package schema, audio (WAV, loudness), render kit helpers.
 
-Dashboard (`assets/dashboard/`): `server.mjs`, `episodes.mjs` (content-plan studio) and `index.html`, copied to `tools/dashboard/` by the scaffold. `assets/automation/plan.example.json` is a starter season plan. See `references/dashboard.md`.
+Dashboard (`assets/dashboard/`): `server.mjs`, `library.mjs` (topic packages), `episodes.mjs` (content-plan studio) and `index.html`, copied to `tools/dashboard/` by the scaffold. `assets/automation/plan.example.json` is a starter season plan. See `references/dashboard.md`.
 
 Automation (`assets/automation/`): `queue.example.json`, `topics.example.md`, `writer-prompt.md`, copied to `automation/` by the scaffold.
 
@@ -172,6 +178,7 @@ Templates (`assets/templates/`): `remotion.config.ts`, `public/script/example.js
 References (`references/`), read when:
 - `remotion-api.md` - always, on first use in a session: API cheat sheet and determinism rules.
 - `local-machine.md` - setting up or tuning the laptop: budget, GL, encoding, memory, thermals, storage.
+- `topic-packages.md` - producing from a topic package: folder layout, scene format, commands, what is kept, voice cost, free music, loudness and QC, the daily routine.
 - `dashboard.md` - using or automating the local control room.
 - `ecosystem.md` - choosing plugins and sources: component libraries, caption research, transitions, voices, LUTs, music libraries, render servers.
 - `platform-specs.md` - sizes, safe zones, logo slots, durations, bitrates per platform.

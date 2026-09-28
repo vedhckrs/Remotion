@@ -54,6 +54,8 @@ const resolveVoiceId = async () => {
   if (args.voice) return String(args.voice);
   if (cfg.voiceId) return cfg.voiceId;
   if (provider !== 'elevenlabs') return null;
+  // A dry run stays offline: the voice used last time (from timing.json) or the preset's default.
+  if (args['dry-run']) return null;
   try {
     const voices = await fetchVoices();
     const hit = voices.find((v) => v.category !== 'premade' && preset?.match(v)) ?? voices.find((v) => preset?.match(v));
@@ -103,11 +105,12 @@ const macSay = (text, file) => {
   return (bytes - 44) / (24000 * 2);
 };
 
-const voiceId = await resolveVoiceId();
+const resolvedVoice = await resolveVoiceId();
 for (const video of videos) {
   const out = path.join(dir, 'voice', video.id);
   const timingFile = path.join(out, 'timing.json');
   const previous = fs.existsSync(timingFile) ? JSON.parse(fs.readFileSync(timingFile, 'utf8')) : null;
+  const voiceId = resolvedVoice ?? (provider === 'elevenlabs' ? (previous?.voiceId ?? preset?.fallback ?? 'JBFqnCBsd6RMkjVDRZzb') : null);
   // Chunks of whole scenes.
   const chunks = [];
   for (const scene of video.scenes) {
@@ -121,12 +124,14 @@ for (const video of videos) {
   }
   const timing = {provider, voiceId, model: provider === 'elevenlabs' ? model : 'say', format, generatedAt: new Date().toISOString(), chunks: [], scenes: {}};
   let spent = 0;
+  let reused = 0;
   for (const [i, c] of chunks.entries()) {
     const file = `voice-${String(i + 1).padStart(2, '0')}.${provider === 'macos' ? 'wav' : 'mp3'}`;
     const key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: cfg.settings ?? null}));
     const reuse = !args.force && previous?.chunks?.find((pc) => pc.key === key && fs.existsSync(path.join(out, pc.file)));
     if (reuse) {
       timing.chunks.push(reuse);
+      reused++;
       for (const {scene} of c.scenes) timing.scenes[scene.id] = previous.scenes[scene.id];
       continue;
     }
@@ -174,5 +179,6 @@ for (const video of videos) {
     console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${spent ? '' : ' (nothing regenerated)'}`);
   } else {
     console.log(`${video.id}: ${spent} characters would be spent (voice ${voiceId ?? provider})`);
+    console.log(`ESTIMATE ${JSON.stringify({video: video.id, provider, characters: provider === 'elevenlabs' ? spent : 0, chunks: chunks.length, reused})}`);
   }
 }

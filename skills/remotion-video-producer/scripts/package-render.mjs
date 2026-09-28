@@ -24,12 +24,12 @@
  * Progress lines start with "PROGRESS " followed by JSON, for the dashboard.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {parseArgs} from './lib/env.mjs';
 import {RENDERER_VERSION, renderInputs, sha256, validatePackage} from './lib/package-schema.mjs';
 import {integratedLoudness, normalizeLoudness, peaks, readWav, writeWav} from './lib/audio.mjs';
 import {ffmpeg, ffmpegBuffer, ffprobe} from './lib/media.mjs';
+import {chromiumFor, loadRemotion, lowerPriority, packageId, rendererHash as rendererHashOf, syncPackage, tabsFor} from './lib/render-kit.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const src = path.resolve(String(args._[0] ?? ''));
@@ -42,11 +42,7 @@ if (!fs.existsSync(path.join(project, 'src', 'episode'))) {
   console.error('Run this from the Remotion project root (src/episode/ not found). Update the project with scaffold.sh first.');
   process.exit(1);
 }
-try {
-  os.setPriority(10); // keep the Mac responsive; Chrome inherits it
-} catch {
-  // not permitted: carry on at normal priority
-}
+lowerPriority();
 
 const progress = (o) => console.log(`PROGRESS ${JSON.stringify(o)}`);
 const fail = (msg) => {
@@ -59,42 +55,22 @@ const report = validatePackage(src, {projectDir: project});
 if (report.errors.length) fail(`Package has errors, fix them first:\n  ${report.errors.join('\n  ')}`);
 const pkg = JSON.parse(fs.readFileSync(path.join(src, 'package.json'), 'utf8'));
 const production = JSON.parse(fs.readFileSync(path.join(src, 'production.json'), 'utf8'));
-const id = String(pkg.id ?? path.basename(src)).toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+const id = packageId(pkg, src);
 const videos = production.videos.filter((v) => !args.video || args.video === 'all' || v.id === args.video);
 if (!videos.length) fail(`No video "${args.video}" in this package (has: ${production.videos.map((v) => v.id).join(', ')})`);
 
 // Copy the package into public/packages/<id> (the renderer reads it from there). Renders stay out.
-const pub = path.join(project, 'public', 'packages', id);
-const same = path.resolve(pub) === src;
-const sync = (from, to) => {
-  fs.mkdirSync(to, {recursive: true});
-  for (const e of fs.readdirSync(from, {withFileTypes: true})) {
-    if (e.name === 'renders' || e.name.startsWith('.')) continue;
-    const a = path.join(from, e.name);
-    const b = path.join(to, e.name);
-    if (e.isDirectory()) sync(a, b);
-    else {
-      const sa = fs.statSync(a);
-      const sb = fs.existsSync(b) ? fs.statSync(b) : null;
-      if (!sb || sb.size !== sa.size || sb.mtimeMs < sa.mtimeMs) fs.copyFileSync(a, b);
-    }
-  }
-};
-if (!same) sync(src, pub);
+syncPackage(src, project, id);
 
 // Quality settings ----------------------------------------------------------------------------------------
 const draft = Boolean(args.draft);
 const fourK = !draft && Boolean(args['4k']);
 const hw = Boolean(args.hw) && (process.platform === 'darwin' || args.hw === 'force');
 const budget = Math.min(100, Math.max(10, Number(args.budget ?? 50) || 50));
-const cores = os.cpus().length;
-let concurrency = Math.max(1, Math.min(Math.floor((cores * budget) / 100), Math.floor(os.totalmem() / 2 ** 30 / 4)));
-if (fourK) concurrency = Math.max(1, Math.floor(concurrency / 2));
-if (process.env.REMOTION_CONCURRENCY) concurrency = Number(process.env.REMOTION_CONCURRENCY);
+const concurrency = tabsFor(budget, fourK);
 const scale = draft ? 0.5 : fourK ? 2 : 1;
 const gl = args.gl ?? process.env.REMOTION_GL ?? null;
-// REMOTION_IGNORE_CERTS=1 only for machines behind an intercepting proxy (never needed on a normal Mac).
-const chromiumOptions = {...(gl ? {gl} : {}), ...(process.env.REMOTION_IGNORE_CERTS === '1' ? {ignoreCertificateErrors: true} : {})};
+const chromiumOptions = chromiumFor(gl);
 const quality = (vertical) =>
   draft
     ? {crf: 30, x264Preset: 'veryfast'}
@@ -102,30 +78,19 @@ const quality = (vertical) =>
       ? {hardwareAcceleration: 'if-possible', videoBitrate: fourK ? (vertical ? '50M' : '60M') : vertical ? '14M' : '16M'}
       : {crf: fourK ? 17 : 16, x264Preset: fourK ? 'medium' : 'slow'};
 
-// Everything under src/episode and public/fonts decides how a scene looks.
-const hashTree = (dir) => {
-  if (!fs.existsSync(dir)) return '';
-  const parts = [];
-  const walk = (d) => {
-    for (const e of fs.readdirSync(d, {withFileTypes: true}).sort((a, b) => a.name.localeCompare(b.name))) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else parts.push(`${path.relative(dir, p)}:${sha256(fs.readFileSync(p))}`);
-    }
-  };
-  walk(dir);
-  return sha256(parts.join('\n'));
-};
-const rendererHash = sha256([RENDERER_VERSION, hashTree(path.join(project, 'src', 'episode')), hashTree(path.join(project, 'public', 'fonts')), fs.readFileSync(path.join(project, 'node_modules', 'remotion', 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? ''].join('|'));
-
-// 2-5 per video -----------------------------------------------------------------------------------------
-const {bundle} = await import(path.join(project, 'node_modules', '@remotion', 'bundler', 'dist', 'index.js'));
-const renderer = await import(path.join(project, 'node_modules', '@remotion', 'renderer', 'dist', 'index.js'));
-const {openBrowser, renderMedia, selectComposition} = renderer.default ?? renderer;
+const rendererHash = rendererHashOf(project);
+const {bundle, openBrowser, renderMedia, selectComposition} = await loadRemotion(project);
 
 console.log(`Bundling the project...`);
 const serveUrl = await bundle({entryPoint: path.join(project, 'src', 'index.ts'), onProgress: () => undefined});
 const browser = await openBrowser('chrome', {chromiumOptions, logLevel: 'error'});
+// Cancel from the dashboard (SIGTERM) or Ctrl+C: close Chrome; finished scenes stay for the next run.
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    browser.close({silent: true}).finally(() => process.exit(130));
+    setTimeout(() => process.exit(130), 3000).unref();
+  });
+}
 const manifestFile = path.join(src, 'renders', 'render-manifest.json');
 const manifest = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : {};
 const t0 = Date.now();

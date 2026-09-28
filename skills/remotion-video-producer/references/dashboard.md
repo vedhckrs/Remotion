@@ -6,6 +6,19 @@ runs under `nice -n 10` so Chrome and FFmpeg it spawns yield to your foreground 
 
 ## Tabs
 
+**Library** (topic packages; the daily workflow, opens first). Lists every package folder in the library
+folder (**Choose folder…**, default `<project>/library`; one or two levels deep) grouped by week, with its
+stage, errors and each video's render state (rendered, out of date, QC failed). **Import zip…** unpacks a
+package zip into the library (re-importing over an existing package keeps its voice, music and renders).
+The middle panel shows one package: errors and warnings, then per video the target, estimated and voiced
+length, voice (provider, characters), music (style, key, BPM, a player), render (size, QC, Play, Finder),
+the storyboard strip (click a still to enlarge), QC checks, upload details with Copy buttons and the full
+script with sources. **Generate** (right) picks videos and steps: Storyboard stills, Voice (ElevenLabs or
+free macOS draft), Music, Render (Final or Draft), and "Redo finished work". Before a paid voice run it asks
+with the exact ElevenLabs characters (0 when every chunk is already voiced). Progress shows each step and
+the current scene; ✕ stops the job and **Resume** runs it again, keeping finished scenes, chunks and music.
+Final renders use the header's 4K, HW encoder and budget. Details in `topic-packages.md`.
+
 **Episodes** (the content-plan studio). The plan file is remembered in settings (**Change plan** switches
 it: a native Finder dialog on macOS, an in-page folder browser elsewhere). Pick a week from the strip
 (grouped by month, `done/total` per week), then an episode tab (EP001, EP002, ...): only that episode's
@@ -162,6 +175,13 @@ PUT  /api/scripts/:id.md                 raw Markdown for the analyzer (returns 
 POST /api/render                         {compositionId, preset, frames?, hw?, fourK?, budget?, inputProps?}
 POST /api/tasks                          {task: analyze|voiceover|captions|music|luts|machine-check|icons|thumbnails|pack|publish|autopilot-plan|autopilot-run|autopilot-publish-due, options}
                                          publish options: {videoId, platform, when?, dryRun?, file?}; autopilot-run: {id?, limit?, dryRun?}
+GET  /api/library                        packages in the library folder: id, title, week, date, stage, errors, warnings, per-video lengths and render state
+GET  /api/library/details?id=            one package: report, voice, music + credits, render manifest, QC, upload, scenes with stills, sources
+GET  /api/library/estimate?id=&provider= ElevenLabs characters the voice step would bill (offline dry run)
+POST /api/library/run                    {id, videos:["long","short"], stills?, voice?, voiceProvider?: elevenlabs|macos, music?, render?, draft?, fourK?, hw?, force?}
+POST /api/library/import                 {path: "<file>.zip"}
+POST /api/library/reveal                 {id?, path?} -> Finder (library, package folder or a file in it)
+GET  /lib/file?id=&path=                 a file inside a package (stills, voice, music, renders; range requests)
 POST /api/jobs/:id/cancel
 GET  /out/<file>                         stream an output (range requests supported; out/<videoId>/... paths allowed)
 DELETE /api/outputs/<file>
@@ -213,7 +233,7 @@ external drive or the first native folder dialog may trigger a macOS permission 
 ## Configuration
 
 - `--port 4545`, `--skill <dir>` (the scaffold writes the absolute skill path into the npm script).
-- Settings persist in `tools/dashboard/settings.json`.
+- Settings persist in `tools/dashboard/settings.json` (including `libraryDir`).
 - `REMOTION_IGNORE_CERTS=1` passes `--ignore-certificate-errors` to Chrome behind corporate proxies.
 - The server binds to 127.0.0.1 only; do not expose it. It executes project scripts by design.
 

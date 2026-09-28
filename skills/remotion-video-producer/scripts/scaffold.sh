@@ -81,7 +81,7 @@ if [ "$UPDATE" -eq 1 ] && [ -f "$BACKUP/src/lib/styles.ts" ]; then
 fi
 cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
 # Bundled fonts (Inter, Space Grotesk; SIL OFL) so packaged episodes render without any network access.
-mkdir -p public/fonts public/packages
+mkdir -p public/fonts public/packages library
 cp "$TEMPLATES/public/fonts/"* public/fonts/
 # Register the packaged-episode compositions next to the project's own Root (Root.tsx is kept on update).
 node -e '
@@ -165,7 +165,7 @@ fi
 
 # Keep secrets and large generated files out of git.
 touch .gitignore
-for line in ".env" "out/" ".skill-backup/" "public/packages/" "cache/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
+for line in ".env" "out/" ".skill-backup/" "public/packages/" "library/" "cache/" "whisper.cpp/" "public/voiceover/**/*.16k.wav" "automation/logs/" "automation/.lock"; do
   grep -qxF "$line" .gitignore || echo "$line" >> .gitignore
 done
 [ -f .env ] || printf '# ELEVENLABS_API_KEY=\n# OPENAI_API_KEY=\n# YouTube (scripts/auth-youtube.mjs): YT_CLIENT_ID= YT_CLIENT_SECRET= YT_REFRESH_TOKEN=\n# Meta: IG_USER_ID= META_ACCESS_TOKEN= META_PAGE_ID= META_PAGE_TOKEN=\n' > .env
