@@ -21,7 +21,7 @@ export type EpisodeProps = z.infer<typeof episodeSchema> & {readonly data?: Epis
 
 let fontsReady: Promise<void> | undefined;
 /** Fonts are bundled in public/fonts, so renders never fetch from the network. */
-const useFonts = () => {
+export const useFonts = () => {
   const [handle] = useState(() => delayRender('Load bundled fonts'));
   useEffect(() => {
     if (!fontsReady) {

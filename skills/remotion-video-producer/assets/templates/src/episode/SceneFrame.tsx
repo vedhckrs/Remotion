@@ -7,7 +7,7 @@ import {C, FONT, FPS, LAYOUT, clamp, ease} from './theme';
 import type {BrandLogo, TimedScene} from './types';
 
 /** Greedy wrap into at most `maxLines`, shrinking the size until it fits. Keeps authored "\n" breaks. */
-const layoutHeadline = (text: string, base: number, width: number, maxLines: number) => {
+export const layoutHeadline = (text: string, base: number, width: number, maxLines: number) => {
   for (let size = base; size >= base * 0.6; size -= 2) {
     const lines: string[] = [];
     for (const para of text.split('\n')) {

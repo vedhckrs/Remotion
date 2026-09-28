@@ -10,7 +10,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 
 /** Share of the job's progress bar per step (rendering dominates the time). */
-const WEIGHT = {stills: 0.1, voice: 0.1, music: 0.05, render: 0.75};
+const WEIGHT = {stills: 0.1, voice: 0.1, music: 0.05, render: 0.72, thumbs: 0.03};
 
 export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSignals, jobs}) => {
   let schema = null;
@@ -72,6 +72,8 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
       const timing = readJson(path.join(dir, 'voice', v.id, 'timing.json'));
       const stills = readJson(path.join(dir, 'renders', v.id, 'stills', 'stills.json')) ?? {};
       const qc = readJson(path.join(dir, 'renders', v.id, 'qc.json'));
+      const thumbDir = path.join(dir, 'renders', 'thumbs');
+      const thumb = fs.existsSync(thumbDir) ? fs.readdirSync(thumbDir).find((f) => f.endsWith(`_${v.id}_thumbnail.jpg`)) : null;
       const upload = readJson(path.join(dir, 'upload', `${v.id}.json`));
       // Chapters are written as [sceneId, title]; their times exist once the voice is measured.
       const starts = report.videos?.[v.id]?.starts ?? {};
@@ -94,6 +96,7 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
         voice: timing ? {provider: timing.provider, voiceId: timing.voiceId, model: timing.model, characters: (timing.chunks ?? []).reduce((a, c) => a + (c.characters ?? 0), 0), chunks: (timing.chunks ?? []).map((c) => c.file), generatedAt: timing.generatedAt} : null,
         music: pkg.music?.[v.id] ? {...pkg.music[v.id], credits: credits[v.id] ?? null, exists: fs.existsSync(path.join(dir, pkg.music[v.id].file))} : null,
         render: manifest[v.id] ?? null,
+        thumb: thumb ? `renders/thumbs/${thumb}` : null,
         draft: manifest[`${v.id}-draft`] ?? null,
         qc,
         upload,
@@ -204,6 +207,8 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
     if (o.voice) steps.push({key: 'voice', label: o.voiceProvider === 'macos' ? 'Draft voice (macOS)' : 'Voice (ElevenLabs)', status: 'queued'});
     if (o.music) steps.push({key: 'music', label: 'Music', status: 'queued'});
     if (o.render) steps.push({key: 'render', label: o.draft ? 'Draft render' : `Render${o.fourK ? ' 4K' : ''}`, status: 'queued'});
+    // Thumbnails are quick: made with the storyboard and again with every render, so they follow the package.
+    if (o.stills || o.render) steps.push({key: 'thumbs', label: 'Thumbnails', status: 'queued'});
     job.steps = steps;
     job.status = 'running';
     job.startedAt = Date.now();
@@ -242,6 +247,7 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
       if (step.key === 'stills') await runStep(job, step, 'package-stills.mjs', [dir, ...videoArgs, ...(o.force ? ['--force'] : [])], onProgress);
       if (step.key === 'voice') await runStep(job, step, 'package-voice.mjs', [dir, ...videoArgs, '--provider', o.voiceProvider || 'elevenlabs', ...(o.force ? ['--force'] : [])]);
       if (step.key === 'music') await runStep(job, step, 'package-music.mjs', [dir, ...videoArgs]);
+      if (step.key === 'thumbs') await runStep(job, step, 'package-thumbs.mjs', [dir, ...videoArgs, ...(settings.gl ? ['--gl', settings.gl] : [])]);
       if (step.key === 'render')
         await runStep(job, step, 'package-render.mjs', [dir, ...videoArgs, '--budget', String(settings.budget), ...(o.draft ? ['--draft'] : []), ...(o.fourK && !o.draft ? ['--4k'] : []), ...(o.hw ? ['--hw'] : []), ...(settings.gl ? ['--gl', settings.gl] : []), ...(o.force ? ['--force'] : [])], onProgress);
       addDone(WEIGHT[step.key]);

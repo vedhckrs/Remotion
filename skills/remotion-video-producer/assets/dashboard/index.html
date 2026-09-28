@@ -964,6 +964,7 @@ function renderPkg() {
         <span>Voice</span><span>${voice}</span>
         <span>Music</span><span>${music}</span>
         <span>Render</span><span>${render}${draft}</span>
+        <span>Thumbnail</span><span>${v.thumb ? `<a href="#" data-lstill="${esc(v.thumb)}"><img src="${libUrl(d.id, v.thumb)}&v=${Date.now()}" style="height:${v.ratio === '9:16' ? 120 : 72}px;border-radius:6px;border:1px solid var(--line);vertical-align:top"></a> <a href="${libUrl(d.id, v.thumb)}" download><button class="small ghost">Save</button></a>` : '<span class="dim">made with the storyboard or the render</span>'}</span>
       </div>
       ${v.music?.exists ? `<audio controls preload="none" src="${libUrl(d.id, v.music.file)}"></audio>` : ''}
       ${stills.length ? `<div class="storyboard">${stills.map(s => `<a href="#" data-lstill="${esc(s.still)}" title="${esc(s.id + ' · ' + String(s.headline).replace(/\n/g, ' '))}"><img loading="lazy" src="${libUrl(d.id, s.still)}"><span>${esc(s.id)}</span></a>`).join('')}</div>` : '<div class="hint" style="margin-top:8px">No storyboard yet: tick “Storyboard stills” and Generate to check every scene before paying for the voice.</div>'}

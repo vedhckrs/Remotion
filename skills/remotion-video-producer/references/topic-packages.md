@@ -130,6 +130,14 @@ in `theme.ts`):
 Change `size`, `bottom` or `maxChars` in `theme.ts` to adjust; every scene re-renders because the renderer code
 changed.
 
+## Thumbnails
+
+`package-thumbs.mjs` renders `thumbs/thumbs.json` (`{<video>: {text, highlight, icon, color?, brands?}}`) through the
+`EpisodeThumbnail` composition: the long video's at 1280x720 and the Short's cover at 1080x1920, JPEG under 2 MB, in
+the videos' own fonts, colours and icons, offline. Files land in `renders/thumbs/<id>_<video>_thumbnail.jpg`. The
+Library makes them with the storyboard and after every render and shows them with a Save button. Keep `text` to 3-6
+words; `highlight` is one word of it.
+
 ## Render, sound and QC
 
 Package renders bundle `src/episode/entry.ts`, which registers only the episode compositions: no web fonts, no

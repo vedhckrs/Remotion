@@ -166,6 +166,7 @@ Scripts (`scripts/`, Node 20+, no build step):
 - `package-stills.mjs` - one storyboard picture per scene, kept until the scene changes.
 - `package-voice.mjs` - ElevenLabs voice per chunk of whole scenes with measured word timing, chunk reuse, `--dry-run` cost; macOS draft.
 - `package-music.mjs` - original seeded music bed made locally (-14 LUFS), or an imported track with its licence recorded.
+- `package-thumbs.mjs` - 1280x720 and 1080x1920 thumbnails from `thumbs/thumbs.json`, offline, under 2 MB.
 - `package-render.mjs` - scene-cached render (resume after a stop), sound at -14 LUFS / -1 dBTP, join, media QC, render manifest.
 - `lib/` - alignment, env, media, script schema, package schema, audio (WAV, loudness), render kit helpers.
 
