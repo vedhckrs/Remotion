@@ -1019,6 +1019,7 @@ async function libGenerate(d, f) {
   const msg = $('#g-msg');
   if (!f.videos.length) { msg.textContent = 'Select at least one video.'; return; }
   if (!['stills', 'voice', 'music', 'render'].some(k => f[k])) { msg.textContent = 'Select at least one step.'; return; }
+  let confirmed = null;
   if (f.voice && f.voiceProvider === 'elevenlabs') {
     msg.textContent = 'Checking the voice cost…';
     const e = await api(`/api/library/estimate?id=${encodeURIComponent(d.id)}&provider=elevenlabs`);
@@ -1029,8 +1030,9 @@ async function libGenerate(d, f) {
     const chars = per.reduce((a, r) => a + r.characters, 0);
     if (chars > 0 && !confirm(`The voice will use about ${chars.toLocaleString()} ElevenLabs characters (${per.map(r => `${r.video}: ${r.characters.toLocaleString()}`).join(', ')}).\n\nContinue?`)) { msg.textContent = 'Cancelled: nothing was spent.'; return; }
     if (!chars) msg.textContent = 'Voice already made: nothing to pay.';
+    confirmed = chars; // the voice step refuses to spend more than this
   }
-  const r = await api('/api/library/run', 'POST', {id: d.id, videos: f.videos, stills: f.stills, voice: f.voice, voiceProvider: f.voiceProvider, music: f.music, render: f.render, draft: f.quality === 'draft', force: f.force});
+  const r = await api('/api/library/run', 'POST', {id: d.id, videos: f.videos, stills: f.stills, voice: f.voice, voiceProvider: f.voiceProvider, music: f.music, render: f.render, draft: f.quality === 'draft', force: f.force, maxCharacters: confirmed});
   msg.textContent = r.error ? r.error : 'Queued. Progress on the right.';
 }
 function renderLibJobs() {

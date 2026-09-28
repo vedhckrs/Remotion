@@ -20,8 +20,10 @@ import {spawnSync} from 'node:child_process';
 import {loadEnv, parseArgs, requireEnv} from './lib/env.mjs';
 import {sha256} from './lib/package-schema.mjs';
 import {VOICE_PRESETS, fetchVoices} from './lib/voice-presets.mjs';
+import {readableErrors} from './lib/render-kit.mjs';
 
 loadEnv();
+readableErrors();
 const args = parseArgs(process.argv.slice(2));
 const dir = path.resolve(String(args._?.[0] ?? process.argv.slice(2).find((a) => !a.startsWith('--')) ?? ''));
 if (!fs.existsSync(path.join(dir, 'production.json'))) {
@@ -50,10 +52,26 @@ const spokenWords = (text) =>
     return {written, spoken: written};
   });
 
+// The voice this package was already recorded with (any video's timing.json). Reusing it keeps every later run,
+// and the dry-run cost check, on exactly the same voice, so finished chunks are never paid for again.
+const packageVoice = (() => {
+  if (provider !== 'elevenlabs') return null;
+  for (const v of production.videos) {
+    try {
+      const t = JSON.parse(fs.readFileSync(path.join(dir, 'voice', v.id, 'timing.json'), 'utf8'));
+      if (t.provider === 'elevenlabs' && t.voiceId) return t.voiceId;
+    } catch {
+      // not voiced yet
+    }
+  }
+  return null;
+})();
+
 const resolveVoiceId = async () => {
   if (args.voice) return String(args.voice);
   if (cfg.voiceId) return cfg.voiceId;
   if (provider !== 'elevenlabs') return null;
+  if (packageVoice) return packageVoice;
   // A dry run stays offline: the voice used last time (from timing.json) or the preset's default.
   if (args['dry-run']) return null;
   try {
@@ -79,7 +97,16 @@ const eleven = async (voiceId, text, previousText, nextText, settings) => {
       format = 'mp3_44100_128';
       return eleven(voiceId, text, previousText, nextText, settings);
     }
-    throw new Error(`ElevenLabs ${res.status}: ${body.slice(0, 300)}`);
+    // ElevenLabs explains failures in detail.message (quota, invalid key, voice not found): show that sentence.
+    let detail = body.slice(0, 300);
+    try {
+      const j = JSON.parse(body);
+      detail = j.detail?.message ?? (typeof j.detail === 'string' ? j.detail : detail);
+      if (j.detail?.code === 'quota_exceeded') detail = `quota exceeded. ${detail} Top up or wait for the monthly reset, then press Resume: finished chunks are kept.`;
+    } catch {
+      // not JSON
+    }
+    throw new Error(`ElevenLabs ${res.status}: ${detail}`);
   }
   const json = await res.json();
   return {audio: Buffer.from(json.audio_base64, 'base64'), alignment: json.alignment};
@@ -106,14 +133,15 @@ const macSay = (text, file) => {
 };
 
 const resolvedVoice = await resolveVoiceId();
-for (const video of videos) {
+
+// 1. Plan every video first: chunks of whole scenes, their keys, and which ones are already recorded.
+const plans = videos.map((video) => {
   // Package-wide settings, then per-video ones (voice.videos.<id>.settings, e.g. {speed: 1.05} for the long only).
   const settings = {...(cfg.settings ?? {}), ...(cfg.videos?.[video.id]?.settings ?? {})};
   const out = path.join(dir, 'voice', video.id);
   const timingFile = path.join(out, 'timing.json');
   const previous = fs.existsSync(timingFile) ? JSON.parse(fs.readFileSync(timingFile, 'utf8')) : null;
   const voiceId = resolvedVoice ?? (provider === 'elevenlabs' ? (previous?.voiceId ?? preset?.fallback ?? 'JBFqnCBsd6RMkjVDRZzb') : null);
-  // Chunks of whole scenes.
   const chunks = [];
   for (const scene of video.scenes) {
     const pieces = spokenWords(scene.narration);
@@ -124,28 +152,53 @@ for (const video of videos) {
     c.scenes.push({scene, pieces, from: c.text ? c.text.length + 1 : 0});
     c.text = c.text ? `${c.text} ${spoken}` : spoken;
   }
-  const timing = {provider, voiceId, model: provider === 'elevenlabs' ? model : 'say', format, generatedAt: new Date().toISOString(), chunks: [], scenes: {}};
-  let spent = 0;
-  let reused = 0;
   for (const [i, c] of chunks.entries()) {
-    const file = `voice-${String(i + 1).padStart(2, '0')}.${provider === 'macos' ? 'wav' : 'mp3'}`;
-    const key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: Object.keys(settings).length ? settings : null}));
-    const reuse = !args.force && previous?.chunks?.find((pc) => pc.key === key && fs.existsSync(path.join(out, pc.file)));
-    if (reuse) {
-      timing.chunks.push(reuse);
-      reused++;
+    c.file = `voice-${String(i + 1).padStart(2, '0')}.${provider === 'macos' ? 'wav' : 'mp3'}`;
+    c.key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: Object.keys(settings).length ? settings : null}));
+    c.reuse = !args.force && previous?.chunks?.find((pc) => pc.key === c.key && fs.existsSync(path.join(out, pc.file)));
+  }
+  return {video, settings, out, timingFile, previous, voiceId, chunks};
+});
+
+// 2. The bill, before anything is sent. --max-characters (the dashboard passes what you confirmed) is a hard stop.
+const toSpend = provider === 'elevenlabs' ? plans.reduce((a, p) => a + p.chunks.filter((c) => !c.reuse).reduce((b, c) => b + c.text.length, 0), 0) : 0;
+if (args['dry-run']) {
+  for (const p of plans) {
+    const fresh = p.chunks.filter((c) => !c.reuse);
+    for (const c of fresh) console.log(`  ${p.video.id} ${c.file}: ${c.scenes.length} scenes, ${c.text.length} characters would be generated`);
+    const spent = fresh.reduce((a, c) => a + c.text.length, 0);
+    console.log(`${p.video.id}: ${spent} characters would be spent (voice ${p.voiceId ?? provider})`);
+    console.log(`ESTIMATE ${JSON.stringify({video: p.video.id, provider, characters: provider === 'elevenlabs' ? spent : 0, chunks: p.chunks.length, reused: p.chunks.length - fresh.length})}`);
+  }
+  process.exit(0);
+}
+if (args['max-characters'] !== undefined && toSpend > Number(args['max-characters'])) {
+  throw new Error(`This run would use ${toSpend} ElevenLabs characters, more than the ${Number(args['max-characters'])} you confirmed. Nothing was sent.`);
+}
+
+// 3. Voice what is missing. timing.json is rewritten after every new chunk, so a stop (quota, network, cancel)
+// never loses a chunk that was already paid for.
+for (const plan of plans) {
+  const {video, settings, out, timingFile, previous, voiceId, chunks} = plan;
+  const timing = {provider, voiceId, model: provider === 'elevenlabs' ? model : 'say', format, generatedAt: new Date().toISOString(), chunks: [], scenes: {}};
+  const written = new Set();
+  const save = (from) => {
+    // Chunks not reached yet keep their old records (unless their file was just overwritten), so they stay reusable.
+    const later = (previous?.chunks ?? []).filter((pc) => !written.has(pc.file) && !timing.chunks.some((c) => c.key === pc.key) && chunks.slice(from).some((c) => c.key === pc.key));
+    const laterScenes = Object.fromEntries(chunks.slice(from).filter((c) => later.some((pc) => pc.key === c.key)).flatMap((c) => c.scenes.map(({scene}) => [scene.id, previous.scenes[scene.id]])));
+    fs.writeFileSync(timingFile, JSON.stringify({...timing, chunks: [...timing.chunks, ...later], scenes: {...laterScenes, ...timing.scenes}}, null, 1) + '\n');
+  };
+  let spent = 0;
+  for (const [i, c] of chunks.entries()) {
+    if (c.reuse) {
+      timing.chunks.push(c.reuse);
       for (const {scene} of c.scenes) timing.scenes[scene.id] = previous.scenes[scene.id];
-      continue;
-    }
-    if (args['dry-run']) {
-      console.log(`  ${video.id} ${file}: ${c.scenes.length} scenes, ${c.text.length} characters would be generated`);
-      spent += c.text.length;
       continue;
     }
     fs.mkdirSync(out, {recursive: true});
     if (provider === 'macos') {
       const {scene, pieces} = c.scenes[0];
-      const seconds = macSay(c.text, path.join(out, file));
+      const seconds = macSay(c.text, path.join(out, c.file));
       // Estimated word timing: proportional to characters.
       const total = pieces.reduce((a, p) => a + p.spoken.length + 1, 0);
       let t = 0.05;
@@ -155,13 +208,13 @@ for (const video of videos) {
         t += d;
         return w;
       });
-      timing.scenes[scene.id] = {file, start: 0, end: +seconds.toFixed(3), words};
+      timing.scenes[scene.id] = {file: c.file, start: 0, end: +seconds.toFixed(3), words};
     } else {
       const prevText = i > 0 ? chunks[i - 1].text.slice(-600) : '';
       const nextText = chunks[i + 1]?.text.slice(0, 600) ?? '';
-      console.log(`  ${video.id} ${file}: ${c.scenes.length} scenes, ${c.text.length} characters`);
+      console.log(`  ${video.id} ${c.file}: ${c.scenes.length} scenes, ${c.text.length} characters`);
       const {audio, alignment} = await eleven(voiceId, c.text, prevText, nextText, settings);
-      fs.writeFileSync(path.join(out, file), audio);
+      fs.writeFileSync(path.join(out, c.file), audio);
       const all = wordsFromAlignment(c.scenes.flatMap((s) => s.pieces), alignment);
       let k = 0;
       for (const {scene, pieces} of c.scenes) {
@@ -169,18 +222,15 @@ for (const video of videos) {
         k += pieces.length;
         const start = Math.max(0, words[0].start - 0.04);
         const end = words[words.length - 1].end + TAIL;
-        timing.scenes[scene.id] = {file, start: +start.toFixed(3), end: +end.toFixed(3), words: words.map((w) => ({text: w.text, start: +(w.start - start).toFixed(3), end: +(w.end - start).toFixed(3)}))};
+        timing.scenes[scene.id] = {file: c.file, start: +start.toFixed(3), end: +end.toFixed(3), words: words.map((w) => ({text: w.text, start: +(w.start - start).toFixed(3), end: +(w.end - start).toFixed(3)}))};
       }
       spent += c.text.length;
     }
-    timing.chunks.push({file, key, characters: c.text.length});
+    written.add(c.file);
+    timing.chunks.push({file: c.file, key: c.key, characters: c.text.length});
+    save(i + 1);
   }
-  if (!args['dry-run']) {
-    fs.writeFileSync(timingFile, JSON.stringify(timing, null, 1) + '\n');
-    const secs = Object.values(timing.scenes).reduce((a, s) => a + (s.end - s.start), 0);
-    console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${spent ? '' : ' (nothing regenerated)'}`);
-  } else {
-    console.log(`${video.id}: ${spent} characters would be spent (voice ${voiceId ?? provider})`);
-    console.log(`ESTIMATE ${JSON.stringify({video: video.id, provider, characters: provider === 'elevenlabs' ? spent : 0, chunks: chunks.length, reused})}`);
-  }
+  fs.writeFileSync(timingFile, JSON.stringify(timing, null, 1) + '\n');
+  const secs = Object.values(timing.scenes).reduce((a, s) => a + (s.end - s.start), 0);
+  console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${spent ? '' : ' (nothing regenerated)'}`);
 }

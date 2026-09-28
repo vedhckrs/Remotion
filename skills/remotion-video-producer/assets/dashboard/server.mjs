@@ -829,7 +829,7 @@ const server = http.createServer(async (req, res) => {
       if (!videos.length) return json(res, 400, {error: 'Select at least one video'});
       const pick = (k) => Boolean(body[k]);
       if (!['stills', 'voice', 'music', 'render'].some(pick)) return json(res, 400, {error: 'Select at least one step'});
-      const options = {id: body.id, videos, stills: pick('stills'), voice: pick('voice'), voiceProvider: ['elevenlabs', 'macos'].includes(body.voiceProvider) ? body.voiceProvider : 'elevenlabs', music: pick('music'), render: pick('render'), draft: pick('draft'), fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, force: pick('force')};
+      const options = {id: body.id, videos, stills: pick('stills'), voice: pick('voice'), voiceProvider: ['elevenlabs', 'macos'].includes(body.voiceProvider) ? body.voiceProvider : 'elevenlabs', music: pick('music'), render: pick('render'), draft: pick('draft'), maxCharacters: Number.isFinite(body.maxCharacters) ? Math.max(0, Math.round(body.maxCharacters)) : null, fourK: body.fourK ?? settings.fourK, hw: body.hw ?? settings.hw, force: pick('force')};
       return json(res, 200, enqueue({kind: 'package', title: `${body.id} · ${videos.join(' + ')}${options.draft ? ' · draft' : ''}`, options}));
     }
     res.writeHead(404);

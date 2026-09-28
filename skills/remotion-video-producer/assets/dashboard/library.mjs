@@ -245,7 +245,7 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
         }
       };
       if (step.key === 'stills') await runStep(job, step, 'package-stills.mjs', [dir, ...videoArgs, ...(o.force ? ['--force'] : [])], onProgress);
-      if (step.key === 'voice') await runStep(job, step, 'package-voice.mjs', [dir, ...videoArgs, '--provider', o.voiceProvider || 'elevenlabs', ...(o.force ? ['--force'] : [])]);
+      if (step.key === 'voice') await runStep(job, step, 'package-voice.mjs', [dir, ...videoArgs, '--provider', o.voiceProvider || 'elevenlabs', ...(o.force ? ['--force'] : []), ...(o.maxCharacters != null ? ['--max-characters', String(o.maxCharacters)] : [])]);
       if (step.key === 'music') await runStep(job, step, 'package-music.mjs', [dir, ...videoArgs]);
       if (step.key === 'thumbs') await runStep(job, step, 'package-thumbs.mjs', [dir, ...videoArgs, ...(settings.gl ? ['--gl', settings.gl] : [])]);
       if (step.key === 'render')
