@@ -3,6 +3,8 @@ import {Badge, Glyph, Label, Panel, enter, fitSize, useBeats, useDiagram} from '
 import {C, FONT, clamp, ease, tone} from '../theme';
 
 const fmt = (v: number, decimals: number) => v.toLocaleString('en-US', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+/** Decimal places a value was written with (5.9 -> 1, 256 -> 0), so figures are never rounded away. */
+const places = (v: unknown) => (String(v).split('.')[1] ?? '').length;
 
 /**
  * stat: one big number that counts up. {value, from?, unit?, prefix?, decimals?, label?, sub?, icon?, color?}
@@ -11,7 +13,7 @@ const fmt = (v: number, decimals: number) => v.toLocaleString('en-US', {minimumF
 export const Stat: React.FC<{readonly spec: Record<string, unknown>}> = ({spec}) => {
   const {w, h, vertical, frame} = useDiagram();
   const b = useBeats();
-  const decimals = (spec.decimals as number) ?? 0;
+  const decimals = (spec.decimals as number) ?? places(spec.value);
   const color = tone(spec.color as string, 'accent');
   const v = b.param('value', spec.value as number);
   const start = v.changedAt < 0 ? 6 : v.changedAt;
@@ -48,7 +50,6 @@ export const Bars: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
   const b = useBeats(10);
   const items = (spec.items as {id?: string; label: string; value: number; color?: string; icon?: string}[]) ?? [];
   const unit = (spec.unit as string) ?? '';
-  const decimals = (spec.decimals as number) ?? 0;
   const max = (spec.max as number) ?? Math.max(...items.map((i) => i.value), 1);
   const rowH = Math.min(vertical ? 170 : 120, h / Math.max(1, items.length));
   const labelW = vertical ? w : w * 0.26;
@@ -70,7 +71,7 @@ export const Bars: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
             <Label x={vertical ? 0 : labelW} y={vertical ? y + rowH * 0.3 : barY + bh * 0.68} anchor={vertical ? 'start' : 'end'} size={vertical ? 42 : 36} maxWidth={labelW} weight={650}>{it.label}</Label>
             <rect x={barX} y={barY} width={barW} height={bh} rx={bh / 2} fill={C.line} opacity={0.5} />
             <rect x={barX} y={barY} width={Math.max(bh, barW * clamp(it.value / max) * p)} height={bh} rx={bh / 2} fill={color} />
-            <Label x={barX + Math.max(bh, barW * clamp(it.value / max) * p) + 16} y={barY + bh * 0.7} anchor="start" size={vertical ? 38 : 34} color={color} weight={750}>{`${fmt(it.value * p, decimals)}${unit ? ' ' + unit : ''}`}</Label>
+            <Label x={barX + Math.max(bh, barW * clamp(it.value / max) * p) + 16} y={barY + bh * 0.7} anchor="start" size={vertical ? 38 : 34} color={color} weight={750}>{`${fmt(it.value * p, (spec.decimals as number) ?? places(it.value))}${unit ? ' ' + unit : ''}`}</Label>
           </g>
         );
       })}
