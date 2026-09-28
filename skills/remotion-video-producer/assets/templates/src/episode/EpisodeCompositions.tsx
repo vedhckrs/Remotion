@@ -1,0 +1,18 @@
+import React from 'react';
+import {Composition, Folder} from 'remotion';
+import {Episode, calculateEpisodeMetadata, episodeSchema} from './Episode';
+import {Thumbnail, calculateThumbnailMetadata, thumbnailSchema} from './Thumbnail';
+import {LAYOUT, FPS} from './theme';
+
+/**
+ * EpisodeLong renders a package's 16:9 video, EpisodeShort its 9:16 video, EpisodeThumbnail either video's
+ * thumbnail; size and length come from the package, so the defaults below only matter in Studio. Imports
+ * nothing outside src/episode, so it loads fully offline.
+ */
+export const EpisodeCompositions: React.FC = () => (
+  <Folder name="Packages">
+    <Composition id="EpisodeLong" component={Episode} schema={episodeSchema} calculateMetadata={calculateEpisodeMetadata} width={LAYOUT.land.w} height={LAYOUT.land.h} fps={FPS} durationInFrames={FPS * 10} defaultProps={{packageId: 'ep001', video: 'long', captions: true, music: true, onlyScenes: []}} />
+    <Composition id="EpisodeShort" component={Episode} schema={episodeSchema} calculateMetadata={calculateEpisodeMetadata} width={LAYOUT.port.w} height={LAYOUT.port.h} fps={FPS} durationInFrames={FPS * 10} defaultProps={{packageId: 'ep001', video: 'short', captions: true, music: true, onlyScenes: []}} />
+    <Composition id="EpisodeThumbnail" component={Thumbnail} schema={thumbnailSchema} calculateMetadata={calculateThumbnailMetadata} width={1920} height={1080} fps={30} durationInFrames={1} defaultProps={{packageId: 'ep001', video: 'long'}} />
+  </Folder>
+);

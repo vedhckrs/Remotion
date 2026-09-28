@@ -17,6 +17,10 @@ Platforms move their UI often. Treat the safe-zone numbers as conservative envel
 
 Upload H.264 in an MP4 container with AAC audio everywhere. Platforms re-encode, so give them a high-quality source (see `rendering.md`).
 
+Masters in this skill are 60 fps at twice the authoring canvas (`--4k`): 3840x2160 for YouTube, 2160x3840 for Shorts / Reels / Stories / Facebook Reels, 2160x2700 for 4:5 feed. All three platforms accept 60 fps and 4K vertical; YouTube keeps the higher bitrate ladder, Instagram and Facebook downscale but start from a cleaner source. Frame rate is set on the composition (`PLATFORMS[*].fps = 60`), size by the render scale.
+
+Logo slot: `getLogoSlot()` puts the mark top-left inside the safe rect (about 12 px below its top edge), 9 percent of width on vertical and 7 percent on horizontal, capped to half the safe width. Alternatives `top-right`, `top-center`, `bottom-left`. Never bottom-right on YouTube (end screen, progress) and never inside the right rail or bottom 20 percent on vertical.
+
 ## Safe zones (1080x1920 vertical)
 
 Design the "message box" as the intersection of all three vertical platforms so one render posts everywhere:

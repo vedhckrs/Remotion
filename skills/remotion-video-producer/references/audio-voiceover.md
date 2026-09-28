@@ -13,6 +13,7 @@ Table of contents
 
 ## 1. Script -> voiceover workflow
 
+0. On a laptop with no keys handy, draft first: `--provider macos` produces a full timed voiceover in seconds so layout and pacing can be built; the final ElevenLabs pass swaps the audio and adds word alignment without touching the scenes.
 1. Write `public/script/<video-id>.json` (schema in `scripts/lib/script-schema.mjs`, example in `assets/templates/public/script/example.json`): `{ videoId, voice: {provider, voiceId, model, settings}, scenes: [{id, headline, voiceover, visual, minSeconds}] }`.
 2. `node scripts/generate-voiceover.mjs --script public/script/<video-id>.json` (defaults to ElevenLabs). Output in `public/voiceover/<video-id>/`:
    - `scene-01.mp3`, `scene-02.mp3`, ...
@@ -31,9 +32,24 @@ If voiceover was recorded by a human: drop the files in `public/voiceover/<video
 | OpenAI | Fast, cheap, good "instructable" delivery | `gpt-4o-mini-tts` (accepts `instructions` for tone, accent, pace), `tts-1-hd` | No (transcribe afterwards with Whisper) | `OPENAI_API_KEY`; voices `alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse, marin, cedar` |
 | Google Cloud TTS / Gemini TTS | Many languages, SSML control | `gemini-2.5-pro-tts`, Neural2, Journey | SSML marks only | Add a provider in `generate-voiceover.mjs` following the OpenAI branch |
 | Azure Neural | Enterprise, SSML, many Indian languages | `en-IN-*`, `hi-IN-*` Neural voices | Word boundary events via SDK | Same |
-| Local (Kokoro, Piper, XTTS) | Offline, free | varies | No | Run locally, output WAV, then `audio-durations.mjs` |
+| macOS `say` (built in) | Free, instant timing drafts on a Mac | any installed system voice (`say -v '?'`); Enhanced/Premium voices downloadable in System Settings | No (transcribe or regenerate with ElevenLabs) | `--provider macos`; lock pacing and scene lengths before spending credits |
+| Local neural (Kokoro via mlx-audio, Piper, XTTS) | Offline, free, runs well on Apple Silicon | varies | No | Output WAV named by scene id, then `audio-durations.mjs` |
 
 Any provider works as long as it produces one audio file per scene.
+
+## 2b. Voice presets and picking the voice
+
+`generate-voiceover.mjs --voice-preset <name>` resolves a voice from your ElevenLabs library by labels, falling back to a premade id (verify with `--list-voices`):
+
+| Preset | Character | Fallback | Settings |
+|---|---|---|---|
+| `young-male-pro` (default) | male, young or middle-aged, narration / social / confident | Liam | stability 0.42, similarity 0.78, style 0.35, speed 1.08 |
+| `young-male-hype` | male, young, energetic / upbeat | Will | stability 0.35, style 0.5, speed 1.12 |
+| `male-deep-narrator` | deep, documentary, calm | Brian | stability 0.55, style 0.2, speed 0.98 |
+| `female-warm` | warm, soft narration | Sarah | stability 0.5, style 0.25, speed 1.0 |
+| `female-energetic` | upbeat, expressive | Jessica | stability 0.4, style 0.4, speed 1.08 |
+
+Audition the hook line with two or three presets, then pin the chosen `voiceId` in the script so every regeneration matches. `eleven_v3` with `--tags` prefixes each line with a delivery tag (`[excited]`, `[calm]`, or the scene's `delivery` field).
 
 ## 3. Voice direction
 
@@ -52,7 +68,7 @@ For long-form with a single continuous voice track instead of per-scene files: p
 
 ## 5. Music and ducking
 
-- Source: licensed library tracks (Artlist, Epidemic, Uppbeat), or AI music (Suno, Udio, ElevenLabs Music) generated at the video length plus 5 s. Keep BPM in mind: 90 to 110 for explainers, 120 to 140 for hype Shorts. Put the file in `public/music/`.
+- Source: `scripts/generate-music.mjs --id <videoId> --mood energetic-tech|hype|corporate|cinematic|lofi|ambient|luxury` composes an instrumental of the exact video length with the ElevenLabs Music API (`POST /v1/music`, `force_instrumental`, prompts tuned to leave the vocal range clear), or use a free library track: Pixabay Music and Mixkit (no attribution), Free Music Archive and Chosic (filter CC0 / CC BY), YouTube Audio Library (YouTube uploads). Licensed subscriptions (Artlist, Epidemic, Uppbeat) also work. Keep BPM in mind: 90 to 110 for explainers, 120 to 140 for hype Shorts. Put the file in `public/music/` and note its license in `public/music/LICENSES.md`.
 - The `MusicBed` template takes the voiceover manifest and computes a volume curve: base level `musicLevel` (0.16 to 0.22, about -14 to -16 dB), ducked to `duckedLevel` (0.06 to 0.09) from 0.3 s before each voice segment to 0.4 s after, with 8-frame ramps. Ending fade over the last 45 to 60 frames.
 - Align a visual beat to the music: find the first downbeat (listen, or `npx remotion ffmpeg -i music.mp3 -af "silencedetect" -f null -`) and start the hook animation on it with `from`.
 - Loop shorter tracks with `loop` and `loopVolumeCurveBehavior="extend"` so the fade curve spans loops.

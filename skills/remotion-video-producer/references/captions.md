@@ -23,14 +23,14 @@ type Caption = { text: string; startMs: number; endMs: number; timestampMs: numb
 | Source | Command | When |
 |---|---|---|
 | ElevenLabs TTS alignment | produced by `generate-voiceover.mjs` | Voice was generated with ElevenLabs. Exact timing, no ASR errors. |
-| Local Whisper.cpp | `node scripts/transcribe-whisper.mjs public/voiceover/<id> --model medium.en` | Any audio, free, offline. First run downloads Whisper.cpp and the model. Audio is converted to 16 kHz WAV automatically. |
+| Local Whisper.cpp | `node scripts/transcribe-whisper.mjs public/voiceover/<id> --model medium.en` | Any audio, free, offline. First run downloads Whisper.cpp and the model into the shared `~/.cache/remotion-whisper` (about 1.6 GB, once for all projects). On Apple Silicon it runs on Metal, faster than real time. Audio is converted to 16 kHz WAV automatically. |
 | OpenAI Whisper API | `node scripts/transcribe-cloud.mjs --provider openai <audio or folder>` | Fast, punctuation kept by `openAiWhisperApiToCaptions`. |
 | ElevenLabs Scribe | `node scripts/transcribe-cloud.mjs --provider elevenlabs <audio or folder>` | Multilingual, speaker labels; uses `elevenLabsTranscriptToCaptions`. |
 | Existing SRT | `parseSrt({input})` in the component | Client-supplied subtitles. |
 
 All scripts write one `captions.json` per folder with timestamps offset to the composition timeline when a `manifest.json` is present (each scene's captions shifted by the sum of previous scene durations plus gaps). Pass `--gap 0.6` to match the value used in `calculateMetadata`.
 
-Model choice for Whisper.cpp: `medium.en` or `large-v3-turbo` for English quality; `medium` for other languages. Always `tokenLevelTimestamps: true`.
+Model choice for Whisper.cpp: `medium.en` for English (default, works with whisper.cpp 1.5.5 and plain `make`); `large-v3-turbo` for the best accuracy or accents (needs whisper.cpp 1.7.x, which the script selects automatically, plus `cmake` from Homebrew); `medium` or `large-v3` for other languages; `small.en` when drafting on battery. Always `tokenLevelTimestamps: true`.
 
 ## 3. Pages and word highlighting
 
@@ -48,9 +48,14 @@ The `CaptionLayer` template implements this with three looks and a `platform` pr
 
 | Look | Description | Use |
 |---|---|---|
-| `karaoke` | All words visible in white, active word in accent color, slight scale 1.08 pop | Educational, talking head |
+| `hormozi` (default) | Montserrat 900 uppercase, white with 3.5 px black stroke and hard offset shadow, active word bright yellow with a punch and 1.5 degree tilt, 3 to 4 words per page | Business, education, talking head; the 2026 benchmark |
 | `pop` | Only the current page, each word pops in with a spring, active word larger with glow | Shorts hooks, hype, UGC |
 | `boxed` | Words in a rounded solid box (accent) that follows the active word, white text | Brand/ad content, high legibility over footage |
+| `karaoke` | All words visible in white, active word in accent color, slight scale 1.08 pop | Calm explainers |
+| `outline` | Anton condensed uppercase, 5 px stroke, active word yellow | Entertainment, MrBeast-style hits |
+| `minimal` | Inter 600 lowercase inside a translucent dark bar, unspoken words dimmed | Premium, editorial, luxury |
+
+Research behind these (Submagic, Ascynd, Blitzcut, Vidpal, Zapcap guides, 2026) is summarized in `ecosystem.md` section 3; fonts are Google Fonts loaded by `theme.ts` (Inter, Montserrat, Anton). TikTok Sans (OFL) is available if a client wants the native look.
 
 Typography: 900 weight, uppercase optional, 56 to 72 px on 1080x1920, 40 to 48 px on 1920x1080, `letterSpacing: -0.01em`, stroke via `WebkitTextStroke: '2px rgba(0,0,0,0.6)'` or a shadow stack for legibility over footage. Two lines maximum, 3 to 5 words per page vertical. Position: lower part of the safe box (y 1250 to 1480 at 1080x1920) and never overlapping the headline; when a headline occupies that region, move captions to the upper middle for that scene.
 

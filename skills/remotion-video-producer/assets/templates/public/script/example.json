@@ -1,11 +1,24 @@
 {
   "videoId": "example",
   "title": "3 habits of creators who grow",
+  "pacing": "fast",
+  "grade": "none",
+  "logo": {
+    "text": "yourbrand",
+    "corner": "top-left"
+  },
+  "music": null,
   "voice": {
     "provider": "elevenlabs",
-    "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+    "preset": "young-male-pro",
     "model": "eleven_multilingual_v2",
-    "settings": {"stability": 0.45, "similarity_boost": 0.75, "style": 0.3, "use_speaker_boost": true, "speed": 1.04}
+    "settings": {
+      "stability": 0.42,
+      "similarity_boost": 0.78,
+      "style": 0.35,
+      "use_speaker_boost": true,
+      "speed": 1.08
+    }
   },
   "scenes": [
     {
@@ -13,8 +26,10 @@
       "headline": "Nobody watches your first second.",
       "highlight": "first second",
       "voiceover": "Nobody is watching your first second. So stop wasting it.",
-      "visual": {"type": "gradient"},
-      "minSeconds": 2.5
+      "visual": {
+        "type": "plain"
+      },
+      "minSeconds": 2.2
     },
     {
       "id": "scene-02",
@@ -22,22 +37,109 @@
       "highlight": "payoff",
       "subline": "Say the result before the setup.",
       "voiceover": "Habit one. Open with the payoff. Tell people what they get before you tell them how.",
-      "visual": {"type": "gradient"}
+      "visual": {
+        "type": "plain"
+      },
+      "speaker": {
+        "name": "Ved",
+        "role": "Creative AI Specialist"
+      }
     },
     {
       "id": "scene-03",
-      "headline": "Habit two: one idea per video",
-      "highlight": "one idea",
-      "voiceover": "Habit two. One idea per video. Three ideas is a playlist, not a Short.",
-      "visual": {"type": "gradient"}
+      "headline": "Retention by hook type",
+      "highlight": "hook",
+      "voiceover": "Videos that open with the result keep almost twice as many viewers past three seconds.",
+      "visual": {
+        "type": "chart",
+        "chart": {
+          "kind": "bar",
+          "title": "Viewers still watching at 3 s",
+          "unit": "%",
+          "data": [
+            {
+              "label": "Result first",
+              "value": 71
+            },
+            {
+              "label": "Question",
+              "value": 58
+            },
+            {
+              "label": "Setup first",
+              "value": 39
+            }
+          ]
+        }
+      }
     },
     {
       "id": "scene-04",
+      "headline": "It works on every platform",
+      "highlight": "every",
+      "voiceover": "And this works everywhere. Shorts, Reels, and Facebook video all reward the same first second.",
+      "visual": {
+        "type": "icons",
+        "icons": [
+          {
+            "set": "simple-icons",
+            "name": "youtube",
+            "label": "Shorts"
+          },
+          {
+            "set": "simple-icons",
+            "name": "instagram",
+            "label": "Reels"
+          },
+          {
+            "set": "simple-icons",
+            "name": "facebook",
+            "label": "Video"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scene-05",
+      "headline": "One idea per video",
+      "highlight": "one",
+      "voiceover": "Habit two. One idea per video. Three ideas is a playlist, not a Short.",
+      "visual": {
+        "type": "neon"
+      }
+    },
+    {
+      "id": "scene-06",
       "headline": "Habit three: end on a loop",
       "highlight": "loop",
       "subline": "Your last frame is your next hook.",
       "voiceover": "Habit three. End on a loop. Your last frame should feel like the start of the next one.",
-      "visual": {"type": "gradient"}
+      "visual": {
+        "type": "plain"
+      }
     }
-  ]
+  ],
+  "style": "midnight-neon",
+  "seo": {
+    "titles": [
+      "3 Habits of Creators Who Actually Grow",
+      "Why Nobody Watches Your First Second"
+    ],
+    "description": "Three habits that separate creators who grow from creators who stall: open with the payoff, one idea per video, end on a loop.",
+    "keywords": [
+      "content creator tips",
+      "youtube shorts growth",
+      "video hooks",
+      "retention"
+    ],
+    "hashtags": [
+      "#Shorts",
+      "#ContentCreator",
+      "#YouTubeGrowth"
+    ],
+    "category": "Education",
+    "cta": "Follow for part 2",
+    "thumbnailText": "NOBODY WATCHES SECOND ONE",
+    "language": "en"
+  }
 }

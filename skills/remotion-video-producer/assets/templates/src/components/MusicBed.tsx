@@ -1,6 +1,7 @@
 import React, {useCallback} from 'react';
 import {Audio} from '@remotion/media';
 import {interpolate, useVideoConfig} from 'remotion';
+import {fr} from '../lib/motion';
 
 export type VoiceSegment = {readonly startSeconds: number; readonly endSeconds: number};
 
@@ -34,25 +35,28 @@ export const MusicBed: React.FC<{
   loop = true,
 }) => {
   const {fps, durationInFrames} = useVideoConfig();
+  const ramp = fr(rampFrames, fps);
+  const fadeInF = fr(fadeInFrames, fps);
+  const fadeOutF = fr(fadeOutFrames, fps);
 
   const volume = useCallback(
     (f: number) => {
       // Envelope for the whole track.
-      const fadeIn = interpolate(f, [0, fadeInFrames], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-      const fadeOut = interpolate(f, [durationInFrames - fadeOutFrames, durationInFrames - 1], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+      const fadeIn = interpolate(f, [0, fadeInF], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+      const fadeOut = interpolate(f, [durationInFrames - fadeOutF, durationInFrames - 1], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
       // Ducking: find the deepest duck across all segments at this frame.
       let duck = 1;
       for (const seg of segments) {
         const start = (seg.startSeconds - preRollSeconds) * fps;
         const end = (seg.endSeconds + postRollSeconds) * fps;
-        const d = interpolate(f, [start - rampFrames, start, end, end + rampFrames], [1, 0, 0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+        const d = interpolate(f, [start - ramp, start, end, end + ramp], [1, 0, 0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
         duck = Math.min(duck, d);
       }
       const level = duckedLevel + (musicLevel - duckedLevel) * duck;
       return level * fadeIn * fadeOut;
     },
-    [segments, fps, durationInFrames, musicLevel, duckedLevel, preRollSeconds, postRollSeconds, rampFrames, fadeInFrames, fadeOutFrames],
+    [segments, fps, durationInFrames, musicLevel, duckedLevel, preRollSeconds, postRollSeconds, ramp, fadeInF, fadeOutF],
   );
 
   return <Audio src={src} volume={volume} loop={loop} loopVolumeCurveBehavior="extend" trimBefore={trimBefore} name="Music" />;
