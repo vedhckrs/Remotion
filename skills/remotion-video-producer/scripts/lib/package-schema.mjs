@@ -39,6 +39,7 @@ const readJson = (file) => {
 export const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
 export const fileHash = (file) => (fs.existsSync(file) ? sha256(fs.readFileSync(file)) : null);
 const words = (t) => String(t ?? '').trim().split(/\s+/).filter(Boolean);
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const norm = (w) => w.toLowerCase().replace(/[^a-z0-9%]+/g, '');
 
 export const loadPackage = (dir) => ({
@@ -124,14 +125,17 @@ export const sceneHash = (scene, voice, brands, ratio) =>
   sha256(JSON.stringify({r: RENDERER_VERSION, ratio, scene, voice, brands: iconsOf(scene.visual).filter((i) => i.name.startsWith('brand:')).map((i) => brands[i.name.slice(6)] ?? null)}));
 
 /**
- * Validate a package folder. Returns {stage, errors, warnings, videos: {id: {estimatedSeconds, measuredSeconds, scenes}}}.
+ * Validate a package folder. Returns {stage, errors, warnings, todo, videos: {id: {estimatedSeconds, measuredSeconds,
+ * predictedSeconds?, scenes, render?}}, pace?}. Errors are mistakes to fix; todo lists the production steps still to
+ * run (voice, music), which hold the stage back without being errors.
  * `projectDir` (the Remotion project) enables icon-name checks.
  */
 export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
   const errors = [];
   const warnings = [];
+  const todo = [];
   const P = loadPackage(dir);
-  const report = {dir, id: P.pkg?.id ?? path.basename(dir), stage: 'planned', errors, warnings, videos: {}, checkedAt: new Date().toISOString()};
+  const report = {dir, id: P.pkg?.id ?? path.basename(dir), stage: 'planned', errors, warnings, todo, videos: {}, checkedAt: new Date().toISOString()};
   if (!P.pkg) {
     errors.push('package.json missing or not valid JSON');
     report.stage = null;
@@ -165,12 +169,13 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
   const usedSources = new Set();
 
   for (const video of videos) {
-    const vr = {estimatedSeconds: 0, measuredSeconds: null, scenes: {}};
+    const vr = {estimatedSeconds: 0, measuredSeconds: null, scenes: {}, starts: {}};
     report.videos[video.id] = vr;
     if (!['16:9', '9:16'].includes(video.ratio)) errors.push(`${video.id}: ratio must be 16:9 or 9:16`);
     if (!Array.isArray(video.targetSeconds) || video.targetSeconds.length !== 2) errors.push(`${video.id}: targetSeconds [min, max] is required`);
     const sceneIds = new Set();
     const timing = P.timing(video.id);
+    const staleVoice = [];
     let measured = timing ? 0 : null;
     for (const scene of video.scenes ?? []) {
       const where = `${video.id}/${scene.id}`;
@@ -228,13 +233,20 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
         if (!sourceIds.has(sid)) errors.push(`${where}: source "${sid}" is not in research/sources.json`);
       }
       const voice = timing?.scenes?.[scene.id];
-      if (!voice) voiced = false;
-      else {
+      // Voice recorded for different words (narration edited after voicing) counts as not voiced.
+      const stale = voice && (voice.words ?? []).map((w) => w.text).join(' ') !== words(scene.narration).join(' ');
+      if (stale) staleVoice.push(scene.id);
+      if (!voice || stale) voiced = false;
+      if (!voice) {
+        // not voiced yet
+      } else {
         if (!fs.existsSync(path.join(dir, 'voice', video.id, voice.file))) {
           errors.push(`${where}: voice file ${voice.file} missing`);
           voiced = false;
         }
-        measured += Math.max(scene.minSeconds ?? 0, LEAD + (voice.end - voice.start) + (scene.holdAfter ?? HOLD));
+        // Same arithmetic as the renderer (whole frames per scene), so chapter times match the video.
+        vr.starts[scene.id] = +(measured).toFixed(3);
+        measured += Math.ceil(Math.max(scene.minSeconds ?? 0, LEAD + (voice.end - voice.start) + (scene.holdAfter ?? HOLD)) * 60) / 60;
       }
       vr.scenes[scene.id] = sceneHash(scene, voice ?? null, P.brands, video.ratio);
     }
@@ -242,14 +254,59 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
     const [min, max] = video.targetSeconds ?? [0, Infinity];
     const est = vr.estimatedSeconds;
     if (est < min * 0.9 || est > max * 1.1) warnings.push(`${video.id}: estimated ${Math.round(est)} s is outside the target ${min}-${max} s`);
-    if (measured !== null && (measured < min * 0.9 || measured > max * 1.1)) warnings.push(`${video.id}: measured ${Math.round(measured)} s is outside the target ${min}-${max} s`);
+    if (measured !== null && (measured < min - 2 || measured > max + 2)) warnings.push(`${video.id}: voiced length ${mmss(measured)} is outside the target ${mmss(min)}-${mmss(max)}`);
     const music = P.pkg.music?.[video.id];
+    if (!timing) todo.push(`${video.id}: voice`);
+    else if (staleVoice.length) todo.push(`${video.id}: voice again for ${staleVoice.join(', ')} (narration changed)`);
     if (music && !fs.existsSync(path.join(dir, music.file))) {
-      errors.push(`${video.id}: music file ${music.file} missing`);
+      todo.push(`${video.id}: music`);
       assetsReady = false;
     }
   }
   for (const s of P.sources ?? []) if (!usedSources.has(s.id)) warnings.push(`sources.json: ${s.id} is not cited by any scene`);
+
+  // The pace measured on any voiced video predicts the others' length before their voice is paid for
+  // (voice the Short first: ~800 characters tell you whether the long one lands in its target).
+  let spokenChars = 0;
+  let spokenSecs = 0;
+  let spokenWords = 0;
+  const pacedBy = [];
+  for (const video of videos) {
+    const t = P.timing(video.id);
+    if (!t) continue;
+    pacedBy.push(video.id);
+    for (const sc of video.scenes ?? []) {
+      const v = t.scenes?.[sc.id];
+      if (!v) continue;
+      spokenChars += String(sc.narration ?? '').length;
+      spokenWords += words(sc.narration).length;
+      spokenSecs += v.end - v.start;
+    }
+  }
+  if (spokenSecs > 10) {
+    const rate = spokenChars / spokenSecs;
+    const wpm = Math.round((spokenWords / spokenSecs) * 60);
+    report.pace = {charsPerSecond: +rate.toFixed(2), wordsPerMinute: wpm, from: pacedBy};
+    for (const video of videos) {
+      const vr = report.videos[video.id];
+      if (!vr || vr.measuredSeconds !== null) continue;
+      let speech = 0;
+      let total = 0;
+      for (const sc of video.scenes ?? []) {
+        const sp = String(sc.narration ?? '').length / rate;
+        speech += sp;
+        total += Math.max(sc.minSeconds ?? 0, LEAD + sp + (sc.holdAfter ?? HOLD));
+      }
+      vr.predictedSeconds = total;
+      const [min, max] = video.targetSeconds ?? [0, Infinity];
+      if (total > max + 2 || total < min - 2) {
+        const aim = (min + max) / 2;
+        const speed = Math.min(1.2, Math.max(0.7, speech / Math.max(1, speech - (total - aim))));
+        const trim = Math.round(((total - aim) / 60) * wpm);
+        warnings.push(`${video.id}: predicted ${mmss(total)} at the pace measured on ${pacedBy.join(', ')} (${wpm} words/min), outside ${mmss(min)}-${mmss(max)}. Before voicing it, set voice.videos.${video.id}.settings.speed to ${speed.toFixed(2)} in package.json${trim > 0 ? `, or cut about ${trim} words` : `, or add about ${-trim} words`}.`);
+      }
+    }
+  }
 
   // Stage: the furthest step whose requirements (and all earlier ones) hold.
   const steps = [true, researched, scripted && videos.length > 0, storyboarded, voiced, assetsReady, errors.length === 0];

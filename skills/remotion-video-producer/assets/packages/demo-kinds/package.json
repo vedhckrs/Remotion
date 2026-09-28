@@ -1,0 +1,11 @@
+{
+  "schema": "wiresplained.package/1",
+  "id": "demo",
+  "topic": "Renderer gallery",
+  "title": "Every diagram kind, both ratios",
+  "objective": "Reference for package authors: one scene per visual kind with working beats. Not for publishing.",
+  "voice": {
+    "provider": "macos"
+  },
+  "version": 1
+}

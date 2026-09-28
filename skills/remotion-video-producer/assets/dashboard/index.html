@@ -955,12 +955,12 @@ function renderPkg() {
     const music = v.music ? (v.music.exists ? `${esc(v.music.credits?.source === 'import' ? (v.music.credits.title || v.music.credits.file) + ' · ' + v.music.credits.licence : `${v.music.credits?.style || ''} · ${v.music.credits?.key_signature || ''} · ${v.music.credits?.bpm || ''} BPM`)} · level ${v.music.level}` : '<span class="dim">not made yet</span>') : '<span class="dim">none</span>';
     const stills = v.scenes.filter(s => s.still);
     const qc = v.qc ? `<details class="more"><summary>QC · ${v.qc.checks.filter(c => c.pass).length}/${v.qc.checks.length} checks passed</summary>${v.qc.checks.map(c => `<div class="steps"><div class="s ${c.pass ? 'done' : c.level === 'error' ? 'failed' : 'running'}"><span>${c.pass ? '✓' : c.level === 'error' ? '✗' : '!'} ${esc(c.name)}</span><small title="${esc(c.detail)}">${esc(c.detail)}</small></div></div>`).join('')}</details>` : '';
-    const up = v.upload ? `<details class="more"><summary>Upload details</summary>${copyField('Title', v.upload.title)}${copyField('Description', v.upload.description)}${v.upload.tags ? copyField('Tags', (v.upload.tags || []).join(', ')) : ''}${v.upload.hashtags ? copyField('Hashtags', (v.upload.hashtags || []).join(' ')) : ''}</details>` : '';
+    const up = v.upload ? `<details class="more"><summary>Upload details</summary>${copyField('Title', v.upload.title)}${copyField('Description', v.upload.chapterText ? `${v.upload.description}\n\n${v.upload.chapterText}` : v.upload.description, v.upload.chapterText ? ' (with chapters)' : '')}${v.upload.pinnedComment ? copyField('Pinned comment', v.upload.pinnedComment) : ''}${d.sources.length ? copyField('Sources (for the description)', 'Sources:\n' + d.sources.filter(x => v.scenes.some(s => s.sources.includes(x.id))).map(x => `${x.publisher ? x.publisher + ', ' : ''}${x.title}: ${x.url}`).join('\n')) : ''}${v.upload.tags ? copyField('Tags', (v.upload.tags || []).join(', ')) : ''}${v.upload.hashtags ? copyField('Hashtags', (v.upload.hashtags || []).join(' ')) : ''}</details>` : '';
     const scenes = `<details class="more"><summary>Script · ${v.scenes.length} scenes</summary><table class="scenes">${v.scenes.map(s => `<tr><td>${esc(s.id)}<br><span class="dim">${esc(s.kind || '')}</span></td><td><b>${esc(String(s.headline).replace(/\n/g, ' '))}</b><div class="nar">${esc(s.narration)}</div>${s.sources.length ? `<div class="dim" style="font-size:11px">${esc(s.sources.join(', '))}</div>` : ''}</td></tr>`).join('')}</table></details>`;
     return `<div class="lvid">
       <div class="head"><b>${esc(RATIO_NAME[v.ratio] || v.id)} <span class="muted" style="font-weight:400">· ${esc(v.title || '')}</span></b></div>
       <div class="kv">
-        <span>Length</span><span>target ${t ? secs(t[0]) + '–' + secs(t[1]) : '–'} · estimated ${secs(r.estimatedSeconds)} · <span class="${lenClass(r.measuredSeconds, t)}">voiced ${secs(r.measuredSeconds)}</span></span>
+        <span>Length</span><span>target ${t ? secs(t[0]) + '–' + secs(t[1]) : '–'} · estimated ${secs(r.estimatedSeconds)} · ${r.measuredSeconds != null ? `<span class="${lenClass(r.measuredSeconds, t)}">voiced ${secs(r.measuredSeconds)}</span>` : r.predictedSeconds != null ? `<span class="${lenClass(r.predictedSeconds, t)}" title="From the pace of the video already voiced">predicted ${secs(r.predictedSeconds)}</span>` : 'not voiced yet'}</span>
         <span>Voice</span><span>${voice}</span>
         <span>Music</span><span>${music}</span>
         <span>Render</span><span>${render}${draft}</span>
@@ -974,6 +974,8 @@ function renderPkg() {
   $('#lib-detail').innerHTML = `
     <div class="ep-title">${esc(d.pkg.title || d.id)}</div>
     <div class="row" style="margin-top:-8px"><span class="st ${STAGE_CLASS[d.stage] || ''}" style="flex:0 0 auto">${esc(d.stage || 'invalid')}</span><small class="muted">${esc(d.pkg.topic || '')}${d.pkg.date ? ' · ' + esc(fmtDate(d.pkg.date)) : ''}${d.pkg.week != null ? ' · week ' + esc(d.pkg.week) : ''}</small></div>
+    ${d.todo.length ? `<div class="hint" style="margin-top:8px">Still to do: ${esc(d.todo.join(' · '))}</div>` : ''}
+    ${d.pace ? `<div class="hint">Voice pace measured on ${esc(d.pace.from.join(', '))}: ${esc(d.pace.wordsPerMinute)} words/min</div>` : ''}
     ${d.errors.length ? `<ul class="msgs err">${d.errors.map(e => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}
     ${d.warnings.length ? `<details class="more"><summary>${d.warnings.length} warning${d.warnings.length > 1 ? 's' : ''}</summary><ul class="msgs warn">${d.warnings.map(e => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}
     <div style="margin-top:12px">${vids}</div>${srcs}`;
@@ -984,7 +986,11 @@ function renderPkg() {
 }
 function genDefaults(d) {
   const any = (f) => d.videos.some(f);
-  return {videos: d.videos.map(v => v.id), stills: !any(v => v.scenes.some(s => s.still)), voice: any(v => !v.voice), voiceProvider: 'elevenlabs', music: any(v => !v.music?.exists), render: true, quality: 'final', force: false};
+  // Nothing voiced yet: start with the Short, whose measured pace then predicts the long video's length.
+  const firstVoice = !any(v => v.voice) && any(v => v.ratio === '9:16');
+  // No storyboard yet: the first run makes only the (free) stills, so every scene is seen before any voice is paid for.
+  const storyboardFirst = !any(v => v.scenes.some(s => s.still));
+  return {firstVoice, storyboardFirst, videos: firstVoice && !storyboardFirst ? d.videos.filter(v => v.ratio === '9:16').map(v => v.id) : d.videos.map(v => v.id), stills: storyboardFirst, voice: !storyboardFirst && d.todo.some(t => / voice/.test(t)), voiceProvider: 'elevenlabs', music: !storyboardFirst && d.todo.some(t => / music/.test(t)), render: !storyboardFirst, quality: 'final', force: false};
 }
 function renderGen() {
   const d = PK;
@@ -997,6 +1003,7 @@ function renderGen() {
     <div class="line"><label class="check"><input type="checkbox" data-gs="music" ${f.music ? 'checked' : ''}/> Music (made on this Mac)</label></div>
     <div class="line"><label class="check"><input type="checkbox" data-gs="render" ${f.render ? 'checked' : ''}/> Render</label><select id="g-q"><option value="final" ${f.quality === 'final' ? 'selected' : ''}>Final</option><option value="draft" ${f.quality === 'draft' ? 'selected' : ''}>Draft (half size)</option></select></div>
     <label class="check"><input type="checkbox" data-gs="force" ${f.force ? 'checked' : ''}/> Redo finished work (ignore what is kept)</label>
+    ${f.storyboardFirst ? '<div class="hint">New topic: first make the storyboard (free) and look through every scene. Generate again for voice, music and render.</div>' : f.firstVoice ? '<div class="hint">First voice for this topic: the Short goes first. Its measured pace shows the long video’s predicted length (and any speed fix) before you pay for its voice.</div>' : ''}
     <div class="hint">Final: ${S.settings.fourK ? '4K' : '1080p'} 60 fps · ${S.settings.hw ? 'hardware encoder' : 'x264'} · budget ${S.settings.budget}% (header). Finished scenes, voice chunks and music are kept, so a stopped job carries on where it left off.</div>
     <button class="primary go" id="g-go" ${busy ? 'disabled' : ''}>${busy ? 'Working…' : 'Generate'}</button>
     <small class="muted" id="g-msg"></small>
@@ -1095,7 +1102,8 @@ es.addEventListener('jobs', (e) => {
 es.addEventListener('outputs', (e) => { S.outputs = JSON.parse(e.data); renderOutputs(); });
 es.addEventListener('studio', (e) => { S.studio = JSON.parse(e.data); renderStudio(); });
 es.addEventListener('log', (e) => appendLog(JSON.parse(e.data)));
-es.addEventListener('library', (e) => { L = JSON.parse(e.data); renderLibList(); if (selPkg) loadPkg(selPkg, true); });
+// A job finished: the next sensible steps change (stills made -> voice; voice made -> music and render).
+es.addEventListener('library', (e) => { L = JSON.parse(e.data); renderLibList(); for (const k of Object.keys(GEN)) delete GEN[k]; if (selPkg) loadPkg(selPkg, true); });
 es.addEventListener('plan', (e) => { const p = JSON.parse(e.data); if (p.weeks) { P = p; renderPlan(); if (view === 'upload') loadDetails(); } });
 
 setView(store.get('view', 'library'));

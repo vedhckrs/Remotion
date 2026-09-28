@@ -23,9 +23,9 @@ if (!fs.existsSync(path.join(src, 'production.json')) || !fs.existsSync(path.joi
 }
 lowerPriority();
 const report = validatePackage(src, {projectDir: project});
-const blocking = report.errors.filter((e) => !/music file|voice/.test(e));
-if (blocking.length) {
-  console.error(`Package has errors, fix them first:\n  ${blocking.join('\n  ')}`);
+// Stills need no voice or music (timing is estimated until the voice exists).
+if (report.errors.length) {
+  console.error(`Package has errors, fix them first:\n  ${report.errors.join('\n  ')}`);
   process.exit(1);
 }
 const pkg = JSON.parse(fs.readFileSync(path.join(src, 'package.json'), 'utf8'));

@@ -90,6 +90,11 @@ with the next one. `--force` redoes everything.
 - Word timings come from ElevenLabs' character alignment. Each scene plays its slice of the chunk; captions and
   beats follow the measured words.
 - The key lives in the project's `.env` (`ELEVENLABS_API_KEY`), never in a package.
+- **Voice the Short first.** Its ~800 characters measure this voice's real pace; the validator then predicts
+  the long video's length before its ~8,000 characters are paid for, and if the prediction is outside the
+  target it says which `speed` to use (or how many words to cut). Speed can be set for one video only:
+  `"voice": {"videos": {"long": {"settings": {"speed": 1.05}}}}` (ElevenLabs accepts 0.7 to 1.2; stay within
+  about 0.95 to 1.1 for a natural read). Only that video's chunks are affected.
 
 ## Music (free, local, nothing to claim)
 
@@ -130,6 +135,7 @@ are done in JS (`scripts/lib/audio.mjs`, raw frames through `image2pipe`).
 
 1. Import the day's package zip in the Library tab (or copy the folder into the library folder).
 2. Tick **Storyboard stills**, Generate, look through the strip. Fix anything in `production.json`.
-3. Tick **Voice**: the confirmation shows the exact characters. Then **Music** and **Render** (Draft first if
-   anything changed a lot, then Final).
+3. Voice the **Short** first (untick Long): the confirmation shows the exact characters. The Long row then
+   shows its predicted length; if it is outside 8:00-8:30, follow the warning (speed or trim), then voice the
+   Long. Then **Music** and **Render** (Draft first if anything changed a lot, then Final).
 4. Play the master, read the QC list, copy the upload details, publish by hand.

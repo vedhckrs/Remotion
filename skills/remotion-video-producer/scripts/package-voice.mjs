@@ -67,17 +67,17 @@ const resolveVoiceId = async () => {
 };
 
 let format = 'mp3_44100_192';
-const eleven = async (voiceId, text, previousText, nextText) => {
+const eleven = async (voiceId, text, previousText, nextText, settings) => {
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=${format}`, {
     method: 'POST',
     headers: {'xi-api-key': requireEnv('ELEVENLABS_API_KEY'), 'Content-Type': 'application/json'},
-    body: JSON.stringify({text, model_id: model, voice_settings: {...(preset?.settings ?? {}), ...(cfg.settings ?? {})}, previous_text: previousText || undefined, next_text: nextText || undefined}),
+    body: JSON.stringify({text, model_id: model, voice_settings: {...(preset?.settings ?? {}), ...settings}, previous_text: previousText || undefined, next_text: nextText || undefined}),
   });
   if (!res.ok) {
     const body = await res.text();
     if (res.status === 403 && /output_format/i.test(body) && format !== 'mp3_44100_128') {
       format = 'mp3_44100_128';
-      return eleven(voiceId, text, previousText, nextText);
+      return eleven(voiceId, text, previousText, nextText, settings);
     }
     throw new Error(`ElevenLabs ${res.status}: ${body.slice(0, 300)}`);
   }
@@ -107,6 +107,8 @@ const macSay = (text, file) => {
 
 const resolvedVoice = await resolveVoiceId();
 for (const video of videos) {
+  // Package-wide settings, then per-video ones (voice.videos.<id>.settings, e.g. {speed: 1.05} for the long only).
+  const settings = {...(cfg.settings ?? {}), ...(cfg.videos?.[video.id]?.settings ?? {})};
   const out = path.join(dir, 'voice', video.id);
   const timingFile = path.join(out, 'timing.json');
   const previous = fs.existsSync(timingFile) ? JSON.parse(fs.readFileSync(timingFile, 'utf8')) : null;
@@ -127,7 +129,7 @@ for (const video of videos) {
   let reused = 0;
   for (const [i, c] of chunks.entries()) {
     const file = `voice-${String(i + 1).padStart(2, '0')}.${provider === 'macos' ? 'wav' : 'mp3'}`;
-    const key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: cfg.settings ?? null}));
+    const key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: Object.keys(settings).length ? settings : null}));
     const reuse = !args.force && previous?.chunks?.find((pc) => pc.key === key && fs.existsSync(path.join(out, pc.file)));
     if (reuse) {
       timing.chunks.push(reuse);
@@ -158,7 +160,7 @@ for (const video of videos) {
       const prevText = i > 0 ? chunks[i - 1].text.slice(-600) : '';
       const nextText = chunks[i + 1]?.text.slice(0, 600) ?? '';
       console.log(`  ${video.id} ${file}: ${c.scenes.length} scenes, ${c.text.length} characters`);
-      const {audio, alignment} = await eleven(voiceId, c.text, prevText, nextText);
+      const {audio, alignment} = await eleven(voiceId, c.text, prevText, nextText, settings);
       fs.writeFileSync(path.join(out, file), audio);
       const all = wordsFromAlignment(c.scenes.flatMap((s) => s.pieces), alignment);
       let k = 0;

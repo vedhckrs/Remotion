@@ -23,6 +23,7 @@
  * --draft     half size, fast encode, separate cache: for checking timing and layout quickly
  * Progress lines start with "PROGRESS " followed by JSON, for the dashboard.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {parseArgs} from './lib/env.mjs';
@@ -58,6 +59,9 @@ const production = JSON.parse(fs.readFileSync(path.join(src, 'production.json'),
 const id = packageId(pkg, src);
 const videos = production.videos.filter((v) => !args.video || args.video === 'all' || v.id === args.video);
 if (!videos.length) fail(`No video "${args.video}" in this package (has: ${production.videos.map((v) => v.id).join(', ')})`);
+// Voice and music must exist for the videos being rendered (the other video may still be waiting for its voice).
+const missing = (report.todo ?? []).filter((t) => videos.some((v) => t.startsWith(`${v.id}:`)));
+if (missing.length) fail(`Not ready to render yet. Still to do:\n  ${missing.join('\n  ')}\nRun package-voice.mjs / package-music.mjs (or tick Voice and Music in the dashboard).`);
 
 // Copy the package into public/packages/<id> (the renderer reads it from there). Renders stay out.
 syncPackage(src, project, id);
@@ -191,7 +195,7 @@ try {
     const finalFile = path.join(src, 'renders', finalName);
     const tmpFinal = `${finalFile}.part.mp4`;
     const mux = ffmpeg(['-y', '-v', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-i', master, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', vertical ? '256k' : '320k', '-ar', '48000', '-ac', '2', '-movflags', '+faststart', '-shortest', tmpFinal]);
-    if (mux.status !== 0) fail(`Joining failed: ${mux.stderr}`);
+    if (mux.status !== 0) throw new Error(`Joining failed: ${mux.stderr}`);
     fs.renameSync(tmpFinal, finalFile);
 
     // 5. QC.
@@ -201,7 +205,7 @@ try {
     const status = qc.checks.some((c) => c.level === 'error' && !c.pass) ? 'failed' : qc.checks.some((c) => !c.pass) ? 'passed-with-warnings' : 'passed';
     manifest[video.id + (draft ? '-draft' : '')] = {
       file: `renders/${finalName}`,
-      sha256: sha256(fs.readFileSync(finalFile)),
+      sha256: hashFile(finalFile),
       bytes: fs.statSync(finalFile).size,
       width: W,
       height: H,
@@ -228,6 +232,20 @@ try {
 console.log(`\nFinished in ${((Date.now() - t0) / 60000).toFixed(1)} min`);
 
 // ---------------------------------------------------------------------------------------------------------
+/** SHA-256 of a file read in 8 MB pieces (a 4K master is several GB; never load it whole). */
+function hashFile(file) {
+  const h = crypto.createHash('sha256');
+  const fd = fs.openSync(file, 'r');
+  const buf = Buffer.alloc(8 * 2 ** 20);
+  try {
+    let n;
+    while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n));
+  } finally {
+    fs.closeSync(fd);
+  }
+  return h.digest('hex');
+}
+
 function runQc({file, master, W, H, fps, total, scenes, vertical}) {
   const checks = [];
   const check = (name, pass, detail, level = 'error') => checks.push({name, pass: Boolean(pass), detail, level});

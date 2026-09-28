@@ -9,7 +9,10 @@ import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 
-export const createLibrary = ({cwd, SKILL_DIR, getSettings, log, send, cancelSignals, jobs}) => {
+/** Share of the job's progress bar per step (rendering dominates the time). */
+const WEIGHT = {stills: 0.1, voice: 0.1, music: 0.05, render: 0.75};
+
+export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSignals, jobs}) => {
   let schema = null;
   const loadSchema = async () => (schema ??= await import(pathToFileURL(path.join(SKILL_DIR, 'scripts', 'lib', 'package-schema.mjs')).href));
   const root = () => path.resolve(getSettings().libraryDir || path.join(cwd, 'library'));
@@ -70,6 +73,18 @@ export const createLibrary = ({cwd, SKILL_DIR, getSettings, log, send, cancelSig
       const stills = readJson(path.join(dir, 'renders', v.id, 'stills', 'stills.json')) ?? {};
       const qc = readJson(path.join(dir, 'renders', v.id, 'qc.json'));
       const upload = readJson(path.join(dir, 'upload', `${v.id}.json`));
+      // Chapters are written as [sceneId, title]; their times exist once the voice is measured.
+      const starts = report.videos?.[v.id]?.starts ?? {};
+      if (upload && Array.isArray(upload.chapters) && Object.keys(starts).length) {
+        const stamp = (s) => {
+          const t = Math.floor(s);
+          const h = Math.floor(t / 3600);
+          const mm = Math.floor((t % 3600) / 60);
+          const ss = String(t % 60).padStart(2, '0');
+          return h ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
+        };
+        upload.chapterText = upload.chapters.filter(([sid]) => starts[sid] != null).map(([sid, title]) => `${stamp(starts[sid])} ${title}`).join('\n');
+      }
       return {
         id: v.id,
         ratio: v.ratio,
@@ -85,7 +100,7 @@ export const createLibrary = ({cwd, SKILL_DIR, getSettings, log, send, cancelSig
         scenes: v.scenes.map((sc) => ({id: sc.id, headline: sc.headline, kind: sc.visual?.kind, narration: sc.narration, sources: sc.sources ?? [], sourceNote: sc.sourceNote ?? null, still: stills[sc.id]?.file ? `renders/${v.id}/stills/${stills[sc.id].file}` : null, voiced: Boolean(timing?.scenes?.[sc.id])})),
       };
     });
-    return {id, dir, pkg, stage: report.stage, errors: report.errors, warnings: report.warnings, sources: readJson(path.join(dir, 'research', 'sources.json')) ?? [], videos};
+    return {id, dir, pkg, stage: report.stage, errors: report.errors, warnings: report.warnings, todo: report.todo ?? [], pace: report.pace ?? null, sources: readJson(path.join(dir, 'research', 'sources.json')) ?? [], videos};
   };
 
   /** Characters ElevenLabs would bill for the chunks that are not voiced yet (offline dry run). */
@@ -190,13 +205,23 @@ export const createLibrary = ({cwd, SKILL_DIR, getSettings, log, send, cancelSig
     job.status = 'running';
     job.startedAt = Date.now();
     send('jobs', jobs);
-    const weight = {stills: 0.1, voice: 0.1, music: 0.05, render: 0.75};
-    const total = steps.reduce((a, s) => a + weight[s.key], 0);
+    const total = steps.reduce((a, s) => a + WEIGHT[s.key], 0);
     let doneWeight = 0;
     const setProgress = (key, fraction) => {
-      job.progress = Math.min(1, (doneWeight + weight[key] * fraction) / total);
+      job.progress = Math.min(1, (doneWeight + WEIGHT[key] * fraction) / total);
       send('jobs', jobs);
     };
+    try {
+      await runSteps(job, o, dir, settings, steps, videoArgs, setProgress, (w) => (doneWeight += w));
+    } finally {
+      // After a failure or cancel the remaining steps read "not run", and the library shows what was finished.
+      for (const step of steps) if (step.status === 'queued') step.status = 'notrun';
+      send('jobs', jobs);
+      send('library', await summary());
+    }
+  };
+
+  const runSteps = async (job, o, dir, settings, steps, videoArgs, setProgress, addDone) => {
     for (const step of steps) {
       if (job.status === 'cancelled') break;
       const perVideo = {};
@@ -216,11 +241,9 @@ export const createLibrary = ({cwd, SKILL_DIR, getSettings, log, send, cancelSig
       if (step.key === 'music') await runStep(job, step, 'package-music.mjs', [dir, ...videoArgs]);
       if (step.key === 'render')
         await runStep(job, step, 'package-render.mjs', [dir, ...videoArgs, '--budget', String(settings.budget), ...(o.draft ? ['--draft'] : []), ...(o.fourK && !o.draft ? ['--4k'] : []), ...(o.hw ? ['--hw'] : []), ...(settings.gl ? ['--gl', settings.gl] : []), ...(o.force ? ['--force'] : [])], onProgress);
-      doneWeight += weight[step.key];
+      addDone(WEIGHT[step.key]);
       setProgress(step.key, 0);
     }
-    for (const step of steps) if (step.status === 'queued') step.status = 'notrun';
-    send('library', await summary());
   };
 
   /** A file inside a package (stills, voice, music, renders), refusing anything outside it. */

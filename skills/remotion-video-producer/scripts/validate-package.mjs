@@ -32,6 +32,7 @@ if (args.includes('--json')) {
   }
   for (const e of report.errors) console.log(`  ERROR    ${e}`);
   for (const w of report.warnings) console.log(`  warning  ${w}`);
+  for (const t of report.todo ?? []) console.log(`  to do    ${t}`);
   if (!report.errors.length) console.log('  no errors');
 }
 process.exit(report.errors.length ? 1 : 0);

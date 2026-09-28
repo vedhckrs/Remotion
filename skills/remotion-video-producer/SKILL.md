@@ -178,6 +178,7 @@ Templates (`assets/templates/`): `remotion.config.ts`, `public/script/example.js
 References (`references/`), read when:
 - `remotion-api.md` - always, on first use in a session: API cheat sheet and determinism rules.
 - `local-machine.md` - setting up or tuning the laptop: budget, GL, encoding, memory, thermals, storage.
+- `package-authoring.md` - writing a topic package (research, word budgets, narration, headlines, the 14 diagram kinds, beats, upload copy) so it validates first time; `assets/packages/demo-kinds/` shows every kind.
 - `topic-packages.md` - producing from a topic package: folder layout, scene format, commands, what is kept, voice cost, free music, loudness and QC, the daily routine.
 - `dashboard.md` - using or automating the local control room.
 - `ecosystem.md` - choosing plugins and sources: component libraries, caption research, transitions, voices, LUTs, music libraries, render servers.

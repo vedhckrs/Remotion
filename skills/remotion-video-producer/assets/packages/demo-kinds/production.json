@@ -1,0 +1,1069 @@
+{
+ "schema": "wiresplained.production/1",
+ "episode": "demo",
+ "series": "How it’s wired",
+ "videos": [
+  {
+   "id": "long",
+   "ratio": "16:9",
+   "title": "Kinds demo",
+   "targetSeconds": [
+    60,
+    200
+   ],
+   "scenes": [
+    {
+     "id": "S01",
+     "headline": "Bluetooth hops\n1,600 times a second",
+     "highlight": "1,600",
+     "narration": "Bluetooth quietly hops between channels sixteen hundred times every second.",
+     "visual": {
+      "kind": "hero",
+      "icon": "bluetooth",
+      "color": "cyan",
+      "orbit": [
+       "brand:spotify",
+       "headphones",
+       "smartphone",
+       "watch"
+      ],
+      "big": "1,600 / s",
+      "sub": "channel hops, every second"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S02",
+     "headline": "Phone to earbuds",
+     "highlight": "earbuds",
+     "narration": "Your phone sends music to your earbuds through a short radio link.",
+     "visual": {
+      "kind": "flow",
+      "nodes": [
+       {
+        "id": "p",
+        "icon": "smartphone",
+        "label": "Phone",
+        "signal": true
+       },
+       {
+        "id": "b",
+        "icon": "bluetooth",
+        "label": "Radio link",
+        "color": "violet"
+       },
+       {
+        "id": "e",
+        "icon": "headphones",
+        "label": "Earbuds",
+        "color": "green"
+       }
+      ],
+      "links": [
+       {
+        "from": "p",
+        "to": "b"
+       },
+       {
+        "from": "b",
+        "to": "e",
+        "color": "violet"
+       }
+      ],
+      "badge": {
+       "text": "Short-range radio",
+       "color": "cyan"
+      },
+      "beats": [
+       {
+        "at": "music",
+        "focus": [
+         "b"
+        ]
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S03",
+     "headline": "79 narrow channels",
+     "highlight": "channels",
+     "narration": "It slices the band into seventy nine narrow channels.",
+     "visual": {
+      "kind": "wave",
+      "mode": "spectrum",
+      "band": {
+       "from": 2.402,
+       "to": 2.48,
+       "unit": "GHz"
+      },
+      "channels": 79,
+      "hop": true,
+      "busy": [
+       {
+        "from": 10,
+        "to": 30,
+        "label": "Wi-Fi"
+       }
+      ],
+      "label": "hop around busy channels"
+     },
+     "minSeconds": 6,
+     "sourceNote": "Bluetooth Core Specification v5.4"
+    },
+    {
+     "id": "S04",
+     "headline": "1,600 hops every second",
+     "highlight": "1,600",
+     "narration": "That is sixteen hundred hops every second.",
+     "visual": {
+      "kind": "stat",
+      "value": 1600,
+      "unit": "hops/s",
+      "label": "Classic Bluetooth hop rate",
+      "sub": "one hop every 625 microseconds"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S05",
+     "headline": "Light takes time",
+     "highlight": "time",
+     "narration": "Ten thousand kilometres at two hundred thousand kilometres a second is fifty milliseconds.",
+     "visual": {
+      "kind": "equation",
+      "terms": [
+       {
+        "value": "10,000 km",
+        "label": "distance"
+       },
+       {
+        "op": "÷"
+       },
+       {
+        "value": "200,000 km/s",
+        "label": "light in fibre"
+       },
+       {
+        "op": "="
+       },
+       {
+        "value": "50 ms",
+        "label": "one way"
+       }
+      ],
+      "note": "propagation only"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S06",
+     "headline": "A reserve for smooth playback",
+     "highlight": "reserve",
+     "narration": "Your player keeps a reserve of video ahead of where you are watching.",
+     "visual": {
+      "kind": "meter",
+      "style": "tank",
+      "label": "Playable data ahead",
+      "level": 0.7,
+      "in": {
+       "label": "Incoming video",
+       "icon": "download"
+      },
+      "out": {
+       "label": "Playback",
+       "icon": "play"
+      },
+      "beats": [
+       {
+        "at": "reserve",
+        "set": {
+         "level": 0.35
+        }
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S07",
+     "headline": "Wi-Fi or Bluetooth?",
+     "highlight": "or",
+     "narration": "Wi-Fi moves more data, Bluetooth sips less power.",
+     "visual": {
+      "kind": "compare",
+      "vs": true,
+      "items": [
+       {
+        "id": "w",
+        "label": "Wi-Fi",
+        "icon": "wifi",
+        "value": "Fast",
+        "points": [
+         "More data",
+         "More power"
+        ]
+       },
+       {
+        "id": "b",
+        "label": "Bluetooth",
+        "icon": "bluetooth",
+        "value": "Frugal",
+        "points": [
+         "Less data",
+         "Less power"
+        ],
+        "color": "violet"
+       }
+      ],
+      "beats": [
+       {
+        "at": "sips",
+        "focus": [
+         "b"
+        ]
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S08",
+     "headline": "Inside the cable",
+     "highlight": "cable",
+     "narration": "A subsea cable wraps tiny glass fibres in layers of protection.",
+     "visual": {
+      "kind": "layers",
+      "style": "rings",
+      "items": [
+       {
+        "label": "Polyethylene jacket",
+        "sub": "outer protection"
+       },
+       {
+        "label": "Steel wires",
+        "sub": "strength"
+       },
+       {
+        "label": "Copper conductor",
+        "sub": "powers repeaters"
+       },
+       {
+        "label": "Optical fibres",
+        "sub": "carry the data"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S09",
+     "headline": "Big video, small packets",
+     "highlight": "packets",
+     "narration": "A video is split into many small packets, and a missing one is sent again.",
+     "visual": {
+      "kind": "grid",
+      "count": 8,
+      "caption": "packets share the network",
+      "beats": [
+       {
+        "at": "missing",
+        "set": {
+         "missing": [
+          "4"
+         ]
+        }
+       },
+       {
+        "at": "again",
+        "set": {
+         "missing": [],
+         "done": [
+          "4"
+         ]
+        }
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S10",
+     "headline": "From tap to play",
+     "highlight": "tap",
+     "narration": "You tap, the app finds the address, connects, and the video starts.",
+     "visual": {
+      "kind": "timeline",
+      "steps": [
+       {
+        "label": "Tap",
+        "icon": "hand"
+       },
+       {
+        "label": "Find address",
+        "icon": "search"
+       },
+       {
+        "label": "Connect",
+        "icon": "lock"
+       },
+       {
+        "label": "Play",
+        "icon": "play"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S11",
+     "headline": "Why it keeps hopping",
+     "highlight": "hopping",
+     "narration": "It listens, hops, sends, and hops again.",
+     "visual": {
+      "kind": "cycle",
+      "steps": [
+       {
+        "label": "Listen",
+        "icon": "ear"
+       },
+       {
+        "label": "Hop",
+        "icon": "shuffle"
+       },
+       {
+        "label": "Send",
+        "icon": "send"
+       },
+       {
+        "label": "Confirm",
+        "icon": "check"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S12",
+     "headline": "Before you blame Wi-Fi",
+     "highlight": "Wi-Fi",
+     "narration": "Check the signal, the speed test, and the app.",
+     "visual": {
+      "kind": "checklist",
+      "items": [
+       {
+        "label": "Signal bars",
+        "sub": "local link only"
+       },
+       {
+        "label": "Speed test",
+        "sub": "one moment, one server"
+       },
+       {
+        "label": "The app itself",
+        "ok": false
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S13",
+     "headline": "Inside your earbuds",
+     "highlight": "earbuds",
+     "narration": "Each bud has a radio, a chip and a microphone.",
+     "visual": {
+      "kind": "device",
+      "device": "earbuds",
+      "callouts": [
+       {
+        "label": "Radio in each bud",
+        "at": "left"
+       },
+       {
+        "label": "Tiny chip",
+        "at": "chip"
+       },
+       {
+        "label": "Microphone",
+        "at": "mic"
+       },
+       {
+        "label": "Charging case",
+        "at": "case"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S14",
+     "headline": "Speeds compared",
+     "highlight": "Speeds",
+     "narration": "Typical speeds differ a lot.",
+     "visual": {
+      "kind": "bars",
+      "unit": "Mbps",
+      "items": [
+       {
+        "label": "Bluetooth LE",
+        "value": 2
+       },
+       {
+        "label": "Bluetooth Classic",
+        "value": 3
+       },
+       {
+        "label": "Wi-Fi 6",
+        "value": 600
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S15",
+     "headline": "One phone, many links",
+     "highlight": "links",
+     "narration": "Your phone keeps many links at once.",
+     "visual": {
+      "kind": "flow",
+      "layout": "hub",
+      "nodes": [
+       {
+        "id": "p",
+        "icon": "smartphone",
+        "label": "Phone"
+       },
+       {
+        "id": "a",
+        "icon": "headphones",
+        "label": "Earbuds"
+       },
+       {
+        "id": "b",
+        "icon": "watch",
+        "label": "Watch"
+       },
+       {
+        "id": "c",
+        "icon": "car",
+        "label": "Car"
+       },
+       {
+        "id": "d",
+        "icon": "speaker",
+        "label": "Speaker"
+       }
+      ],
+      "links": [
+       {
+        "from": "p",
+        "to": "a",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "b",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "c",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "d",
+        "dir": "both"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S16",
+     "headline": "Content comes back",
+     "highlight": "back",
+     "narration": "The content comes back through the provider to your phone.",
+     "visual": {
+      "kind": "flow",
+      "nodes": [
+       {
+        "id": "ph",
+        "icon": "smartphone",
+        "label": "Phone"
+       },
+       {
+        "id": "pr",
+        "icon": "router",
+        "label": "Provider"
+       },
+       {
+        "id": "ed",
+        "icon": "server",
+        "label": "Edge server",
+        "color": "amber"
+       },
+       {
+        "id": "or",
+        "icon": "cloud",
+        "label": "Origin",
+        "color": "violet"
+       }
+      ],
+      "links": [
+       {
+        "from": "ph",
+        "to": "pr"
+       },
+       {
+        "from": "pr",
+        "to": "ed"
+       },
+       {
+        "from": "ed",
+        "to": "or",
+        "dashed": true,
+        "color": "violet"
+       }
+      ]
+     },
+     "minSeconds": 6
+    }
+   ]
+  },
+  {
+   "id": "short",
+   "ratio": "9:16",
+   "title": "Kinds demo",
+   "targetSeconds": [
+    30,
+    200
+   ],
+   "scenes": [
+    {
+     "id": "S01",
+     "headline": "Bluetooth hops\n1,600 times a second",
+     "highlight": "1,600",
+     "narration": "Bluetooth quietly hops between channels sixteen hundred times every second.",
+     "visual": {
+      "kind": "hero",
+      "icon": "bluetooth",
+      "color": "cyan",
+      "orbit": [
+       "brand:spotify",
+       "headphones",
+       "smartphone",
+       "watch"
+      ],
+      "big": "1,600 / s",
+      "sub": "channel hops, every second"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S02",
+     "headline": "Phone to earbuds",
+     "highlight": "earbuds",
+     "narration": "Your phone sends music to your earbuds through a short radio link.",
+     "visual": {
+      "kind": "flow",
+      "nodes": [
+       {
+        "id": "p",
+        "icon": "smartphone",
+        "label": "Phone",
+        "signal": true
+       },
+       {
+        "id": "b",
+        "icon": "bluetooth",
+        "label": "Radio link",
+        "color": "violet"
+       },
+       {
+        "id": "e",
+        "icon": "headphones",
+        "label": "Earbuds",
+        "color": "green"
+       }
+      ],
+      "links": [
+       {
+        "from": "p",
+        "to": "b"
+       },
+       {
+        "from": "b",
+        "to": "e",
+        "color": "violet"
+       }
+      ],
+      "badge": {
+       "text": "Short-range radio",
+       "color": "cyan"
+      },
+      "beats": [
+       {
+        "at": "music",
+        "focus": [
+         "b"
+        ]
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S03",
+     "headline": "79 narrow channels",
+     "highlight": "channels",
+     "narration": "It slices the band into seventy nine narrow channels.",
+     "visual": {
+      "kind": "wave",
+      "mode": "spectrum",
+      "band": {
+       "from": 2.402,
+       "to": 2.48,
+       "unit": "GHz"
+      },
+      "channels": 79,
+      "hop": true,
+      "busy": [
+       {
+        "from": 10,
+        "to": 30,
+        "label": "Wi-Fi"
+       }
+      ],
+      "label": "hop around busy channels"
+     },
+     "minSeconds": 6,
+     "sourceNote": "Bluetooth Core Specification v5.4"
+    },
+    {
+     "id": "S04",
+     "headline": "1,600 hops every second",
+     "highlight": "1,600",
+     "narration": "That is sixteen hundred hops every second.",
+     "visual": {
+      "kind": "stat",
+      "value": 1600,
+      "unit": "hops/s",
+      "label": "Classic Bluetooth hop rate",
+      "sub": "one hop every 625 microseconds"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S05",
+     "headline": "Light takes time",
+     "highlight": "time",
+     "narration": "Ten thousand kilometres at two hundred thousand kilometres a second is fifty milliseconds.",
+     "visual": {
+      "kind": "equation",
+      "terms": [
+       {
+        "value": "10,000 km",
+        "label": "distance"
+       },
+       {
+        "op": "÷"
+       },
+       {
+        "value": "200,000 km/s",
+        "label": "light in fibre"
+       },
+       {
+        "op": "="
+       },
+       {
+        "value": "50 ms",
+        "label": "one way"
+       }
+      ],
+      "note": "propagation only"
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S06",
+     "headline": "A reserve for smooth playback",
+     "highlight": "reserve",
+     "narration": "Your player keeps a reserve of video ahead of where you are watching.",
+     "visual": {
+      "kind": "meter",
+      "style": "tank",
+      "label": "Playable data ahead",
+      "level": 0.7,
+      "in": {
+       "label": "Incoming video",
+       "icon": "download"
+      },
+      "out": {
+       "label": "Playback",
+       "icon": "play"
+      },
+      "beats": [
+       {
+        "at": "reserve",
+        "set": {
+         "level": 0.35
+        }
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S07",
+     "headline": "Wi-Fi or Bluetooth?",
+     "highlight": "or",
+     "narration": "Wi-Fi moves more data, Bluetooth sips less power.",
+     "visual": {
+      "kind": "compare",
+      "vs": true,
+      "items": [
+       {
+        "id": "w",
+        "label": "Wi-Fi",
+        "icon": "wifi",
+        "value": "Fast",
+        "points": [
+         "More data",
+         "More power"
+        ]
+       },
+       {
+        "id": "b",
+        "label": "Bluetooth",
+        "icon": "bluetooth",
+        "value": "Frugal",
+        "points": [
+         "Less data",
+         "Less power"
+        ],
+        "color": "violet"
+       }
+      ],
+      "beats": [
+       {
+        "at": "sips",
+        "focus": [
+         "b"
+        ]
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S08",
+     "headline": "Inside the cable",
+     "highlight": "cable",
+     "narration": "A subsea cable wraps tiny glass fibres in layers of protection.",
+     "visual": {
+      "kind": "layers",
+      "style": "rings",
+      "items": [
+       {
+        "label": "Polyethylene jacket",
+        "sub": "outer protection"
+       },
+       {
+        "label": "Steel wires",
+        "sub": "strength"
+       },
+       {
+        "label": "Copper conductor",
+        "sub": "powers repeaters"
+       },
+       {
+        "label": "Optical fibres",
+        "sub": "carry the data"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S09",
+     "headline": "Big video, small packets",
+     "highlight": "packets",
+     "narration": "A video is split into many small packets, and a missing one is sent again.",
+     "visual": {
+      "kind": "grid",
+      "count": 8,
+      "caption": "packets share the network",
+      "beats": [
+       {
+        "at": "missing",
+        "set": {
+         "missing": [
+          "4"
+         ]
+        }
+       },
+       {
+        "at": "again",
+        "set": {
+         "missing": [],
+         "done": [
+          "4"
+         ]
+        }
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S10",
+     "headline": "From tap to play",
+     "highlight": "tap",
+     "narration": "You tap, the app finds the address, connects, and the video starts.",
+     "visual": {
+      "kind": "timeline",
+      "steps": [
+       {
+        "label": "Tap",
+        "icon": "hand"
+       },
+       {
+        "label": "Find address",
+        "icon": "search"
+       },
+       {
+        "label": "Connect",
+        "icon": "lock"
+       },
+       {
+        "label": "Play",
+        "icon": "play"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S11",
+     "headline": "Why it keeps hopping",
+     "highlight": "hopping",
+     "narration": "It listens, hops, sends, and hops again.",
+     "visual": {
+      "kind": "cycle",
+      "steps": [
+       {
+        "label": "Listen",
+        "icon": "ear"
+       },
+       {
+        "label": "Hop",
+        "icon": "shuffle"
+       },
+       {
+        "label": "Send",
+        "icon": "send"
+       },
+       {
+        "label": "Confirm",
+        "icon": "check"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S12",
+     "headline": "Before you blame Wi-Fi",
+     "highlight": "Wi-Fi",
+     "narration": "Check the signal, the speed test, and the app.",
+     "visual": {
+      "kind": "checklist",
+      "items": [
+       {
+        "label": "Signal bars",
+        "sub": "local link only"
+       },
+       {
+        "label": "Speed test",
+        "sub": "one moment, one server"
+       },
+       {
+        "label": "The app itself",
+        "ok": false
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S13",
+     "headline": "Inside your earbuds",
+     "highlight": "earbuds",
+     "narration": "Each bud has a radio, a chip and a microphone.",
+     "visual": {
+      "kind": "device",
+      "device": "earbuds",
+      "callouts": [
+       {
+        "label": "Radio in each bud",
+        "at": "left"
+       },
+       {
+        "label": "Tiny chip",
+        "at": "chip"
+       },
+       {
+        "label": "Microphone",
+        "at": "mic"
+       },
+       {
+        "label": "Charging case",
+        "at": "case"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S14",
+     "headline": "Speeds compared",
+     "highlight": "Speeds",
+     "narration": "Typical speeds differ a lot.",
+     "visual": {
+      "kind": "bars",
+      "unit": "Mbps",
+      "items": [
+       {
+        "label": "Bluetooth LE",
+        "value": 2
+       },
+       {
+        "label": "Bluetooth Classic",
+        "value": 3
+       },
+       {
+        "label": "Wi-Fi 6",
+        "value": 600
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S15",
+     "headline": "One phone, many links",
+     "highlight": "links",
+     "narration": "Your phone keeps many links at once.",
+     "visual": {
+      "kind": "flow",
+      "layout": "hub",
+      "nodes": [
+       {
+        "id": "p",
+        "icon": "smartphone",
+        "label": "Phone"
+       },
+       {
+        "id": "a",
+        "icon": "headphones",
+        "label": "Earbuds"
+       },
+       {
+        "id": "b",
+        "icon": "watch",
+        "label": "Watch"
+       },
+       {
+        "id": "c",
+        "icon": "car",
+        "label": "Car"
+       },
+       {
+        "id": "d",
+        "icon": "speaker",
+        "label": "Speaker"
+       }
+      ],
+      "links": [
+       {
+        "from": "p",
+        "to": "a",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "b",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "c",
+        "dir": "both"
+       },
+       {
+        "from": "p",
+        "to": "d",
+        "dir": "both"
+       }
+      ]
+     },
+     "minSeconds": 6
+    },
+    {
+     "id": "S16",
+     "headline": "Content comes back",
+     "highlight": "back",
+     "narration": "The content comes back through the provider to your phone.",
+     "visual": {
+      "kind": "flow",
+      "nodes": [
+       {
+        "id": "ph",
+        "icon": "smartphone",
+        "label": "Phone"
+       },
+       {
+        "id": "pr",
+        "icon": "router",
+        "label": "Provider"
+       },
+       {
+        "id": "ed",
+        "icon": "server",
+        "label": "Edge server",
+        "color": "amber"
+       },
+       {
+        "id": "or",
+        "icon": "cloud",
+        "label": "Origin",
+        "color": "violet"
+       }
+      ],
+      "links": [
+       {
+        "from": "ph",
+        "to": "pr"
+       },
+       {
+        "from": "pr",
+        "to": "ed"
+       },
+       {
+        "from": "ed",
+        "to": "or",
+        "dashed": true,
+        "color": "violet"
+       }
+      ]
+     },
+     "minSeconds": 6
+    }
+   ]
+  }
+ ]
+}
