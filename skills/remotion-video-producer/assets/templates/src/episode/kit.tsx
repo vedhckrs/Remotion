@@ -1,5 +1,5 @@
 import React, {createContext, useContext} from 'react';
-import {icons as lucide} from 'lucide-react';
+import * as lucide from 'lucide-react';
 import {measureText} from '@remotion/layout-utils';
 import {C, FONT, clamp, ease, frac, tone} from './theme';
 import type {Beat, BrandLogo} from './types';
@@ -144,7 +144,8 @@ export const Glyph: React.FC<{readonly name: string; readonly x: number; readonl
       </svg>
     );
   }
-  const I = (lucide as Record<string, React.ComponentType<Record<string, unknown>>>)[pascal(name)] ?? lucide.CircleQuestionMark;
+  // Module exports include renamed icons (Waves, Building2) that the `icons` map leaves out.
+  const I = ((lucide as unknown as Record<string, React.ComponentType<Record<string, unknown>>>)[pascal(name)] ?? lucide.CircleQuestionMark) as React.ComponentType<Record<string, unknown>>;
   return <I x={x} y={y} width={size} height={size} color={color} strokeWidth={strokeWidth} absoluteStrokeWidth={false} />;
 };
 

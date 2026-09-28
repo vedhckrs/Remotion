@@ -156,7 +156,7 @@ export const Hero: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
         );
       })}
       {big ? <Label x={textX} y={textY} size={vertical ? 130 : 150} weight={750} family={FONT.display} color={color} maxWidth={split ? w * 0.44 : w * 0.95} opacity={enter(frame - 12, 24)}>{big}</Label> : null}
-      {sub ? <Label x={textX} y={textY + (vertical ? 70 : 76)} size={vertical ? 36 : 36} color={C.muted} weight={500} maxWidth={split ? w * 0.44 : w * 0.9} opacity={enter(frame - 18, 24)}>{sub}</Label> : null}
+      {sub ? <Label x={textX} y={big ? textY + (vertical ? 70 : 76) : h * 0.95} size={vertical ? 36 : 36} color={C.muted} weight={500} maxWidth={split ? w * 0.44 : w * 0.9} opacity={enter(frame - 18, 24)}>{sub}</Label> : null}
     </g>
   );
 };
@@ -183,7 +183,7 @@ export const Device: React.FC<{readonly spec: Record<string, unknown>}> = ({spec
   const color = tone(spec.color as string, 'cyan');
   const callouts = (spec.callouts as Callout[]) ?? [];
   const screen = (spec.screen as {brands?: string[]; play?: boolean; bars?: boolean}) ?? {};
-  const dh = vertical ? h * 0.72 : h * 0.9;
+  const dh = vertical ? h * (callouts.length > 2 ? 0.66 : 0.78) : h * 0.9;
   const dw = device === 'phone' ? dh * 0.5 : device === 'earbuds' ? dh * 1.1 : device === 'router' ? dh * 1.2 : device === 'tower' ? dh * 0.55 : dh;
   const dx = vertical ? w / 2 - dw / 2 : w * 0.3 - dw / 2;
   const dy = vertical ? 10 : (h - dh) / 2;

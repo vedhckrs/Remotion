@@ -102,7 +102,7 @@ export const Layers: React.FC<{readonly spec: Record<string, unknown>}> = ({spec
     );
   }
   // stack
-  const rowH = Math.min(vertical ? 120 : 96, (h - 40) / Math.max(1, items.length));
+  const rowH = Math.min(vertical ? 170 : 150, (h - 40) / Math.max(1, items.length));
   const top = (h - rowH * items.length) / 2;
   const sw = vertical ? w : w * 0.7;
   const sx = vertical ? 0 : (w - sw) / 2;
@@ -116,9 +116,9 @@ export const Layers: React.FC<{readonly spec: Record<string, unknown>}> = ({spec
         return (
           <g key={id} opacity={p * (b.anyFocus && !b.focused(id) ? 0.4 : 1)} transform={`translate(${(1 - p) * -40} 0)`}>
             <rect x={sx} y={y + 6} width={sw} height={rowH - 12} rx={18} fill={color} fillOpacity={0.16} stroke={color} strokeWidth={b.focused(id) ? 4 : 2} />
-            {it.icon ? <Glyph name={it.icon} x={sx + 24} y={y + rowH / 2 - 26} size={52} color={color} /> : null}
-            <Label x={sx + (it.icon ? 96 : 32)} y={y + rowH / 2 + 12} anchor="start" size={vertical ? 36 : 34} weight={650} maxWidth={sw * 0.55}>{it.label}</Label>
-            {it.sub ? <Label x={sx + sw - 28} y={y + rowH / 2 + 10} anchor="end" size={vertical ? 26 : 26} color={C.muted} weight={500} maxWidth={sw * 0.38}>{it.sub}</Label> : null}
+            {it.icon ? <Glyph name={it.icon} x={sx + 30} y={y + rowH / 2 - 34} size={68} color={color} /> : null}
+            <Label x={sx + (it.icon ? 124 : 36)} y={y + rowH / 2 + 15} anchor="start" size={vertical ? 42 : 44} weight={650} maxWidth={sw * 0.55}>{it.label}</Label>
+            {it.sub ? <Label x={sx + sw - 32} y={y + rowH / 2 + 12} anchor="end" size={vertical ? 30 : 32} color={C.muted} weight={500} maxWidth={sw * 0.38}>{it.sub}</Label> : null}
           </g>
         );
       })}

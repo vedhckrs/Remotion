@@ -30,7 +30,7 @@ export const Flow: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
   const H = h - badgeSpace;
 
   // Tile size: large enough to read on a phone, small enough for the longest row.
-  const size = vertical ? (layout === 'column' ? Math.min(150, ((H - 40) / Math.max(1, n)) * 0.66) : layout === 'hub' ? 140 : n <= 2 ? 220 : 190) : n <= 3 ? 160 : n <= 5 ? 136 : 112;
+  const size = layout === 'free' || layout === 'tree' ? (vertical ? 132 : n <= 4 ? 140 : 124) : vertical ? (layout === 'column' ? Math.min(150, ((H - 40) / Math.max(1, n)) * 0.66) : layout === 'hub' ? 140 : n <= 2 ? 220 : 190) : n <= 3 ? 160 : n <= 5 ? 136 : 112;
 
   const place = (i: number, node: FlowNode): Pt => {
     const c = custom[node.id];
@@ -40,10 +40,11 @@ export const Flow: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
       return [w * 0.3, step * (i + 0.5)];
     }
     if (layout === 'tree') {
-      if (i === 0) return vertical ? [w / 2, H * 0.2] : [w * 0.16, H / 2];
+      // Root on top, branches in a row underneath, in both ratios.
+      if (i === 0) return [w / 2, H * 0.2];
       const k = n - 1;
       const j = i - 1;
-      return vertical ? [w * ((j + 0.5) / k), H * 0.74] : [w * 0.78, H * ((j + 0.5) / k)];
+      return [vertical ? w * ((j + 0.5) / k) : w * (0.18 + (0.64 * (j + 0.5)) / k), H * 0.72];
     }
     if (layout === 'hub') {
       if (i === 0) return [w / 2, H / 2];
@@ -81,7 +82,10 @@ export const Flow: React.FC<{readonly spec: Record<string, unknown>}> = ({spec})
         const since = b.since(id, i + n);
         const shownFrom = Math.max(b.since(l.from, nodes.findIndex((x) => x.id === l.from)), 0);
         const via = (l.via ?? []).map(([x, y]) => [x * w, y * H] as Pt);
-        const [s, e] = edge(a, via[0] ?? z);
+        // Tree branches leave the root from below its label, not through it.
+        const start: Pt = layout === 'tree' && l.from === nodes[0]?.id ? [a[0], a[1] + size / 2 + 58] : a;
+        const [s0, e] = edge(start, via[0] ?? z);
+        const s: Pt = start === a ? s0 : start;
         const [s2, e2] = via.length ? edge(via[via.length - 1], z) : [s, e];
         const pts: Pt[] = via.length ? [s, ...via, e2] : [s, e];
         void s2;
