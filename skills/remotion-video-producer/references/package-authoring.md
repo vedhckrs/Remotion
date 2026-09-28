@@ -40,6 +40,9 @@ is voiced it predicts the long from the real pace and names the fix if needed.
 - Spoken English, short sentences, one idea per sentence, active voice. Read it aloud.
 - No Markdown, emoji, brackets or slashes; write "and" or "or". Units the way they are said ("ten thousand
   kilometres" or "10,000 km" both read well; avoid "10k").
+- Pin the channel voice in `package.json` -> `voice.voiceId` (Wiresplained: `TX3LPaxmHKxFdv7VOQHJ`, ElevenLabs'
+  premade "Liam", available on every account). Without it the voice is matched from the account's voice list,
+  which can differ between accounts or over time, and the channel would change voice between episodes.
 - Acronyms the voice might mangle go in `package.json` -> `voice.pronunciations` (`{"word": "CDN", "say": "C D N"}`);
   captions keep the written form.
 - The long video: hook in the first scene (a surprising contrast), then a clear journey, a recap scene and an ending
