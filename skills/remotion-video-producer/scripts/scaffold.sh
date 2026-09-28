@@ -89,12 +89,20 @@ const fs = require("fs");
 const f = "src/index.ts";
 if (!fs.existsSync(f)) process.exit(0);
 let s = fs.readFileSync(f, "utf8");
-if (s.includes("episode/AllCompositions")) process.exit(0);
-s = s.replace(/import \{RemotionRoot\} from ["\x27]\.\/Root["\x27];?\n?/, "");
-s = s.replace(/registerRoot\(RemotionRoot\);?/, "registerRoot(AllCompositions);");
-s = s.replace(/(import \{registerRoot\} from ["\x27]remotion["\x27];?)/, "$1\nimport {AllCompositions} from \x27./episode/AllCompositions\x27;");
+// Any quote and brace spacing ("import { registerRoot } from \"remotion\";" or the compact form); also repairs
+// a file an earlier version left with registerRoot(AllCompositions) but no import.
+const hasImport = /import\s*\{\s*AllCompositions\s*\}\s*from\s*["\x27]\.\/episode\/AllCompositions["\x27]/.test(s);
+if (hasImport && /registerRoot\(\s*AllCompositions\s*\)/.test(s)) process.exit(0);
+s = s.replace(/import\s*\{\s*RemotionRoot\s*\}\s*from\s*["\x27]\.\/Root["\x27];?[ \t]*\r?\n?/, "");
+s = s.replace(/registerRoot\(\s*\w+\s*\);?/, "registerRoot(AllCompositions);");
+if (!hasImport) {
+  const reg = /(import\s*\{\s*registerRoot\s*\}\s*from\s*["\x27]remotion["\x27];?)/;
+  const line = "import {AllCompositions} from \x27./episode/AllCompositions\x27;";
+  s = reg.test(s) ? s.replace(reg, `$1\n${line}`) : `import {registerRoot} from \x27remotion\x27;\n${line}\n${s}`;
+}
+if (!/registerRoot\(AllCompositions\)/.test(s)) s += "\nregisterRoot(AllCompositions);\n";
 fs.writeFileSync(f, s);
-console.log("  src/index.ts now registers the packaged-episode compositions (EpisodeLong, EpisodeShort)");
+console.log("  src/index.ts now registers the packaged-episode compositions (EpisodeLong, EpisodeShort, EpisodeThumbnail)");
 '
 
 # create-video installs Tailwind v4 in the blank template (src/index.css imports it).
