@@ -171,9 +171,13 @@ export const Node: React.FC<{
   const isBrand = icon.startsWith('brand:');
   const pulse = focus ? 0.5 + 0.5 * Math.sin(frame / 9) : 0;
   const ls = labelSize ?? Math.max(24, size * 0.26);
+  // Idle life once it has arrived: a slow float and a breathing glow, out of step with its neighbours.
+  const seed = Math.abs(x * 0.37 + y * 0.61) % 97;
+  const bob = Math.sin((frame + seed * 7) / 38) * 3.5 * p;
+  const breathe = 0.5 + 0.5 * Math.sin((frame + seed * 5) / 45);
   return (
-    <g opacity={p * (dim ? 0.35 : 1)} transform={`translate(${x} ${y + (1 - p) * 18}) scale(${0.88 + 0.12 * p})`}>
-      <circle r={r + 16} fill={color} opacity={0.07 + pulse * 0.08} />
+    <g opacity={p * (dim ? 0.35 : 1)} transform={`translate(${x} ${y + (1 - p) * 18 + bob}) scale(${0.88 + 0.12 * p})`}>
+      <circle r={r + 16 + breathe * 5} fill={color} opacity={0.06 + breathe * 0.04 + pulse * 0.08} />
       {focus ? <rect x={-r - 9} y={-r - 9} width={size + 18} height={size + 18} rx={size * 0.3} fill="none" stroke={color} strokeWidth={3} opacity={0.4 + pulse * 0.5} /> : null}
       <rect x={-r} y={-r} width={size} height={size} rx={size * 0.26} fill={C.panel} stroke={color} strokeWidth={2.5} />
       <Glyph name={icon} x={-size * 0.3} y={-size * 0.3} size={size * 0.6} color={isBrand ? undefined : color} />

@@ -134,7 +134,7 @@ export const SceneFrame: React.FC<{
     <div style={{position: 'absolute', inset: 0, width: L.w, height: L.h, overflow: 'hidden', background: `radial-gradient(ellipse at 82% 10%, ${C.bgTop} 0%, #0F1427 42%, ${C.bg} 80%)`}}>
       <svg width={L.w} height={L.h} style={{position: 'absolute', inset: 0, opacity: 0.06}}>
         <defs>
-          <pattern id="dotgrid" width="64" height="64" patternUnits="userSpaceOnUse">
+          <pattern id="dotgrid" width="64" height="64" patternUnits="userSpaceOnUse" patternTransform={`translate(${(frame * 0.25) % 64} ${(frame * 0.12) % 64})`}>
             <circle cx="1.5" cy="1.5" r="1.4" fill="white" />
           </pattern>
         </defs>
@@ -148,7 +148,8 @@ export const SceneFrame: React.FC<{
       {scene.subhead ? (
         <div style={{position: 'absolute', left: L.headline.x, top: L.diagram.y - L.subhead.size * 1.9, width: L.headline.w, fontFamily: FONT.body, fontWeight: 500, fontSize: L.subhead.size, color: C.muted, opacity: ease((frame - 10) / 20)}}>{scene.subhead}</div>
       ) : null}
-      <div style={{position: 'absolute', left: L.diagram.x, top: L.diagram.y, width: L.diagram.w, height: L.diagram.h, opacity: diagramIn}}>
+      {/* A slow 2.5% push-in over the scene keeps the frame alive between beats. */}
+      <div style={{position: 'absolute', left: L.diagram.x, top: L.diagram.y, width: L.diagram.w, height: L.diagram.h, opacity: diagramIn, scale: String(1 + 0.025 * clamp(frame / Math.max(1, scene.frames))), transformOrigin: '50% 45%'}}>
         <svg width={L.diagram.w} height={L.diagram.h} viewBox={`0 0 ${L.diagram.w} ${L.diagram.h}`} style={{overflow: 'visible'}}>
           <Ctx.Provider value={ctx}>{Kind ? <Kind spec={scene.visual} /> : <text x={20} y={60} fill={C.red} fontSize={40}>{`Unknown visual kind "${scene.visual.kind}"`}</text>}</Ctx.Provider>
         </svg>

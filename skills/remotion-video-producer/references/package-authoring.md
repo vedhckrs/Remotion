@@ -100,6 +100,18 @@ only when the brand is the subject, and put the trademark line in a `sourceNote`
 - `set` changes a parameter (`level`, `missing`, `done`, `dim: [ids]`).
 - Two to four beats per scene is plenty; every scene needs something to change while it is on screen.
 
+### Fluid motion rules
+
+The renderer adds idle life on its own (tiles float and breathe, a 2.5% push-in over each scene, a drifting dot
+grid, packets on every link). The package decides the rest:
+- **First beat on the opening words.** Tie it to a phrase in the first 4-6 words, so the diagram starts moving
+  within about a second. A beat on the last phrase of a long sentence leaves the scene still for 3 s or more.
+- **Spread the rest through the narration**, roughly one every 2-3 s: show the next element, then `focus` it
+  while it is being talked about, and `set` a meter or grid as the sentence lands.
+- **`signal: true` on radio things** (phones, routers, towers, access points): they broadcast rings continuously.
+- Prefer a scene with 3-5 elements arriving over one with everything visible from the start.
+- Check a draft render, not only stills: `package-render.mjs --draft`, and look at a few frames 0.3 s apart.
+
 ## Upload copy
 
 `upload/long.json`:
