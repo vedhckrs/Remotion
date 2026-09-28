@@ -23,6 +23,12 @@ export const ffmpeg = (args) => {
   return run(t.cmd, [...t.prefix, ...args]);
 };
 
+/** ffmpeg with binary stdout (raw frames or samples piped out). */
+export const ffmpegBuffer = (args) => {
+  const t = tool('ffmpeg');
+  return spawnSync(t.cmd, [...t.prefix, ...args], {stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 256 * 1024 * 1024});
+};
+
 /** Duration in seconds of an audio or video file. */
 export const getDurationSeconds = (file) => {
   const res = ffprobe(['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]);

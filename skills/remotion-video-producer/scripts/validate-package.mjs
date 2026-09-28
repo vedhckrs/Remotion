@@ -28,6 +28,7 @@ if (args.includes('--json')) {
   console.log(`${report.id}: ${report.stage ?? 'invalid'}`);
   for (const [id, v] of Object.entries(report.videos)) {
     console.log(`  ${id}: ${Object.keys(v.scenes).length} scenes, estimated ${Math.round(v.estimatedSeconds)} s${v.measuredSeconds !== null ? `, measured ${Math.round(v.measuredSeconds)} s` : ''}`);
+    if (v.render) console.log(`    rendered ${v.render.width}x${v.render.height}, QC ${v.render.qc}${v.render.stale ? ', OUT OF DATE (package changed since)' : ''}: ${v.render.file}`);
   }
   for (const e of report.errors) console.log(`  ERROR    ${e}`);
   for (const w of report.warnings) console.log(`  warning  ${w}`);

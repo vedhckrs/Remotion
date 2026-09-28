@@ -256,5 +256,25 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
   let stage = 'planned';
   for (let i = 0; i < steps.length && steps[i]; i++) stage = STAGES[i];
   report.stage = stage;
+
+  // Finished renders (renders/render-manifest.json, written by package-render.mjs): stale when the scenes,
+  // voice or music changed after rendering.
+  const manifest = readJson(path.join(dir, 'renders', 'render-manifest.json')) ?? {};
+  for (const video of videos) {
+    const entry = manifest[video.id];
+    const vr = report.videos[video.id];
+    if (!entry || !vr) continue;
+    const music = P.pkg.music?.[video.id];
+    const inputs = renderInputs(dir, video.id, vr.scenes, music);
+    vr.render = {file: entry.file, qc: entry.qc, width: entry.width, height: entry.height, renderedAt: entry.renderedAt, stale: JSON.stringify(entry.inputs ?? null) !== JSON.stringify(inputs)};
+  }
   return report;
 };
+
+/** What a finished render was made from; compared on the next validation to spot stale renders. */
+export const renderInputs = (dir, videoId, sceneHashes, music) => ({
+  scenes: sceneHashes,
+  timing: fileHash(path.join(dir, 'voice', videoId, 'timing.json')),
+  music: music ? fileHash(path.join(dir, music.file)) : null,
+  level: music?.level ?? null,
+});
