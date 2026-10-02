@@ -143,7 +143,7 @@ for (const kind of ['audio', 'extrusion', 'glb', 'blur', 'portrait3d', 'video', 
     };
     const original = await selectComposition({
         serveUrl, id: 'SemanticExplainer', inputProps, browserExecutable, chromiumOptions: {
-            gl: 'angle'
+            gl: process.platform === 'darwin' ? 'angle' : 'swangle'
         }
     });
     const composition = {
@@ -151,14 +151,14 @@ for (const kind of ['audio', 'extrusion', 'glb', 'blur', 'portrait3d', 'video', 
     };
     await renderStill({
         serveUrl, composition, inputProps, frame: 120, output: path.join(out, kind + '.png'), browserExecutable, chromiumOptions: {
-            gl: 'angle'
+            gl: process.platform === 'darwin' ? 'angle' : 'swangle'
         }
     });
     if (['audio', 'video', 'mixed'].includes(kind)) {
         const file = path.join(out, kind + '.mp4');
         await renderMedia({
             serveUrl, composition, inputProps, outputLocation: file, codec: 'h264', hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', browserExecutable, chromiumOptions: {
-                gl: 'angle'
+                gl: process.platform === 'darwin' ? 'angle' : 'swangle'
             }, concurrency: 2, logLevel: 'error'
         });
         const qc = await verifyOutput(file, {

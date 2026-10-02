@@ -165,7 +165,7 @@ export function SceneRenderer({ scene: sourceScene, spec }: {
             }}/></AbsoluteFill>}<div style={{
             position: 'absolute', inset: 0, backgroundImage: `radial-gradient(${c.muted}22 1px, transparent 1px)`, backgroundSize: '30px 30px', transform: `translateY(${Math.sin(time * .2) * 8}px)`
         }}/><div style={{
-            position: 'absolute', left: '7%', right: '7%', top: '8%', fontSize: headlineSize, fontWeight: 750, lineHeight: 1.08, opacity: ease(time / .4)
+            position: 'absolute', left: '7%', right: '7%', top: '8%', fontSize: headlineSize, fontWeight: 750, lineHeight: 1.08, opacity: .25 + .75 * ease(time / .4)
         }}>{scene.type === 'QUOTE' ? '“' : ''}{scene.headline}{scene.type === 'QUOTE' ? '”' : ''}</div><div style={{
             position: 'absolute', top: '24%', width: '100%', height: '65%', transformOrigin: `${camera.x * 100}% ${camera.y * 100}%`, transform: `scale(${camera.zoom}) translate(${(.5 - camera.x) * width}px,${(.5 - camera.y) * height * .65}px) rotate(${camera.rotation}deg)`
         }}>{scene.motionBlur ? <Trail layers={4} lagInFrames={.4} trailOpacity={.2}>{content}</Trail> : content}</div>{activeWord && <div style={{

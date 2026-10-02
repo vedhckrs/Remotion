@@ -6,7 +6,7 @@ export async function visualQc(file: string, duration: number, expectMotion: boo
         mean: number;
         sha256: string;
     }[] = [];
-    for (const at of [Math.min(.25, duration * .1), duration * .45, Math.max(0, duration - .1)]) {
+    for (const at of [0, Math.min(.25, duration * .1), duration * .45, Math.max(0, duration - .1)]) {
         const result = await mediaCommand('ffmpeg', ['-v', 'error', '-ss', String(at), '-i', file, '-frames:v', '1', '-vf', 'scale=160:90', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], signal);
         if (result.code !== 0 || result.stdout.length !== 160 * 90 * 3)
             throw new Error('Visual sample could not be decoded');

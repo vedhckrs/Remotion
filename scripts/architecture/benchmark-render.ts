@@ -100,6 +100,7 @@ for (const family of families) {
                     minPressure = minPressure === null ? next : Math.min(minPressure, next);
             }, 5000);
             const cancellation = (await import('@remotion/renderer')).makeCancelSignal();
+            const inspection = new AbortController();
             let memoryUnsafe = false;
             let error: string | null = null, qc: unknown = null;
             const safety = setInterval(() => {
@@ -107,6 +108,7 @@ for (const family of families) {
                 if ((percent !== null && percent < 10) || (before !== null && after !== null && after - before > 512)) {
                     memoryUnsafe = true;
                     cancellation.cancel();
+                    inspection.abort();
                 }
             }, 5000);
             try {
@@ -121,7 +123,7 @@ for (const family of families) {
                 });
                 qc = await verifyOutput(file, {
                     width, height, fps: 60, duration: seconds, codec: 'h264', audio: false
-                });
+                }, inspection.signal);
             }
             catch (e) {
                 error = memoryUnsafe ? 'Stopped at unsafe memory pressure or swap growth' : e instanceof Error ? e.message : 'failure';
