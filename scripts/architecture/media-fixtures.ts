@@ -90,7 +90,10 @@ const serveUrl = await bundle({
     entryPoint: path.resolve('packages/video/src/index.tsx'), publicDir: pub
 });
 const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-for (const kind of ['audio', 'extrusion', 'glb', 'blur', 'portrait3d', 'video', 'mixed', 'funnel', 'map-poles', 'editorial']) {
+const kinds = ['audio', 'extrusion', 'glb', 'blur', 'portrait3d', 'video', 'mixed', 'funnel', 'map-poles', 'editorial'];
+const only = process.argv.find(value => value.startsWith('--only='))?.slice(7);
+if (only && !kinds.includes(only)) throw new Error('Unknown media fixture: ' + only);
+for (const kind of only ? [only] : kinds) {
     const scene = {
         ...demo.scenes[0]
     };
