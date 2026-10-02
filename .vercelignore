@@ -12,3 +12,9 @@ local-studio
 automation
 
 .runtime
+
+.worker
+.scene-cache
+.render-output
+.bundle-cache
+**/node_modules
