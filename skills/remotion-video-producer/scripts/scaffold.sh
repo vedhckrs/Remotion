@@ -18,6 +18,7 @@ TEMPLATES="$SKILL_DIR/assets/templates"
 DIR="${1:-.}"
 PM="${2:-npm}"
 case "$PM" in --*) PM=npm ;; esac
+FRESH=0
 KEEP_ROOT=0
 UPDATE=0
 for arg in "$@"; do
@@ -26,10 +27,10 @@ for arg in "$@"; do
 done
 
 case "$PM" in
-  npm)  INSTALL="npm install"; RUNX="npx" ;;
-  pnpm) INSTALL="pnpm install"; RUNX="pnpm exec" ;;
-  bun)  INSTALL="bun install"; RUNX="bunx" ;;
-  yarn) INSTALL="yarn install"; RUNX="yarn" ;;
+  npm)  INSTALL="npm install"; ADD="npm install"; RUNX="npx" ;;
+  pnpm) INSTALL="pnpm install"; ADD="pnpm add"; RUNX="pnpm exec" ;;
+  bun)  INSTALL="bun install"; ADD="bun add"; RUNX="bunx" ;;
+  yarn) INSTALL="yarn install"; ADD="yarn add"; RUNX="yarn" ;;
   *) echo "Unknown package manager: $PM" >&2; exit 1 ;;
 esac
 
@@ -38,11 +39,20 @@ if [ ! -f "$DIR/package.json" ]; then
     echo "Directory $DIR is not empty. Pick an empty or new directory, or run from inside an existing Remotion project." >&2
     exit 1
   fi
+  FRESH=1
   echo "Scaffolding Remotion project in $DIR"
   npx create-video@latest --yes --blank --no-tailwind "$DIR"
 fi
 
 cd "$DIR"
+[ "$FRESH" -eq 0 ] && KEEP_ROOT=1
+node --input-type=module - "$SKILL_DIR" "$FRESH" <<'JS'
+import {pathToFileURL} from 'node:url';
+const skill=process.argv[2];
+const {installTemplates}=await import(pathToFileURL(skill+'/scripts/lib/install-templates.mjs').href);
+const result=installTemplates(skill,process.cwd(),{fresh:process.argv[3]==='1'});
+console.log(`Template backup: ${result.backup}`);
+JS
 echo "Installing dependencies with $PM"
 $INSTALL
 
@@ -52,8 +62,8 @@ $RUNX remotion add @remotion/media @remotion/transitions @remotion/google-fonts 
   @remotion/zod-types @remotion/motion-blur @remotion/fonts @remotion/install-whisper-cpp zod
 
 echo "Adding icon and logo sources (simple-icons: 3000+ brand marks; lucide-react: 1800+ UI icons, bundled, no network at render)"
-$INSTALL simple-icons >/dev/null 2>&1 || npm install simple-icons >/dev/null 2>&1 || echo "  simple-icons install skipped (fetch-icons.mjs falls back to jsDelivr)"
-npm install --save-exact lucide-react@1.48.0 >/dev/null 2>&1 || echo "  lucide-react install failed: packaged episodes need it (npm install lucide-react@1.48.0)"
+$ADD simple-icons >/dev/null 2>&1 || echo "  simple-icons install skipped (fetch-icons.mjs falls back to jsDelivr)"
+$ADD --exact lucide-react@1.48.0 >/dev/null 2>&1 || echo "  lucide-react install failed: packaged episodes need it (npm install lucide-react@1.48.0)"
 
 if [ "$UPDATE" -eq 1 ]; then
   BACKUP=".skill-backup/$(date +%Y%m%d-%H%M%S)"
@@ -68,7 +78,7 @@ mkdir -p src public/script public/voiceover public/music public/media public/cap
 # The project's own presets live in src/lib/brand-styles.ts and are never overwritten.
 BRAND_KEEP=""
 if [ -f src/lib/brand-styles.ts ]; then BRAND_KEEP="$(mktemp)"; cp src/lib/brand-styles.ts "$BRAND_KEEP"; fi
-cp -R "$TEMPLATES/src/." src/
+# Templates installed with conflict detection above.
 if [ -n "$BRAND_KEEP" ]; then cp "$BRAND_KEEP" src/lib/brand-styles.ts; rm -f "$BRAND_KEEP"; fi
 if [ "$UPDATE" -eq 1 ] && [ -f "$BACKUP/src/lib/styles.ts" ]; then
   # Presets added straight into the old styles.ts would be lost; name them so they can move to brand-styles.ts.
@@ -79,7 +89,7 @@ if [ "$UPDATE" -eq 1 ] && [ -f "$BACKUP/src/lib/styles.ts" ]; then
     echo "  Move them into src/lib/brand-styles.ts (copy from $BACKUP/src/lib/styles.ts) so they survive updates."
   fi
 fi
-cp "$TEMPLATES/remotion.config.ts" remotion.config.ts
+# remotion.config.ts was backed up and installed above.
 # Bundled fonts (Inter, Space Grotesk; SIL OFL) so packaged episodes render without any network access.
 mkdir -p public/fonts public/packages library
 cp "$TEMPLATES/public/fonts/"* public/fonts/
@@ -89,6 +99,7 @@ const fs = require("fs");
 const f = "src/index.ts";
 if (!fs.existsSync(f)) process.exit(0);
 let s = fs.readFileSync(f, "utf8");
+if (fs.existsSync("src/Root.tsx") && !/export\s+(?:const|function)\s+RemotionRoot\b/.test(fs.readFileSync("src/Root.tsx","utf8"))) { console.log("Kept custom entry and Root exports; register EpisodeCompositions manually alongside your root."); process.exit(0); }
 // Any quote and brace spacing ("import { registerRoot } from \"remotion\";" or the compact form); also repairs
 // a file an earlier version left with registerRoot(AllCompositions) but no import.
 const hasImport = /import\s*\{\s*AllCompositions\s*\}\s*from\s*["\x27]\.\/episode\/AllCompositions["\x27]/.test(s);
@@ -123,7 +134,7 @@ echo "Installing the local dashboard (tools/dashboard) and LUTs (public/luts)"
 mkdir -p tools/dashboard public/luts
 SETTINGS_KEEP=""
 if [ -f tools/dashboard/settings.json ]; then SETTINGS_KEEP="$(mktemp)"; cp tools/dashboard/settings.json "$SETTINGS_KEEP"; fi
-cp -R "$SKILL_DIR/assets/dashboard/." tools/dashboard/
+# Dashboard files installed with conflict detection above.
 if [ -n "$SETTINGS_KEEP" ]; then cp "$SETTINGS_KEEP" tools/dashboard/settings.json; rm -f "$SETTINGS_KEEP"; fi
 node "$SKILL_DIR/scripts/make-lut.mjs" --out public/luts >/dev/null && echo "  7 LUTs written"
 

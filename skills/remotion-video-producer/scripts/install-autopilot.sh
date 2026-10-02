@@ -37,8 +37,11 @@ AGENTS="$HOME/Library/LaunchAgents"
 mkdir -p "$AGENTS" "$PROJECT/automation/logs"
 NODE="$(command -v node)"
 UID_NUM="$(id -u)"
-PRODUCE="$AGENTS/com.remotion.autopilot.produce.plist"
-PUBLISH="$AGENTS/com.remotion.autopilot.publish.plist"
+PROJECT_KEY="$(printf '%s' "$PROJECT" | shasum -a 256 | cut -c 1-12)"
+PRODUCE_LABEL="com.remotion.autopilot.$PROJECT_KEY.produce"
+PUBLISH_LABEL="com.remotion.autopilot.$PROJECT_KEY.publish"
+PRODUCE="$AGENTS/$PRODUCE_LABEL.plist"
+PUBLISH="$AGENTS/$PUBLISH_LABEL.plist"
 
 if [ "$UNINSTALL" -eq 1 ]; then
   for p in "$PRODUCE" "$PUBLISH"; do
@@ -60,42 +63,17 @@ JOB_PATH="$(dirname "$NODE"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$HOM
 CLAUDE_BIN="$(resolve_claude)"
 [ -n "$CLAUDE_BIN" ] && JOB_PATH="$(dirname "$CLAUDE_BIN"):$JOB_PATH"
 
-cat > "$PRODUCE" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.remotion.autopilot.produce</string>
-  <key>ProgramArguments</key><array>
-    <string>/usr/bin/caffeinate</string><string>-i</string>
-    <string>/bin/bash</string><string>-lc</string>
-    <string>cd "$PROJECT" &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" plan &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" run</string>
-  </array>
-  <key>WorkingDirectory</key><string>$PROJECT</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string><key>CLAUDE_BIN</key><string>${CLAUDE_BIN:-claude}</string></dict>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>$HOUR</integer><key>Minute</key><integer>$MINUTE</integer></dict>
-  <key>StandardOutPath</key><string>$PROJECT/automation/logs/launchd-produce.log</string>
-  <key>StandardErrorPath</key><string>$PROJECT/automation/logs/launchd-produce.log</string>
-  <key>Nice</key><integer>10</integer>
-  <key>ProcessType</key><string>Background</string>
-</dict></plist>
-EOF
-
-cat > "$PUBLISH" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.remotion.autopilot.publish</string>
-  <key>ProgramArguments</key><array>
-    <string>/bin/bash</string><string>-lc</string>
-    <string>cd "$PROJECT" &amp;&amp; "$NODE" "$SKILL_DIR/scripts/autopilot.mjs" publish-due</string>
-  </array>
-  <key>WorkingDirectory</key><string>$PROJECT</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$JOB_PATH</string><key>HOME</key><string>$HOME</string><key>CLAUDE_BIN</key><string>${CLAUDE_BIN:-claude}</string></dict>
-  <key>StartInterval</key><integer>$((EVERY * 60))</integer>
-  <key>StandardOutPath</key><string>$PROJECT/automation/logs/launchd-publish.log</string>
-  <key>StandardErrorPath</key><string>$PROJECT/automation/logs/launchd-publish.log</string>
-</dict></plist>
-EOF
+node --input-type=module - "$SKILL_DIR" "$PROJECT" "$NODE" "$JOB_PATH" "${CLAUDE_BIN:-claude}" "$PRODUCE" "$PUBLISH" "$PRODUCE_LABEL" "$PUBLISH_LABEL" "$HOUR" "$MINUTE" "$EVERY" <<'JS'
+import fs from 'node:fs';
+const [skill,project,node,jobPath,claude,produce,publish,produceLabel,publishLabel,hour,minute,every]=process.argv.slice(2);
+if (![hour,minute,every].every(x=>/^\d+$/.test(x)) || +hour>23 || +minute>59 || +every<1)throw new Error('Invalid schedule');
+const xml=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+const strings=(a)=>a.map(x=>`<string>${xml(x)}</string>`).join('');
+const common=(label,args,schedule,log)=>`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>${xml(label)}</string><key>ProgramArguments</key><array>${strings(args)}</array><key>WorkingDirectory</key><string>${xml(project)}</string><key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(jobPath)}</string><key>CLAUDE_BIN</key><string>${xml(claude)}</string></dict>${schedule}<key>StandardOutPath</key><string>${xml(log)}</string><key>StandardErrorPath</key><string>${xml(log)}</string></dict></plist>`;
+fs.writeFileSync(produce,common(produceLabel,['/usr/bin/caffeinate','-i',node,skill+'/scripts/autopilot.mjs','daily'],`<key>StartCalendarInterval</key><dict><key>Hour</key><integer>${+hour}</integer><key>Minute</key><integer>${+minute}</integer></dict>`,project+'/automation/logs/launchd-produce.log'));
+fs.writeFileSync(publish,common(publishLabel,[node,skill+'/scripts/autopilot.mjs','publish-due'],`<key>StartInterval</key><integer>${+every*60}</integer>`,project+'/automation/logs/launchd-publish.log'));
+JS
+plutil -lint "$PRODUCE" "$PUBLISH"
 
 for p in "$PRODUCE" "$PUBLISH"; do
   launchctl bootout "gui/$UID_NUM" "$p" 2>/dev/null || true
@@ -105,6 +83,6 @@ echo "Installed:"
 echo "  produce  daily at $(printf '%02d:%02d' "$HOUR" "$MINUTE")  -> plan + run (3 videos, scheduled uploads)"
 echo "  publish  every $EVERY min          -> publish-due (Instagram at its slot, retries)"
 echo "Edit automation/queue.json (slots, timezone, handle, budget) and automation/topics.md (backlog)."
-echo "Test now:   launchctl kickstart -k gui/$UID_NUM/com.remotion.autopilot.produce"
+echo "Test now:   launchctl kickstart -k gui/$UID_NUM/$PRODUCE_LABEL"
 echo "Remove:     bash $SKILL_DIR/scripts/install-autopilot.sh --uninstall"
 echo "Note: launchd jobs run only while the Mac is awake; caffeinate keeps it awake during production on power. Use a Power schedule (System Settings > Energy, or pmset repeat wake) to wake before $HOUR:$MINUTE."

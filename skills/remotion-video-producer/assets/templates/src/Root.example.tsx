@@ -12,6 +12,7 @@ import {PLATFORMS} from './lib/platforms';
  */
 const shared = {
   videoId: 'example',
+  allowSilentDraft: false,
   fps: PLATFORMS.shorts.fps,
   style: 'auto' as const,
   accent: null,

@@ -31,6 +31,7 @@
  * Env: ELEVENLABS_API_KEY or OPENAI_API_KEY (read from .env in the project root). None for macos.
  */
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {loadEnv, parseArgs, requireEnv} from './lib/env.mjs';
@@ -84,6 +85,9 @@ if (!args.script) {
 
 const script = loadScript(args.script);
 const provider = args.provider || script.voice?.provider || 'elevenlabs';
+if (!DEFAULTS[provider]) throw new Error(`Unknown provider: ${provider}`);
+const switched = provider !== (script.voice?.provider ?? 'elevenlabs');
+const voiceConfig = switched ? {} : (script.voice ?? {});
 const gap = Number(args.gap ?? 0.6);
 const outDir = path.resolve(args.out || path.join('public', 'voiceover', script.videoId));
 const only = args.only ? String(args.only).split(',').map((s) => s.trim()) : null;
@@ -99,8 +103,8 @@ if (presetName && !preset) {
   process.exit(1);
 }
 
-let voiceId = args.voice || script.voice?.voiceId || DEFAULTS[provider].voiceId;
-if (!args.voice && !script.voice?.voiceId && preset && provider === 'elevenlabs' && !args['dry-run']) {
+let voiceId = args.voice || voiceConfig.voiceId || DEFAULTS[provider].voiceId;
+if (!args.voice && !voiceConfig.voiceId && preset && provider === 'elevenlabs' && !args['dry-run']) {
   try {
     const voices = await fetchVoices();
     const owned = voices.filter((v) => v.category !== 'premade');
@@ -111,11 +115,11 @@ if (!args.voice && !script.voice?.voiceId && preset && provider === 'elevenlabs'
     console.warn(`Could not list voices (${error.message}); using ${preset.fallbackName} fallback id`);
     voiceId = preset.fallback;
   }
-} else if (!args.voice && !script.voice?.voiceId && preset) {
+} else if (!args.voice && !voiceConfig.voiceId && preset && provider === 'elevenlabs') {
   voiceId = preset.fallback;
 }
-const model = args.model || script.voice?.model || DEFAULTS[provider].model;
-const presetSettings = preset ? preset.settings : {};
+const model = args.model || voiceConfig.model || DEFAULTS[provider].model;
+const presetSettings = preset && provider === 'elevenlabs' ? preset.settings : {};
 
 /** eleven_v3 audio tags derived from pacing / delivery hints. Only used with --tags. */
 const deliveryTag = (scene) => {
@@ -156,7 +160,7 @@ const generateElevenLabs = async (scene) => {
   const body = {
     text: `${deliveryTag(scene)}${scene.voiceover}`,
     model_id: model,
-    voice_settings: {...DEFAULTS.elevenlabs.settings, ...presetSettings, ...(script.voice?.settings || {})},
+    voice_settings: {...DEFAULTS.elevenlabs.settings, ...presetSettings, ...(voiceConfig.settings || {})},
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -187,7 +191,7 @@ const generateOpenAI = async (scene) => {
     input: scene.voiceover,
     response_format: 'mp3',
   };
-  const instructions = script.voice?.instructions || (model.indexOf('gpt-4o') !== -1 ? DEFAULTS.openai.instructions : null);
+  const instructions = voiceConfig.instructions || (model.indexOf('gpt-4o') !== -1 ? DEFAULTS.openai.instructions : null);
   if (instructions) body.instructions = instructions;
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
@@ -202,7 +206,7 @@ const generateMacOS = async (scene) => {
   if (process.platform !== 'darwin') {
     throw new Error('The macos provider uses the built-in `say` command and only works on macOS. Use --provider elevenlabs or openai here.');
   }
-  const rate = Number(args.rate ?? script.voice?.settings?.rate ?? DEFAULTS.macos.rate);
+  const rate = Number(args.rate ?? voiceConfig.settings?.rate ?? DEFAULTS.macos.rate);
   const aiff = path.join(outDir, `${scene.id}.tmp.aiff`);
   const mp3 = path.join(outDir, `${scene.id}.tmp.mp3`);
   const say = spawnSync('say', ['-v', voiceId, '-r', String(rate), '-o', aiff, scene.voiceover], {encoding: 'utf8'});
@@ -234,9 +238,10 @@ console.log(`Voiceover for "${script.videoId}" via ${provider} (voice ${voiceId}
 
 const manifestScenes = [];
 for (const scene of script.scenes) {
-  const keep = only && only.indexOf(scene.id) === -1;
+  const key = crypto.createHash('sha256').update(JSON.stringify({provider, voiceId, model, presetSettings, voiceConfig, text: scene.voiceover, tag: deliveryTag(scene), format: args.format ?? null, rate: args.rate ?? null, trim: Boolean(args.trim)})).digest('hex');
+  const keep = !args.force && (!only || !only.includes(scene.id));
   const prev = previous?.scenes?.find((s) => s.id === scene.id);
-  if (keep && prev && fs.existsSync(path.join(outDir, prev.file))) {
+  if (keep && prev?.key === key && fs.existsSync(path.join(outDir, prev.file))) {
     manifestScenes.push(prev);
     console.log(`  = ${scene.id} (kept, ${prev.durationSeconds.toFixed(2)} s)`);
     continue;
@@ -261,13 +266,13 @@ for (const scene of script.scenes) {
   fs.writeFileSync(abs, result.audio);
   if (args.trim) trimSilence(abs);
   const durationSeconds = getDurationSeconds(abs);
-  const entry = {id: scene.id, file, durationSeconds, text: scene.voiceover, minSeconds: scene.minSeconds};
+  const entry = {id: scene.id, key, file, durationSeconds, text: scene.voiceover, minSeconds: scene.minSeconds};
   if (result.captions && !args.trim) entry.captions = result.captions; // trimming shifts timing; re-transcribe if you trim
   manifestScenes.push(entry);
   console.log(`  + ${scene.id}: ${durationSeconds.toFixed(2)} s${entry.captions ? `, ${entry.captions.length} words aligned` : ''}`);
 
   // Write incrementally so a failure midway keeps what was generated.
-  writeJson(manifestFile, {videoId: script.videoId, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes});
+  writeJson(manifestFile, {videoId: script.videoId, scriptVoice: script.voice ?? null, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes});
 }
 
 if (args['dry-run']) {
@@ -276,7 +281,7 @@ if (args['dry-run']) {
   process.exit(0);
 }
 
-const manifest = {videoId: script.videoId, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes};
+const manifest = {videoId: script.videoId, scriptVoice: script.voice ?? null, provider, voiceId, model, gapSeconds: gap, generatedAt: new Date().toISOString(), scenes: manifestScenes};
 writeJson(manifestFile, manifest);
 
 // Absolute captions for convenience (the composition recomputes these from the manifest as well).

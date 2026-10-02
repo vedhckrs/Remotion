@@ -1,0 +1,10 @@
+node_modules
+.cache
+.env*
+!.env.example
+out
+.git
+skills
+.tests
+tests
+docs

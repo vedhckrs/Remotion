@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const project=path.resolve('.cache/reference');
+const skill=path.resolve('skills/remotion-video-producer');
+fs.mkdirSync(project,{recursive:true});
+fs.cpSync(path.join(skill,'assets/templates/src'),path.join(project,'src'),{recursive:true});
+fs.copyFileSync(path.join(project,'src/Root.example.tsx'),path.join(project,'src/Root.tsx'));
+fs.writeFileSync(path.join(project,'src/index.ts'),"import {registerRoot} from 'remotion';\nimport {AllCompositions} from './episode/AllCompositions';\nregisterRoot(AllCompositions);\n");
+fs.cpSync(path.join(skill,'assets/templates/public'),path.join(project,'public'),{recursive:true});
+fs.cpSync(path.join(skill,'assets/packages/demo-kinds'),path.join(project,'public/packages/demo-kinds'),{recursive:true});
+fs.copyFileSync('package.json',path.join(project,'package.json'));
+console.log(project);

@@ -1,3 +1,4 @@
+import {pathToFileURL} from 'node:url';
 /**
  * Episode studio for the dashboard: reads a content plan (weeks -> episodes -> videos), reports what
  * exists for every video, and produces a whole episode in one queued job:
@@ -445,7 +446,7 @@ export const createEpisodes = (ctx) => {
 
       // 3. Voice (word timing comes back in the manifest).
       const manifestFile = path.join(publicDir, 'voiceover', id, 'manifest.json');
-      if (fs.existsSync(manifestFile) && !redo) setStep(k('voice'), 'skipped', 'already voiced');
+      if ((await import(pathToFileURL(path.join(SKILL_DIR, 'scripts/lib/script-schema.mjs')).href)).voiceManifestComplete(script, manifestFile, o.voiceProvider || getSettings().voiceProvider || 'elevenlabs') && !redo) setStep(k('voice'), 'skipped', 'already voiced');
       else {
         setStep(k('voice'), 'running');
         const provider = o.voiceProvider || getSettings().voiceProvider || 'elevenlabs';
@@ -470,8 +471,8 @@ export const createEpisodes = (ctx) => {
 
       // 5. Music: a track from the plan's library folder, a generated bed, or none.
       const musicMode = o.music || getSettings().music || 'library';
-      if (script.music?.src && !redo) setStep(k('music'), 'skipped', 'already set');
-      else if (musicMode === 'off') setStep(k('music'), 'skipped', 'off');
+      if (musicMode === 'off') { delete script.music; fs.writeFileSync(scriptFile, JSON.stringify(script, null, 2) + '\n'); setStep(k('music'), 'skipped', 'off'); }
+      else if (script.music?.src && !redo) setStep(k('music'), 'skipped', 'already set');
       else {
         setStep(k('music'), 'running');
         let track = musicMode === 'library' ? pickLibraryTrack(plan, id) : null;
@@ -482,7 +483,7 @@ export const createEpisodes = (ctx) => {
           script.music = {src: `music/${dest}`, level: script.music?.level ?? 0.16, ...(track.credit ? {credit: track.credit} : {})};
           setStep(k('music'), 'done', `library: ${track.name}`);
         } else {
-          const r = await runChild(job, 'music', node, [skillScript('generate-music.mjs'), '--id', id, '--mood', script.music?.mood || plan.music || 'energetic-tech'], {okCodes: [2], timeoutMs: 10 * 60_000});
+          const r = await runChild(job, 'music', node, [skillScript('generate-music.mjs'), '--id', id, '--mood', script.music?.mood || plan.music || 'energetic-tech', '--out', path.join(publicDir, 'music', `${id}.mp3`)], {okCodes: [2], timeoutMs: 10 * 60_000});
           const generated = path.join(publicDir, 'music', `${id}.mp3`);
           if (r.ok && fs.existsSync(generated)) {
             script.music = {src: `music/${id}.mp3`, level: script.music?.level ?? 0.16, credit: 'Generated with ElevenLabs Music', mood: script.music?.mood || plan.music || 'energetic-tech'};

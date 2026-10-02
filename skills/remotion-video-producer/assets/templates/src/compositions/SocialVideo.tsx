@@ -2,7 +2,7 @@ import React from 'react';
 import type {Caption} from '@remotion/captions';
 import {TransitionSeries} from '@remotion/transitions';
 import {zColor} from '@remotion/zod-types';
-import {AbsoluteFill, Sequence, staticFile, type CalculateMetadataFunction} from 'remotion';
+import {AbsoluteFill, getRemotionEnvironment, Sequence, staticFile, type CalculateMetadataFunction} from 'remotion';
 import {z} from 'zod';
 import {AttributionBar} from '../components/AttributionBar';
 import {CaptionLayer} from '../components/CaptionLayer';
@@ -34,6 +34,8 @@ import {VoiceoverScene} from '../scenes/VoiceoverScene';
  */
 export const socialVideoSchema = z.object({
   videoId: z.string(),
+  /** Explicitly opt into a silent layout draft; final exports require complete narration. */
+  allowSilentDraft: z.boolean().default(false),
   platform: z.enum(PLATFORM_IDS as [string, ...string[]]),
   /** Must match the <Composition fps>; calculateMetadata returns it. */
   fps: z.number().int().min(24).max(120),
@@ -85,16 +87,20 @@ export const calculateSocialVideoMetadata: CalculateMetadataFunction<SocialVideo
   const fps = props.fps;
   const loaded = await fetchJson<VideoScript>(scriptUrl(props.videoId), abortSignal);
   // Scripts written before the analyzer stripped Markdown can carry "**word**" in headlines: clean them here.
-  const script = loaded ? {...loaded, scenes: loaded.scenes.map((sc) => cleanScene(sc))} : null;
+  const script = loaded && Array.isArray(loaded.scenes) && loaded.scenes.length ? {...loaded, scenes: loaded.scenes.map((sc) => cleanScene(sc))} : null;
   if (!script) {
     throw new Error(`Missing public/script/${props.videoId}.json. Write the scene plan first (SKILL.md Phase 2) or run scripts/analyze-script.mjs.`);
   }
   const manifest = await fetchJson<VoiceoverManifest>(manifestUrl(props.videoId), abortSignal);
+  if (getRemotionEnvironment().isRendering && !props.allowSilentDraft && !script.scenes.every(scene=>{
+    const voice=manifest?.scenes?.find(item=>item.id===scene.id);
+    return voice && voice.text===scene.voiceover && voice.file && Number.isFinite(voice.durationSeconds) && voice.durationSeconds>0;
+  })) throw new Error('Final render requires current narration for every scene. Generate voice first; allowSilentDraft is only for layout drafts.');
 
   const preset = getStyle(props.style === 'auto' ? script.style : props.style);
   const resolvedPacing: Pacing = props.pacing === 'auto' ? script.pacing ?? preset.pacing : props.pacing;
   const pace = PACING[resolvedPacing];
-  const gapSeconds = props.gapSeconds ?? pace.gapSeconds;
+  const gapSeconds = props.gapSeconds ?? manifest?.gapSeconds ?? pace.gapSeconds;
   const transitionFrames = fr(pace.transitionFrames, fps);
 
   // Without voiceover yet, estimate each scene from reading time so the layout can be built.

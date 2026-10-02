@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Audio} from '@remotion/media';
-import {AbsoluteFill, Sequence, continueRender, delayRender, staticFile, useVideoConfig, type CalculateMetadataFunction} from 'remotion';
+import {AbsoluteFill, Sequence, cancelRender, continueRender, delayRender, staticFile, useVideoConfig, type CalculateMetadataFunction} from 'remotion';
 import {z} from 'zod';
 import {LEAD_SECONDS, loadEpisode, packageUrl, type EpisodeData} from './load';
 import {SceneFrame} from './SceneFrame';
@@ -22,6 +22,7 @@ export type EpisodeProps = z.infer<typeof episodeSchema> & {readonly data?: Epis
 let fontsReady: Promise<void> | undefined;
 /** Fonts are bundled in public/fonts, so renders never fetch from the network. */
 export const useFonts = () => {
+  const [ready, setReady] = useState(false);
   const [handle] = useState(() => delayRender('Load bundled fonts'));
   useEffect(() => {
     if (!fontsReady) {
@@ -31,8 +32,9 @@ export const useFonts = () => {
       ];
       fontsReady = Promise.all(faces.map((f) => f.load().then((loaded) => document.fonts.add(loaded)))).then(() => undefined);
     }
-    fontsReady.then(() => continueRender(handle)).catch(() => continueRender(handle));
+    fontsReady.then(() => {setReady(true);continueRender(handle);}).catch((error) => cancelRender(error));
   }, [handle]);
+  return ready;
 };
 
 export const calculateEpisodeMetadata: CalculateMetadataFunction<EpisodeProps> = async ({props, abortSignal}) => {
@@ -47,9 +49,9 @@ export const calculateEpisodeMetadata: CalculateMetadataFunction<EpisodeProps> =
  * Music (a local file declared in package.json) runs underneath at a fixed low level.
  */
 export const Episode: React.FC<EpisodeProps> = ({packageId, video, captions, music, onlyScenes, data}) => {
-  useFonts();
+  const fonts = useFonts();
   const {durationInFrames, width} = useVideoConfig();
-  if (!data) return null;
+  if (!data || !fonts) return null;
   const vertical = data.video.ratio === '9:16';
   const L = vertical ? LAYOUT.port : LAYOUT.land;
   const scale = width / L.w;

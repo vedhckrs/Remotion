@@ -1,5 +1,7 @@
+import {computeSceneTimings} from '../../assets/templates/src/lib/timeline.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import {atomicJson, inside,safeId} from './files.mjs';
 
 /**
  * Script JSON contract shared by the templates (src/lib/script.ts) and the scripts.
@@ -30,13 +32,15 @@ export const loadScript = (file) => {
 
 export const validateScript = (script) => {
   const errors = [];
-  if (!script || typeof script !== 'object') errors.push('script must be an object');
-  if (!script.videoId || !/^[a-zA-Z0-9_-]+$/.test(script.videoId)) errors.push('videoId is required (letters, numbers, - and _)');
+  if (!script || typeof script !== 'object' || Array.isArray(script)) throw new Error('Invalid script: script must be an object');
+  if (!safeId(script.videoId)) errors.push('videoId is required (letters, numbers, - and _)');
   if (!Array.isArray(script.scenes) || script.scenes.length === 0) errors.push('scenes must be a non-empty array');
   const ids = new Set();
-  (script.scenes || []).forEach((scene, i) => {
+  (Array.isArray(script.scenes) ? script.scenes : []).forEach((scene, i) => {
     const where = `scenes[${i}]`;
-    if (!scene.id || !/^[a-zA-Z0-9_-]+$/.test(scene.id)) errors.push(`${where}.id is required (letters, numbers, - and _)`);
+    if (!scene || typeof scene !== 'object' || Array.isArray(scene)) { errors.push(`${where} must be an object`); return; }
+    if (scene.minSeconds !== undefined && (!Number.isFinite(scene.minSeconds) || scene.minSeconds < 0)) errors.push(`${where}.minSeconds must be finite and nonnegative`);
+    if (!safeId(scene.id)) errors.push(`${where}.id is required (letters, numbers, - and _)`);
     if (ids.has(scene.id)) errors.push(`${where}.id "${scene.id}" is duplicated`);
     ids.add(scene.id);
     if (typeof scene.headline !== 'string') errors.push(`${where}.headline is required`);
@@ -49,7 +53,7 @@ export const validateScript = (script) => {
     if (scene.visual && scene.visual.type === 'chart') {
       const chart = scene.visual.chart;
       if (!chart || ['bar', 'line', 'donut', 'stat'].indexOf(chart.kind) === -1) errors.push(`${where}.visual.chart.kind must be bar | line | donut | stat`);
-      if (!chart || !Array.isArray(chart.data) || chart.data.length === 0 || chart.data.some((d) => typeof d.label !== 'string' || typeof d.value !== 'number')) errors.push(`${where}.visual.chart.data must be [{label, value}]`);
+      if (!chart || !Array.isArray(chart.data) || chart.data.length === 0 || chart.data.some((d) => !d || typeof d.label !== 'string' || !Number.isFinite(d.value) || (['bar', 'donut'].includes(chart.kind) && d.value < 0) || (chart.kind === 'donut' && chart.data.length === 1 && d.value > 100))) errors.push(`${where}.visual.chart.data must be [{label, value}]`);
     }
   });
   if (script.pacing && ['fast', 'medium', 'calm'].indexOf(script.pacing) === -1) errors.push('pacing must be fast | medium | calm');
@@ -65,18 +69,21 @@ export const validateScript = (script) => {
 export const readManifest = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null);
 
 export const writeJson = (file, data) => {
-  fs.mkdirSync(path.dirname(file), {recursive: true});
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  atomicJson(file, data);
 };
 
 /** Scene start times in seconds given durations and a constant gap (matches computeSceneTimings in src/lib/script.ts). */
-export const sceneStarts = (scenes, gapSeconds, fps = 30) => {
-  let cursorFrames = 0;
-  return scenes.map((scene) => {
-    const start = cursorFrames / fps;
-    const voiceFrames = Math.ceil(scene.durationSeconds * fps);
-    const minFrames = Math.ceil((scene.minSeconds ?? 0) * fps);
-    cursorFrames += Math.max(minFrames, voiceFrames + Math.ceil(gapSeconds * fps));
-    return start;
-  });
+export const sceneStarts = (scenes, gapSeconds, fps = 60) => computeSceneTimings(scenes,fps,gapSeconds).map((t) => t.startFrame/fps);
+
+/** A manifest exists after the first scene; completeness must be checked independently. */
+export const voiceManifestComplete = (script, file, provider) => {
+  try {
+    const manifest = readManifest(file);
+    return Boolean(manifest && JSON.stringify(manifest.scriptVoice ?? null) === JSON.stringify(script.voice ?? null) && (!provider || manifest.provider === provider) && script.scenes.length &&
+      script.scenes.every((s) => {
+        const m = manifest.scenes?.find((x) => x.id === s.id);
+        const audio = m && inside(path.dirname(file), m.file);
+        return m && m.text === s.voiceover && Number.isFinite(m.durationSeconds) && m.durationSeconds > 0 && audio && fs.existsSync(audio) && fs.statSync(audio).size > 0;
+      }));
+  } catch { return false; }
 };

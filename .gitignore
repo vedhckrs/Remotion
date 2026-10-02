@@ -1,6 +1,10 @@
-.DS_Store
 node_modules/
-out/
+.cache/
 .env
-*.skill
-skills/*-workspace/
+.env.*
+!.env.example
+out/
+.vercel/
+*.log
+.vercel
+.env*
