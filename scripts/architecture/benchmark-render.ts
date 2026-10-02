@@ -8,13 +8,14 @@ import { selectComposition, renderMedia } from '@remotion/renderer';
 import { SceneSpecSchema } from '@nuradi/schemas/index';
 import { demo } from '@nuradi/video/demo';
 import { checksum, verifyOutput } from '../../apps/worker/src/qc';
+const quick = process.argv.includes('--quick');
 const smoke = process.argv.includes('--smoke'), resume = process.argv.includes('--resume');
-const seconds = smoke ? 1 : 15, width = smoke ? 640 : 3840, height = smoke ? 360 : 2160;
+const seconds = smoke ? 1 : quick ? 2 : 15, width = smoke ? 640 : 3840, height = smoke ? 360 : 2160;
 const root = path.resolve('.worker/benchmarks');
 fs.mkdirSync(root, {
     recursive: true
 });
-const resultsFile = path.join(root, smoke ? 'smoke-results.json' : 'results.json');
+const resultsFile = path.join(root, smoke ? 'smoke-results.json' : quick ? 'quick-results.json' : 'results.json');
 const results: any[] = resume && fs.existsSync(resultsFile) ? JSON.parse(fs.readFileSync(resultsFile, 'utf8')).results : [];
 function pressure() {
     return spawnSync('memory_pressure', ['-Q'], {
@@ -43,7 +44,7 @@ fs.cpSync('packages/video/public/fonts', path.join(publicDir, 'fonts'), {
 });
 let videoAsset: any;
 if (!smoke) {
-    const source = path.join(publicDir, 'assets', 'benchmark.mp4');
+    const source = path.join(publicDir, 'assets', quick ? 'benchmark-quick.mp4' : 'benchmark.mp4');
     if (!fs.existsSync(source)) {
         console.log('Preparing 4K60 decoded-video fixture');
         const result = spawnSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `testsrc2=size=3840x2160:rate=60:duration=${seconds}`, '-c:v', process.platform === 'darwin' ? 'h264_videotoolbox' : 'libx264', '-b:v', '25M', '-pix_fmt', 'yuv420p', source], {
@@ -56,14 +57,14 @@ if (!smoke) {
         width: 3840, height: 2160, fps: 60, duration: seconds, codec: 'h264', audio: false
     });
     videoAsset = {
-        id: 'benchmarkVideo', path: 'assets/benchmark.mp4', sha256: await checksum(source), type: 'video'
+        id: 'benchmarkVideo', path: quick ? 'assets/benchmark-quick.mp4' : 'assets/benchmark.mp4', sha256: await checksum(source), type: 'video'
     };
 }
 const serveUrl = await bundle({
     entryPoint: path.resolve('packages/video/src/index.tsx'), publicDir
 });
 const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const families = smoke ? ['svg'] : ['svg', 'd3', 'three', 'video', 'mixed'];
+const families = smoke ? ['svg'] : quick ? ['video', 'mixed'] : ['svg', 'd3', 'three', 'video', 'mixed'];
 for (const family of families) {
     const spec = SceneSpecSchema.parse({
         ...demo, assets: ['video', 'mixed'].includes(family) ? [videoAsset] : [], scenes: [{
@@ -81,13 +82,13 @@ for (const family of families) {
             spec
         }, browserExecutable
     });
-    for (const concurrency of smoke ? [2] : [2, 3, 4, 5, 6])
-        for (const cacheGiB of smoke ? [1] : [1, 2, 3, 4]) {
+    for (const concurrency of (smoke || quick) ? [2] : [2, 3, 4, 5, 6])
+        for (const cacheGiB of (smoke || quick) ? [1] : [1, 2, 3, 4]) {
             if (results.some(result => result.family === family && result.concurrency === concurrency && result.cacheGiB === cacheGiB && !result.error)) {
                 console.log('Resume:', family, concurrency, cacheGiB, 'already passed');
                 continue;
             }
-            const file = path.join(root, `${family}-${concurrency}-${cacheGiB}.mp4`), start = performance.now();
+            const file = path.join(root, `${quick ? 'quick-' : ''}${family}-${concurrency}-${cacheGiB}.mp4`), start = performance.now();
             const beforeSwap = swap();
             let peakNode = 0, minFree = os.freemem(), minPressure = pressurePercent(pressure());
             const sample = setInterval(() => {
@@ -142,12 +143,12 @@ for (const family of families) {
             else
                 results.push(result);
             fs.writeFileSync(resultsFile, JSON.stringify({
-                smoke, machine: os.hostname(), cpu: os.cpus()[0]?.model, memoryGiB: os.totalmem() / 1024 ** 3, node: process.versions.node, secondsPerFixture: seconds, results
+                smoke, quick, machine: os.hostname(), cpu: os.cpus()[0]?.model, memoryGiB: os.totalmem() / 1024 ** 3, node: process.versions.node, secondsPerFixture: seconds, results
             }, null, 2));
             console.log(family, concurrency, cacheGiB, result.seconds, error || 'QC passed', 'min pressure', minPressure);
         }
 }
-if (!smoke) {
+if (!smoke && !quick) {
     const profiles: Record<string, unknown> = {};
     for (const family of families) {
         const passing = results.filter(row => {
@@ -167,4 +168,4 @@ if (!smoke) {
     if (Object.keys(profiles).length !== families.length)
         throw new Error('Some scene families have no accepted memory-safe profile; inspect results');
 }
-console.log(smoke ? 'Smoke only; no sustained hardware profile published.' : 'Measured profiles saved. Results describe this fixture matrix and current system load; a single uninterrupted long render still needs acceptance.');
+console.log((smoke || quick) ? 'Short fixture check only; no sustained hardware profile published.' : 'Measured profiles saved. Results describe this fixture matrix and current system load; a single uninterrupted long render still needs acceptance.');

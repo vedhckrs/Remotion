@@ -1,3 +1,4 @@
+import {openFixtureBrowser} from './browser';
 import { verifyAudioFixture } from '../../apps/worker/src/audio-qc';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -90,6 +91,8 @@ const serveUrl = await bundle({
     entryPoint: path.resolve('packages/video/src/index.tsx'), publicDir: pub
 });
 const browserExecutable = process.env.REMOTION_BROWSER_EXECUTABLE || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const browserInstance = await openFixtureBrowser(browserExecutable);
+try {
 const kinds = ['audio', 'extrusion', 'glb', 'blur', 'portrait3d', 'video', 'mixed', 'funnel', 'map-poles', 'editorial'];
 const only = process.argv.find(value => value.startsWith('--only='))?.slice(7);
 if (only && !kinds.includes(only)) throw new Error('Unknown media fixture: ' + only);
@@ -145,7 +148,7 @@ for (const kind of only ? [only] : kinds) {
         spec
     };
     const original = await selectComposition({
-        serveUrl, id: 'SemanticExplainer', inputProps, browserExecutable, chromiumOptions: {
+        puppeteerInstance: browserInstance, serveUrl, id: 'SemanticExplainer', inputProps, browserExecutable, chromiumOptions: {
             gl: process.platform === 'darwin' ? 'angle' : 'swangle'
         }
     });
@@ -153,14 +156,14 @@ for (const kind of only ? [only] : kinds) {
         ...original, width: kind === 'portrait3d' ? 360 : 640, height: kind === 'portrait3d' ? 640 : 360
     };
     await renderStill({
-        serveUrl, composition, inputProps, frame: 120, output: path.join(out, kind + '.png'), browserExecutable, chromiumOptions: {
+        puppeteerInstance: browserInstance, serveUrl, composition, inputProps, frame: 120, output: path.join(out, kind + '.png'), browserExecutable, chromiumOptions: {
             gl: process.platform === 'darwin' ? 'angle' : 'swangle'
         }
     });
     if (['audio', 'video', 'mixed'].includes(kind)) {
         const file = path.join(out, kind + '.mp4');
         await renderMedia({
-            serveUrl, composition, inputProps, outputLocation: file, codec: 'h264', hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', browserExecutable, chromiumOptions: {
+            puppeteerInstance: browserInstance, serveUrl, composition, inputProps, outputLocation: file, codec: 'h264', hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', browserExecutable, chromiumOptions: {
                 gl: process.platform === 'darwin' ? 'angle' : 'swangle'
             }, concurrency: 2, logLevel: 'error'
         });
@@ -173,3 +176,5 @@ for (const kind of only ? [only] : kinds) {
     }
     console.log(kind + ' passed');
 }
+
+} finally { await browserInstance.close({silent: true}); }

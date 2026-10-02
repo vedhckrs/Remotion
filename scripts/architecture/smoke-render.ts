@@ -1,3 +1,4 @@
+import {openFixtureBrowser} from './browser';
 import fs from 'node:fs';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
@@ -13,6 +14,8 @@ const browserExecutable = fs.existsSync(chrome) ? chrome : undefined;
 const serveUrl = await bundle({
     entryPoint: path.resolve('packages/video/src/index.tsx'), publicDir: path.resolve('packages/video/public')
 });
+const browserInstance = await openFixtureBrowser(browserExecutable);
+try {
 const full = process.argv.includes('--gallery');
 for (const type of full ? sceneTypes : ['PROCESS'] as const) {
     const scene = {
@@ -36,8 +39,8 @@ for (const type of full ? sceneTypes : ['PROCESS'] as const) {
             spec
         };
         const original = await selectComposition({
-            serveUrl, id: 'SemanticExplainer', inputProps: props, browserExecutable, chromiumOptions: {
-                gl: 'angle'
+            puppeteerInstance: browserInstance, serveUrl, id: 'SemanticExplainer', inputProps: props, browserExecutable, chromiumOptions: {
+                gl: process.platform === 'darwin' ? 'angle' : 'swangle'
             }
         });
         const composition = {
@@ -45,18 +48,20 @@ for (const type of full ? sceneTypes : ['PROCESS'] as const) {
         };
         for (const frame of [15, 120, 210])
             await renderStill({
-                serveUrl, composition, inputProps: props, frame, output: path.join(out, `${type}-${ratio.replace(':', 'x')}-${frame}.png`), browserExecutable, chromiumOptions: {
-                    gl: 'angle'
+                puppeteerInstance: browserInstance, serveUrl, composition, inputProps: props, frame, output: path.join(out, `${type}-${ratio.replace(':', 'x')}-${frame}.png`), browserExecutable, chromiumOptions: {
+                    gl: process.platform === 'darwin' ? 'angle' : 'swangle'
                 }
             });
         if (type === 'PROCESS')
             await renderMedia({
-                serveUrl, composition: {
+                puppeteerInstance: browserInstance, serveUrl, composition: {
                     ...composition, durationInFrames: 120
                 }, inputProps: props, outputLocation: path.join(out, `smoke-${ratio.replace(':', 'x')}.mp4`), codec: 'h264', browserExecutable, chromiumOptions: {
-                    gl: 'angle'
+                    gl: process.platform === 'darwin' ? 'angle' : 'swangle'
                 }, concurrency: 2, hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', logLevel: 'error'
             });
     }
 }
 console.log('Architecture scene frames and clips rendered: ' + out);
+
+} finally { await browserInstance.close({silent: true}); }
