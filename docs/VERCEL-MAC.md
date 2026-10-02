@@ -8,7 +8,7 @@ Rendering, source media, paid provider credentials and finished videos stay on t
 
 Use project `nuradi-render-control`. Build command: `npm run build:web`; output: `web/public`; framework: Other. The Node function is `api/control.mjs`. All Remotion dependency versions in the reference project are pinned together; the hosted function itself only uses Node built-ins and fetch.
 
-A dedicated Upstash Redis database provides the durable command queue. Configure `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as server-side Vercel environment variables. Use a separate database so other sites cannot collide with the `nuradi:` keys.
+A dedicated Upstash Redis database provides the durable command queue. Configure `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as server-side Vercel environment variables. The Vercel integration also supplies KV_REST_API_URL/KV_REST_API_TOKEN; the function accepts those names directly. Use a separate database so other sites cannot collide with the `nuradi:` keys.
 
 Set three different randomly generated secrets (at least 32 characters each): `NURADI_ADMIN_PASSWORD`, `NURADI_SESSION_SECRET`, `NURADI_WORKER_TOKEN`. Only the worker token is shared with the Mac. Password sign-in sets an eight-hour Secure, HttpOnly, SameSite=Strict signed session cookie. Requests verify the same Origin; credentials stay out of browser storage and logs. Redis results expire after one day. Package titles, paths and job status are sent through the private hosted queue; source media and videos are not uploaded.
 

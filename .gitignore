@@ -8,3 +8,5 @@ out/
 *.log
 .vercel
 .env*
+
+!.env.example
