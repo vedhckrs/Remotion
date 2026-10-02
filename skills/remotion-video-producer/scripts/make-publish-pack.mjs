@@ -23,6 +23,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import {computeSceneTimings, absoluteCaptions, totalFrames} from '../assets/templates/src/lib/timeline.mjs';
 import {parseArgs} from './lib/env.mjs';
 
 const args = parseArgs(process.argv.slice(2));
@@ -50,16 +51,13 @@ const musicLicenses = fs.existsSync(path.join('public', 'music', 'LICENSES.md'))
 // ---- timing (chapters) -------------------------------------------------------------------------
 const PACING = {fast: {gap: 0.35, wpm: 185}, medium: {gap: 0.6, wpm: 165}, calm: {gap: 0.9, wpm: 145}};
 const pace = PACING[script.pacing] || PACING.medium;
-let cursor = 0;
-const chapters = script.scenes.map((scene) => {
-  const fromManifest = manifest?.scenes?.find((s) => s.id === scene.id)?.durationSeconds;
-  const est = 0.6 + (scene.voiceover.trim().split(/\s+/).length * 60) / pace.wpm;
-  const seconds = Math.max(scene.minSeconds || 0, (fromManifest ?? est) + pace.gap);
-  const start = cursor;
-  cursor += seconds;
-  return {start: Math.floor(start), headline: scene.headline.replace(/[.!?]+$/, '')};
-});
-const totalSeconds = Math.round(cursor + (2.5));
+const fps = 60;
+const gap = manifest?.gapSeconds ?? pace.gap;
+const durations = script.scenes.map((s) => ({id:s.id,minSeconds:s.minSeconds,durationSeconds:manifest?.scenes?.find((m) => m.id === s.id)?.durationSeconds ?? 0.6+s.voiceover.trim().split(/\s+/).length*60/pace.wpm}));
+const timings = computeSceneTimings(durations,fps,gap);
+const chapters = timings.map((t,i) => ({start:Math.floor(t.startFrame/fps),headline:script.scenes[i].headline.replace(/[.!?]+$/, '')}));
+const endSeconds = script.endCard === null ? 0 : 2.5;
+const totalSeconds = Math.round(totalFrames(timings)/fps + endSeconds + (endSeconds ? Math.ceil(gap*fps)/fps : 0));
 const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 // YouTube only accepts chapters when there are 3+, the first is 00:00 and each lasts 10+ seconds.
 const useChapters = chapters.length >= 3 && chapters.every((c, i) => i === 0 || c.start - chapters[i - 1].start >= 10) && totalSeconds - chapters[chapters.length - 1].start >= 10;
@@ -203,7 +201,8 @@ let srtFile = null;
 if (manifest?.scenes?.some((sc) => sc.captions?.length)) {
   const cues = [];
   let offset = 0;
-  for (const scene of manifest.scenes) {
+  const captionTimeline = absoluteCaptions(manifest, timings, fps);
+  for (const scene of [{captions: captionTimeline}]) {
     const words = scene.captions || [];
     let line = [];
     let start = null;
@@ -219,7 +218,7 @@ if (manifest?.scenes?.some((sc) => sc.captions?.length)) {
       if (line.length >= 8 || w.endMs - start > 3500 || /[.!?]$/.test(w.text.trim())) flush();
     }
     flush();
-    offset += (scene.durationSeconds + (manifest.gapSeconds ?? pace.gap)) * 1000;
+    // Captions are already on the canonical frame timeline.
   }
   if (cues.length) {
     srtFile = path.join(outDir, `${videoId}.srt`);

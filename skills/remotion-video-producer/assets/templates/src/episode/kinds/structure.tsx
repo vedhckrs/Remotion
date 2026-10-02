@@ -67,7 +67,8 @@ export const Layers: React.FC<{readonly spec: Record<string, unknown>}> = ({spec
   const style = (spec.style as string) ?? 'rings';
   const palette = ['violet', 'cyan', 'amber', 'green', 'pink', 'accent'];
   if (style === 'rings') {
-    const R = vertical ? Math.min(w * 0.42, h * 0.34) : Math.min(h * 0.46, w * 0.2);
+    const labelStep = Math.min(70, (h * 0.48) / Math.max(1, items.length));
+    const R = vertical ? Math.min(w * 0.42, Math.max(60, (h - 80 - items.length * labelStep) / 2)) : Math.min(h * 0.46, w * 0.2);
     const cx = vertical ? w / 2 : w * 0.26;
     const cy = vertical ? R + 20 : h / 2;
     return (
@@ -86,7 +87,7 @@ export const Layers: React.FC<{readonly spec: Record<string, unknown>}> = ({spec
           const id = idOf(it, i);
           const p = enter(b.since(id, i));
           const color = tone(it.color, palette[i % palette.length] as never);
-          const ly = vertical ? cy + R + 80 + i * 70 : cy - (items.length - 1) * 44 + i * 88;
+          const ly = vertical ? cy + R + 40 + i * labelStep : cy - (items.length - 1) * 44 + i * 88;
           const lx = vertical ? w * 0.1 : w * 0.52;
           const r = R * (1 - i / (items.length + 0.4));
           return (

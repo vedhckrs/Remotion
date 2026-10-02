@@ -21,7 +21,8 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {loadEnv, parseArgs} from './lib/env.mjs';
-import {validateScript} from './lib/script-schema.mjs';
+import {validateScript, voiceManifestComplete} from './lib/script-schema.mjs';
+import {atomicJson} from './lib/files.mjs';
 
 loadEnv();
 const args = parseArgs(process.argv.slice(2));
@@ -32,7 +33,7 @@ const autoDir = path.join(cwd, 'automation');
 const queueFile = path.join(autoDir, 'queue.json');
 const topicsFile = path.join(autoDir, 'topics.md');
 const logsDir = path.join(autoDir, 'logs');
-fs.mkdirSync(logsDir, {recursive: true});
+if (!args['dry-run']) fs.mkdirSync(logsDir, {recursive: true});
 
 const DEFAULTS = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -58,10 +59,10 @@ const loadQueue = () => {
   return {...DEFAULTS, ...stored, slots: {...DEFAULTS.slots, ...(stored.slots || {})}, platforms: {...DEFAULTS.platforms, ...(stored.platforms || {})}, perDay: {...DEFAULTS.perDay, ...(stored.perDay || {})}, items: stored.items || []};
 };
 const saveQueue = (q) => {
-  fs.mkdirSync(autoDir, {recursive: true});
-  fs.writeFileSync(queueFile, JSON.stringify(q, null, 2) + '\n');
+  if (!args['dry-run']) fs.mkdirSync(autoDir, {recursive: true});
+  if (!args['dry-run']) atomicJson(queueFile, q);
 };
-const queue = loadQueue();
+let queue = loadQueue();
 
 const slug = (s) =>
   String(s)
@@ -83,7 +84,7 @@ const zonedIso = (dateStr, hhmm, timeZone) => {
 
 const log = (id, line) => {
   const stamp = new Date().toISOString();
-  fs.appendFileSync(path.join(logsDir, `${id}.log`), `[${stamp}] ${line}\n`);
+  if (!args['dry-run']) fs.appendFileSync(path.join(logsDir, `${id}.log`), `[${stamp}] ${line}\n`);
   console.log(`  ${line}`);
 };
 
@@ -232,7 +233,7 @@ const produce = (item) => {
 
   // Voice (frame-accurate timing comes back in the manifest).
   const manifest = path.join('public', 'voiceover', id, 'manifest.json');
-  if (exists(manifest)) skip('voice');
+  if (voiceManifestComplete(script, manifest, queue.voiceProvider)) skip('voice');
   else if (!runStep(item, 'voice', node, [s('generate-voiceover.mjs'), '--script', scriptFile, '--provider', queue.voiceProvider, '--voice-preset', script.voice?.preset || queue.voicePreset], {timeoutMs: 15 * 60_000})) return false;
 
   // Captions: ElevenLabs already returns word timing; Whisper only when asked or timing is missing.
@@ -243,7 +244,7 @@ const produce = (item) => {
 
   // Music bed (optional; exit 2 = no key, continue).
   if (queue.music && !script.music?.src) {
-    if (runStep(item, 'music', node, [s('generate-music.mjs'), '--id', id, '--mood', script.music?.mood || queue.music], {timeoutMs: 10 * 60_000, okCodes: [2]})) {
+    if (runStep(item, 'music', node, [s('generate-music.mjs'), '--id', id, '--mood', script.music?.mood || queue.music, '--out', path.join('public', 'music', `${id}.mp3`)], {timeoutMs: 10 * 60_000, okCodes: [2]})) {
       const music = path.join('public', 'music', `${id}.mp3`);
       if (exists(music)) {
         script.music = {src: `music/${id}.mp3`, level: script.music?.level ?? 0.18, credit: 'Generated with ElevenLabs Music', mood: script.music?.mood || queue.music};
@@ -307,15 +308,18 @@ const withLock = (fn) => {
     try {
       process.kill(pid, 0);
       alive = true;
-    } catch {
-      alive = false;
+    } catch (error) {
+      alive = error.code !== 'ESRCH';
     }
     if (alive) {
       console.log(`Another autopilot run is active (pid ${pid}); exiting.`);
       process.exit(0);
     }
+    fs.rmSync(lock, {force:true});
   }
-  fs.writeFileSync(lock, String(process.pid));
+  try { fs.writeFileSync(lock, String(process.pid), {flag: 'wx', mode: 0o600}); }
+  catch (e) { if (e.code === 'EEXIST') throw new Error('Another queue operation holds the lock'); throw e; }
+  queue = loadQueue();
   try {
     fn();
   } finally {
@@ -326,7 +330,7 @@ const withLock = (fn) => {
 const run = () =>
   withLock(() => {
     const limit = Number(args.limit || 3);
-    const todo = queue.items.filter((i) => (args.id ? i.id === args.id : ['planned', 'failed', 'needs-script', 'produced'].includes(i.status))).sort((a, b) => a.publishAt.localeCompare(b.publishAt)).slice(0, limit);
+    const todo = queue.items.filter((i) => (args.id ? i.id === args.id : ['planned', 'failed', 'needs-script', 'produced', 'producing'].includes(i.status))).sort((a, b) => a.publishAt.localeCompare(b.publishAt)).slice(0, limit);
     if (!todo.length) {
       console.log('Nothing to produce. Run `autopilot plan` first or add topics to automation/topics.md.');
       return;
@@ -373,9 +377,12 @@ const status = () => {
   }
 };
 
-const commands = {plan, add, run, 'publish-due': publishDue, status};
+const commands = {daily: () => {withLock(plan);run();}, plan, add, run, 'publish-due': publishDue, status};
 if (!commands[command]) {
   console.error(`Unknown command ${command}. Use: ${Object.keys(commands).join(', ')}`);
   process.exit(1);
 }
-commands[command]();
+if (args['dry-run']) {
+  console.log(JSON.stringify({dryRun: true, command, items: queue.items.filter((i) => !args.id || i.id === args.id), steps: ['script','icons','voice','captions','music','thumbnails','render','pack','publish']}, null, 2));
+} else if (['plan','add'].includes(command)) withLock(commands[command]);
+else commands[command]();

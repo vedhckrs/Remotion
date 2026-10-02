@@ -35,11 +35,11 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
       for (const e of fs.readdirSync(dir, {withFileTypes: true})) if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'renders') walk(path.join(dir, e.name), depth + 1);
     };
     walk(base, 0);
-    return found.map((dir) => ({id: path.relative(base, dir).split(path.sep).join('/'), dir}));
+    return found.map((dir) => ({id: path.relative(base, dir).split(path.sep).join('/') || '@root', dir}));
   };
   const dirOf = (id) => {
-    const full = path.resolve(root(), String(id || ''));
-    return full.startsWith(root() + path.sep) && fs.existsSync(path.join(full, 'production.json')) ? full : null;
+    const full = id === '@root' ? root() : path.resolve(root(), String(id || ''));
+    return (full === root() || full.startsWith(root() + path.sep)) && fs.existsSync(path.join(full, 'production.json')) ? full : null;
   };
 
   const summary = async () => {
@@ -154,6 +154,7 @@ export const createLibrary =({cwd, SKILL_DIR, getSettings, log, send, cancelSign
       const settings = getSettings();
       const child = spawn(process.execPath, [path.join(SKILL_DIR, 'scripts', script), ...args], {cwd, env: {...process.env, REMOTION_GL: settings.gl}});
       cancelSignals.set(job.id, {cancel: () => child.kill('SIGTERM')});
+      child.on('error',(error) => {cancelSignals.delete(job.id);step.status='failed';step.detail=error.message;send('jobs',jobs);reject(error);});
       let last = '';
       let reason = '';
       const onData = (d) => {

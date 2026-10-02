@@ -20,6 +20,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {safeId, inside,sha256File} from './files.mjs';
+import {rendererHash} from './render-kit.mjs';
 
 export const STAGES = ['planned', 'researched', 'scripted', 'storyboarded', 'voiced', 'assets-ready', 'render-ready'];
 export const KINDS = ['flow', 'stat', 'bars', 'equation', 'meter', 'compare', 'layers', 'grid', 'timeline', 'cycle', 'checklist', 'wave', 'hero', 'device'];
@@ -37,7 +39,7 @@ const readJson = (file) => {
   }
 };
 export const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
-export const fileHash = (file) => (fs.existsSync(file) ? sha256(fs.readFileSync(file)) : null);
+export const fileHash = (file) => (fs.existsSync(file) ? sha256File(file) : null);
 const words = (t) => String(t ?? '').trim().split(/\s+/).filter(Boolean);
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const norm = (w) => w.toLowerCase().replace(/[^a-z0-9%]+/g, '');
@@ -105,10 +107,10 @@ const KIND_RULES = {
     if (v.layout && !['row', 'column', 'tree', 'hub', 'free'].includes(v.layout)) e(`flow layout "${v.layout}" is not row, column, tree, hub or free`);
     if ((v.nodes ?? []).length > 6) e('flow has more than 6 nodes: split it into two scenes');
   },
-  stat: (v, e) => typeof v.value !== 'number' && e('stat needs a numeric value'),
-  bars: (v, e) => (!Array.isArray(v.items) || !v.items.length || v.items.some((i) => typeof i.value !== 'number')) && e('bars needs items: [{label, value}]'),
+  stat: (v, e) => !Number.isFinite(v.value) && e('stat needs a numeric value'),
+  bars: (v, e) => (!Array.isArray(v.items) || !v.items.length || v.items.some((i) => !Number.isFinite(i.value) || i.value < 0)) && e('bars needs items: [{label, value}]'),
   equation: (v, e) => (!Array.isArray(v.terms) || v.terms.length < 3) && e('equation needs at least 3 terms'),
-  meter: (v, e) => typeof v.level === 'number' && (v.level < 0 || v.level > 1) && e('meter level must be 0..1'),
+  meter: (v, e) => (!Number.isFinite(v.level) || v.level < 0 || v.level > 1) && e('meter level must be 0..1'),
   compare: (v, e) => (!Array.isArray(v.items) || v.items.length < 2 || v.items.length > 3) && e('compare needs 2 or 3 items'),
   layers: (v, e) => (!Array.isArray(v.items) || !v.items.length || v.items.length > 6) && e('layers needs 1 to 6 items'),
   grid: (v, e) => !v.items && !v.count && e('grid needs count or items'),
@@ -144,9 +146,10 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
   for (const k of ['id', 'topic', 'title']) if (!P.pkg[k]) errors.push(`package.json: ${k} is required`);
 
   // research
-  const sourceIds = new Set((P.sources ?? []).map((s) => s.id));
+  const sourceIds = new Set((Array.isArray(P.sources) ? P.sources : []).map((s) => s?.id));
   const researched = Array.isArray(P.sources) && P.sources.length > 0;
-  for (const s of P.sources ?? []) {
+  for (const s of Array.isArray(P.sources) ? P.sources : []) {
+    if (!s || typeof s !== 'object') { errors.push('sources.json: source must be an object'); continue; }
     if (!s.id || !s.url || !s.title) errors.push(`sources.json: every source needs id, title and url (${s.id ?? '?'})`);
     if (s.url && !/^https?:\/\//.test(s.url)) errors.push(`sources.json: ${s.id} url is not http(s)`);
     if (!s.accessed) warnings.push(`sources.json: ${s.id} has no accessed date`);
@@ -157,6 +160,44 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
     report.stage = researched ? 'researched' : 'planned';
     return report;
   }
+  if (!safeId(P.pkg.id)) errors.push('package.json: id must contain only letters, numbers, _ and -');
+  const object = (x) => x && typeof x === 'object' && !Array.isArray(x);
+  if (P.sources !== null && !Array.isArray(P.sources)) errors.push('sources.json must be an array');
+  if (!Array.isArray(P.production.videos) || !P.production.videos.length) errors.push('production.json: videos must be a nonempty array');
+  const videoIds = new Set();
+  for (const v of Array.isArray(P.production.videos) ? P.production.videos : []) {
+    if (!object(v)) { errors.push('video must be an object'); continue; }
+    if (!safeId(v.id) || videoIds.has(v.id)) errors.push('video id must be safe and unique');
+    videoIds.add(v.id);
+    if (!Array.isArray(v.targetSeconds) || v.targetSeconds.length !== 2 || !v.targetSeconds.every((n) => Number.isFinite(n) && n > 0) || v.targetSeconds[0] > v.targetSeconds[1]) errors.push(`${v.id}: targetSeconds must be positive, finite and ordered`);
+    if (!Array.isArray(v.scenes) || !v.scenes.length) errors.push(`${v.id}: scenes must be a nonempty array`);
+    for (const sc of Array.isArray(v.scenes) ? v.scenes : []) {
+      if (!object(sc) || !safeId(sc.id)) { errors.push(`${v.id}: scene must be an object with a safe id`); continue; }
+      for (const k of ['minSeconds', 'holdAfter']) if (sc[k] !== undefined && (!Number.isFinite(sc[k]) || sc[k] < 0)) errors.push(`${v.id}/${sc.id}: ${k} must be finite and nonnegative`);
+      if (sc.sources !== undefined && (!Array.isArray(sc.sources) || !sc.sources.every((x) => typeof x === 'string'))) errors.push(`${v.id}/${sc.id}: sources must be an array of ids`);
+      if (!object(sc.visual)) { errors.push(`${v.id}/${sc.id}: visual must be an object`); continue; }
+      for (const k of ['nodes', 'links', 'items', 'steps', 'beats', 'terms', 'orbit']) {
+        const a = sc.visual[k];
+        if (a !== undefined && (!Array.isArray(a) || a.some((x) => k === 'orbit' ? typeof x !== 'string' : !object(x)))) errors.push(`${v.id}/${sc.id}: visual.${k} has invalid structure`);
+      }
+      if (sc.visual.screen !== undefined && (!object(sc.visual.screen) || (sc.visual.screen.brands !== undefined && (!Array.isArray(sc.visual.screen.brands) || !sc.visual.screen.brands.every(x=>typeof x==='string'))))) errors.push(`${v.id}/${sc.id}: screen.brands must be an array of brand ids`);
+      for (const b of Array.isArray(sc.visual.beats) ? sc.visual.beats : []) {
+        if (!object(b)) continue;
+        for (const k of ['show','hide','focus']) if (b[k] !== undefined && (!Array.isArray(b[k]) || !b[k].every((x) => typeof x === 'string'))) errors.push(`${v.id}/${sc.id}: beat.${k} must be ids`);
+        if (b.set !== undefined && !object(b.set)) errors.push(`${v.id}/${sc.id}: beat.set must be an object`);
+      }
+      if (sc.visual.count !== undefined && (!Number.isInteger(sc.visual.count) || sc.visual.count < 1 || sc.visual.count > 100)) errors.push(`${v.id}/${sc.id}: grid count must be 1..100`);
+      if (sc.visual.cols !== undefined && (!Number.isInteger(sc.visual.cols) || sc.visual.cols < 1)) errors.push(`${v.id}/${sc.id}: cols must be positive`);
+    }
+    const t = safeId(v.id) ? P.timing(v.id) : null;
+    if (t && (!object(t) || !object(t.scenes))) errors.push(`${v.id}: timing must contain a scenes object`);
+    for (const [id, voice] of Object.entries(object(t?.scenes) ? t.scenes : {})) {
+      if (!object(voice) || !Array.isArray(voice.words) || voice.words.some((w) => !object(w) || typeof w.text !== 'string')) errors.push(`${v.id}/${id}: voice words must be an array of timed words`);
+    }
+    const m = P.pkg.music?.[v.id];
+    if (m && (!object(m) || !inside(dir, m.file) || !Number.isFinite(m.level ?? 0.16) || (m.level ?? 0.16) < 0 || (m.level ?? 0.16) > 1)) errors.push(`${v.id}: music file/level invalid`);
+  }
+  if (errors.length) { report.stage = null; return report; }
   if (P.production.schema !== 'wiresplained.production/1') errors.push('production.json: schema must be "wiresplained.production/1"');
   const videos = P.production.videos ?? [];
   if (!videos.length) errors.push('production.json: no videos');
@@ -238,9 +279,10 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
       if (stale) staleVoice.push(scene.id);
       if (!voice || stale) voiced = false;
       if (!voice) {
+        todo.push(`${video.id}: voice for ${scene.id}`);
         // not voiced yet
       } else {
-        if (!fs.existsSync(path.join(dir, 'voice', video.id, voice.file))) {
+        if (!inside(path.join(dir, 'voice', video.id), voice.file) || !fs.existsSync(path.join(dir, 'voice', video.id, voice.file)) || !Number.isFinite(voice.start) || !Number.isFinite(voice.end) || voice.start < 0 || voice.end <= voice.start || !Array.isArray(voice.words) || voice.words.some((w) => !w || typeof w.text !== 'string' || !Number.isFinite(w.start) || !Number.isFinite(w.end) || w.end < w.start)) {
           errors.push(`${where}: voice file ${voice.file} missing`);
           voiced = false;
         }
@@ -322,16 +364,32 @@ export const validatePackage = (dir, {projectDir = process.cwd()} = {}) => {
     const vr = report.videos[video.id];
     if (!entry || !vr) continue;
     const music = P.pkg.music?.[video.id];
-    const inputs = renderInputs(dir, video.id, vr.scenes, music);
+    const inputs = renderInputs(dir, video.id, vr.scenes, music, projectDir, entry.settings ?? null);
     vr.render = {file: entry.file, qc: entry.qc, width: entry.width, height: entry.height, renderedAt: entry.renderedAt, stale: JSON.stringify(entry.inputs ?? null) !== JSON.stringify(inputs)};
   }
   return report;
 };
 
 /** What a finished render was made from; compared on the next validation to spot stale renders. */
-export const renderInputs = (dir, videoId, sceneHashes, music) => ({
+export const renderInputs = (dir, videoId, sceneHashes, music, projectDir = process.cwd(), settings = null) => ({
   scenes: sceneHashes,
   timing: fileHash(path.join(dir, 'voice', videoId, 'timing.json')),
+  assets: packageAssets(dir),
+  renderer: rendererHash(projectDir),
+  settings,
   music: music ? fileHash(path.join(dir, music.file)) : null,
   level: music?.level ?? null,
 });
+
+const packageAssets = (dir) => {
+  const hashes = {};
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, {withFileTypes: true}).sort((a,b) => a.name.localeCompare(b.name))) {
+      if (e.name.startsWith('.') || e.name === 'renders') continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile() && /\.(mp3|wav|m4a|aac|ogg|mp4|webm|mov|png|jpe?g|svg|webp|woff2?|ttf|cube)$/i.test(e.name)) hashes[path.relative(dir,p)] = fileHash(p);
+    }
+  };
+  walk(dir); return hashes;
+};

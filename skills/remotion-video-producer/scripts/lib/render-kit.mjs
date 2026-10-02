@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {atomicWrite, atomicJson} from './files.mjs';
 import {RENDERER_VERSION, sha256} from './package-schema.mjs';
 
 /** Package id as used in public/packages/<id>. */
@@ -14,21 +15,30 @@ export const packageId = (pkg, dir) => String(pkg.id ?? path.basename(dir)).toLo
 export const syncPackage = (src, project, id) => {
   const pub = path.join(project, 'public', 'packages', id);
   if (path.resolve(pub) === path.resolve(src)) return pub;
+  const manifestFile = path.join(pub, '.sync-files.json');
+  const previous = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile,'utf8')) : [];
+  const owned = [];
   const sync = (from, to) => {
     fs.mkdirSync(to, {recursive: true});
     for (const e of fs.readdirSync(from, {withFileTypes: true})) {
       if (e.name === 'renders' || e.name.startsWith('.')) continue;
-      const a = path.join(from, e.name);
-      const b = path.join(to, e.name);
-      if (e.isDirectory()) sync(a, b);
-      else {
-        const sa = fs.statSync(a);
-        const sb = fs.existsSync(b) ? fs.statSync(b) : null;
-        if (!sb || sb.size !== sa.size || sb.mtimeMs < sa.mtimeMs) fs.copyFileSync(a, b);
+      const a = path.join(from, e.name), b = path.join(to, e.name);
+      if (e.isSymbolicLink()) throw new Error(`Package symlinks are not supported: ${a}`);
+      if (fs.existsSync(b) && fs.lstatSync(b).isSymbolicLink()) throw new Error(`Destination symlink: ${b}`);
+      if (e.isDirectory()) sync(a,b);
+      else if (e.isFile()) {
+        owned.push(path.relative(pub,b));
+        const bytes = fs.readFileSync(a);
+        if (!fs.existsSync(b) || sha256(fs.readFileSync(b)) !== sha256(bytes)) atomicWrite(b,bytes);
       }
     }
   };
   sync(src, pub);
+  for (const name of previous) {
+    const full = path.resolve(pub,name);
+    if (full.startsWith(path.resolve(pub)+path.sep) && !owned.includes(name)) fs.rmSync(full,{force:true});
+  }
+  atomicJson(manifestFile,owned);
   return pub;
 };
 
@@ -100,4 +110,12 @@ export const lowerPriority = () => {
   } catch {
     // not permitted: carry on at normal priority
   }
+};
+
+/** Reuse installed Chrome on macOS; avoid an unnecessary headless-shell download. */
+export const localBrowserExecutable = () => {
+  const configured=process.env.REMOTION_BROWSER_EXECUTABLE;
+  if(configured){if(!fs.existsSync(configured))throw new Error('Configured Chrome executable does not exist');return configured;}
+  const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  return process.platform==='darwin'&&fs.existsSync(chrome)?chrome:undefined;
 };

@@ -1,0 +1,1 @@
+export declare function visibilityAt(beats: readonly {frame: number; show?: readonly string[]; hide?: readonly string[]}[], frame: number, id: string, fallback?: number): {visible: boolean; since: number};

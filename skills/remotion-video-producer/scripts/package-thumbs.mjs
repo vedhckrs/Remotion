@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {parseArgs} from './lib/env.mjs';
 import {validatePackage} from './lib/package-schema.mjs';
-import {chromiumFor, episodeEntry, loadRemotion, lowerPriority, packageId, readableErrors, syncPackage} from './lib/render-kit.mjs';
+import {chromiumFor, episodeEntry, loadRemotion, localBrowserExecutable, lowerPriority, packageId, readableErrors, syncPackage} from './lib/render-kit.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const src = path.resolve(String(args._[0] ?? ''));
@@ -35,7 +35,7 @@ const chromiumOptions = chromiumFor(args.gl ?? process.env.REMOTION_GL ?? null);
 syncPackage(src, project, id);
 const {bundle, openBrowser, renderStill, selectComposition} = await loadRemotion(project);
 const serveUrl = await bundle({entryPoint: episodeEntry(project), onProgress: () => undefined});
-const browser = await openBrowser('chrome', {chromiumOptions, logLevel: 'error'});
+const browser = await openBrowser('chrome', {chromiumOptions, browserExecutable: localBrowserExecutable(), logLevel: 'error'});
 const out = path.join(src, 'renders', 'thumbs');
 fs.mkdirSync(out, {recursive: true});
 try {

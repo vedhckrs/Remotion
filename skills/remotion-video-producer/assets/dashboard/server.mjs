@@ -22,6 +22,8 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {RATIOS_FOR_KIND, createEpisodes} from './episodes.mjs';
 import {createLibrary} from './library.mjs';
+import {parseRange} from './ranges.mjs';
+import {loadJobs,saveJobs} from './job-store.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const cwd = process.cwd();
@@ -32,6 +34,7 @@ const arg = (name, fallback) => {
   const eq = argv.find((a) => a.startsWith(`--${name}=`));
   return eq ? eq.slice(name.length + 3) : fallback;
 };
+const BROWSER=process.env.REMOTION_BROWSER_EXECUTABLE || (process.platform==='darwin'&&fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':null);
 const PORT = Number(arg('port', process.env.DASHBOARD_PORT || 4545));
 const SKILL_DIR = path.resolve(arg('skill', process.env.REMOTION_SKILL_DIR || path.join(here, '..', '..', '..', 'skills', 'remotion-video-producer')));
 const SETTINGS_FILE = path.join(here, 'settings.json');
@@ -213,9 +216,10 @@ let compositions = [];
 let compositionsError = null;
 const refreshCompositions = () =>
   new Promise((resolve) => {
-    const child = spawn('npx', ['remotion', 'compositions', '--quiet', ...(process.env.REMOTION_IGNORE_CERTS ? ['--ignore-certificate-errors'] : [])], {cwd, env: {...process.env}, shell: process.platform === 'win32'});
+    const child = spawn('npx', ['remotion', 'compositions', '--quiet', ...(BROWSER?['--browser-executable',BROWSER]:[]), ...(process.env.REMOTION_IGNORE_CERTS ? ['--ignore-certificate-errors'] : [])], {cwd, env: {...process.env}, shell: process.platform === 'win32'});
     let out = '';
     let err = '';
+    child.on('error',(e) => { err = e.message; });
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('close', (code) => {
@@ -233,6 +237,7 @@ const refreshCompositions = () =>
 // ---------- SSE + log ----------------------------------------------------------------------------
 const clients = new Set();
 const send = (event, data) => {
+  if (event === 'jobs') saveJobs(JOBS_FILE,jobs);
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of clients) res.write(payload);
 };
@@ -246,9 +251,10 @@ const log = (source, line) => {
 };
 
 // ---------- queue --------------------------------------------------------------------------------
-const jobs = [];
+const JOBS_FILE=path.join(cwd,'automation','dashboard-jobs.json');
+const jobs=loadJobs(JOBS_FILE);
 let running = null;
-let nextId = 1;
+let nextId = Math.max(0,...jobs.map(j=>Number(j.id)||0))+1;
 let serveUrl = null;
 let bundledAt = 0;
 const cancelSignals = new Map();
@@ -290,7 +296,7 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
   const scale = preset.scale ?? (fourK ? 2 : 1);
   const concurrency = forcedConcurrency || concurrencyFor(budget ?? settings.budget, fourK);
   const chromiumOptions = {gl: settings.gl, ignoreCertificateErrors: Boolean(process.env.REMOTION_IGNORE_CERTS)};
-  const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, logLevel: 'error'});
+  const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, browserExecutable:BROWSER, logLevel: 'error'});
   const width = Math.round(composition.width * scale);
   const height = Math.round(composition.height * scale);
   const info = {width, height, fps: composition.fps, totalFrames: composition.durationInFrames, concurrency, encoder: hw ? machine().hardwareEncoder : 'x264', fourK, hw};
@@ -324,6 +330,7 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
       outputLocation: target,
       inputProps,
       chromiumOptions,
+      browserExecutable:BROWSER,
       concurrency,
       scale,
       colorSpace: 'bt709',
@@ -417,6 +424,7 @@ const runTask = (job) =>
     child.stdout.on('data', (d) => String(d).split('\n').forEach((l) => log(job.task, l)));
     child.stderr.on('data', (d) => String(d).split('\n').forEach((l) => log(job.task, l)));
     cancelSignals.set(job.id, {cancel: () => child.kill('SIGTERM')});
+    child.on('error', (error) => {cancelSignals.delete(job.id);reject(error);});
     child.on('close', (code) => {
       cancelSignals.delete(job.id);
       if (code === 0 || (job.task === 'music' && code === 2) || (job.task === 'publish' && code === 3) || (job.task === 'icons' && code === 2)) resolve();
@@ -552,6 +560,7 @@ const startStudio = () => {
   if (studio) return;
   studio = spawn('npx', ['remotion', 'studio', '--no-open', `--port=${settings.studioPort}`], {cwd, shell: process.platform === 'win32'});
   studioUrl = null;
+  studio.on('error', (e) => {log('studio',e.message);});
   const onData = (d) => {
     const text = String(d);
     const m = text.match(/https?:\/\/[^\s]+/);
@@ -578,15 +587,17 @@ const serveFile = (req, res, file) => {
   const st = fs.statSync(file);
   const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
   const range = req.headers.range;
+  let bounds;
   if (range) {
-    const [startStr, endStr] = range.replace('bytes=', '').split('-');
-    const start = Number(startStr);
-    const end = endStr ? Math.min(Number(endStr), st.size - 1) : st.size - 1;
-    res.writeHead(206, {'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Type': type});
-    return fs.createReadStream(file, {start, end}).pipe(res);
-  }
-  res.writeHead(200, {'Content-Length': st.size, 'Content-Type': type, 'Accept-Ranges': 'bytes'});
-  return fs.createReadStream(file).pipe(res);
+    bounds = parseRange(range,st.size);
+    if (!bounds) { res.writeHead(416, {'Content-Range': `bytes */${st.size}`}); return res.end(); }
+    res.writeHead(206, {'Content-Range': `bytes ${bounds.start}-${bounds.end}/${st.size}`, 'Accept-Ranges':'bytes','Content-Length':bounds.end-bounds.start+1,'Content-Type':type});
+  } else res.writeHead(200, {'Content-Length':st.size,'Content-Type':type,'Accept-Ranges':'bytes'});
+  const stream = fs.createReadStream(file,bounds);
+  stream.on('error', (error) => res.destroy(error));
+  res.on('close', () => stream.destroy());
+  if (req.method === 'HEAD') {stream.destroy();return res.end();}
+  return stream.pipe(res);
 };
 const json = (res, code, data) => {
   res.writeHead(code, {'Content-Type': 'application/json'});
@@ -668,9 +679,9 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const target = path.resolve(String(body.path || ''));
       if (!body.path || !fs.existsSync(target)) return json(res, 404, {error: 'not found'});
-      if (isMac) spawn('open', [target]);
-      else if (process.platform === 'win32') spawn('explorer', [target]);
-      else spawn('xdg-open', [target]);
+      if (isMac) spawn('open', [target]).on('error',(e) => log('open',e.message));
+      else if (process.platform === 'win32') spawn('explorer', [target]).on('error',(e) => log('open',e.message));
+      else spawn('xdg-open', [target]).on('error',(e) => log('open',e.message));
       return json(res, 200, {ok: true});
     }
     if (req.method === 'GET' && p === '/api/events') {
@@ -765,9 +776,9 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const file = safeOut(body.file);
       if (!file || !fs.existsSync(file)) return json(res, 404, {error: 'not found'});
-      if (isMac) spawn('open', ['-R', file]);
-      else if (process.platform === 'win32') spawn('explorer', ['/select,', file]);
-      else spawn('xdg-open', [outDir]);
+      if (isMac) spawn('open', ['-R', file]).on('error',(e) => log('open',e.message));
+      else if (process.platform === 'win32') spawn('explorer', ['/select,', file]).on('error',(e) => log('open',e.message));
+      else spawn('xdg-open', [outDir]).on('error',(e) => log('open',e.message));
       return json(res, 200, {ok: true});
     }
     if (req.method === 'DELETE' && p.startsWith('/api/outputs/')) {
@@ -818,8 +829,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const target = body.id ? (body.path ? library.file(body.id, body.path) : library.dirOf(body.id)) : library.root();
       if (!target || !fs.existsSync(target)) return json(res, 404, {error: 'not found'});
-      if (isMac) spawn('open', fs.statSync(target).isDirectory() ? [target] : ['-R', target]);
-      else spawn('xdg-open', [fs.statSync(target).isDirectory() ? target : path.dirname(target)]);
+      if (isMac) spawn('open', fs.statSync(target).isDirectory() ? [target] : ['-R', target]).on('error',(e) => log('open',e.message));
+      else spawn('xdg-open', [fs.statSync(target).isDirectory() ? target : path.dirname(target)]).on('error',(e) => log('open',e.message));
       return json(res, 200, {ok: true});
     }
     if (req.method === 'POST' && p === '/api/library/run') {
@@ -841,6 +852,7 @@ const server = http.createServer(async (req, res) => {
 
 setInterval(() => send('machine', machine()), 2500);
 
+server.on('error',error=>{console.error(`Dashboard could not listen on port ${PORT}: ${error.message}`);process.exit(1);});
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Remotion dashboard  http://localhost:${PORT}`);
   console.log(`  project: ${cwd}`);

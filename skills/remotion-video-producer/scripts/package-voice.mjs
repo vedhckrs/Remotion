@@ -18,7 +18,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {loadEnv, parseArgs, requireEnv} from './lib/env.mjs';
-import {sha256} from './lib/package-schema.mjs';
+import {sha256, validatePackage} from './lib/package-schema.mjs';
+import {atomicJson, atomicWrite} from './lib/files.mjs';
+import {readWav} from './lib/audio.mjs';
 import {VOICE_PRESETS, fetchVoices} from './lib/voice-presets.mjs';
 import {readableErrors} from './lib/render-kit.mjs';
 
@@ -32,9 +34,13 @@ if (!fs.existsSync(path.join(dir, 'production.json'))) {
 }
 const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
 const production = JSON.parse(fs.readFileSync(path.join(dir, 'production.json'), 'utf8'));
+const check = validatePackage(dir);
+const inputErrors = check.errors.filter((e) => !/voice file/.test(e));
+if (inputErrors.length) throw new Error(inputErrors.join('\n'));
 const cfg = pkg.voice ?? {};
 const provider = String(args.provider ?? cfg.provider ?? 'elevenlabs');
-const model = String(args.model ?? cfg.model ?? 'eleven_multilingual_v2');
+if (!['macos','elevenlabs'].includes(provider)) throw new Error(`Unsupported voice provider: ${provider}`);
+const model = provider === 'macos' ? 'say' : String(args.model ?? cfg.model ?? 'eleven_multilingual_v2');
 const presetName = String(args.preset ?? cfg.preset ?? 'young-male-pro');
 const preset = VOICE_PRESETS[presetName];
 const CHUNK = 4000;
@@ -128,8 +134,11 @@ const wordsFromAlignment = (pieces, alignment) => {
 const macSay = (text, file) => {
   const r = spawnSync('say', ['-v', String(args.voice ?? 'Samantha'), '-r', '175', '-o', file, '--file-format=WAVE', '--data-format=LEI16@24000', text], {encoding: 'utf8'});
   if (r.status !== 0) throw new Error(`say failed: ${r.stderr || r.error?.message}`);
-  const bytes = fs.statSync(file).size;
-  return (bytes - 44) / (24000 * 2);
+  const audio=readWav(file);
+  const seconds=audio.channels[0].length/audio.sampleRate;
+  const energy=audio.channels[0].reduce((sum,value)=>sum+value*value,0)/Math.max(1,audio.channels[0].length);
+  if (!Number.isFinite(seconds)||seconds<0.2||energy<1e-8) throw new Error('macOS speech produced empty or silent audio; check voice installation and system permissions');
+  return seconds;
 };
 
 const resolvedVoice = await resolveVoiceId();
@@ -137,11 +146,11 @@ const resolvedVoice = await resolveVoiceId();
 // 1. Plan every video first: chunks of whole scenes, their keys, and which ones are already recorded.
 const plans = videos.map((video) => {
   // Package-wide settings, then per-video ones (voice.videos.<id>.settings, e.g. {speed: 1.05} for the long only).
-  const settings = {...(cfg.settings ?? {}), ...(cfg.videos?.[video.id]?.settings ?? {})};
+  const settings = provider === 'macos' ? {rate: 175} : {...(preset?.settings ?? {}), ...(cfg.settings ?? {}), ...(cfg.videos?.[video.id]?.settings ?? {})};
   const out = path.join(dir, 'voice', video.id);
   const timingFile = path.join(out, 'timing.json');
   const previous = fs.existsSync(timingFile) ? JSON.parse(fs.readFileSync(timingFile, 'utf8')) : null;
-  const voiceId = resolvedVoice ?? (provider === 'elevenlabs' ? (previous?.voiceId ?? preset?.fallback ?? 'JBFqnCBsd6RMkjVDRZzb') : null);
+  const voiceId = resolvedVoice ?? (provider === 'elevenlabs' ? (previous?.voiceId ?? preset?.fallback ?? 'JBFqnCBsd6RMkjVDRZzb') : 'Samantha');
   const chunks = [];
   for (const scene of video.scenes) {
     const pieces = spokenWords(scene.narration);
@@ -153,9 +162,10 @@ const plans = videos.map((video) => {
     c.text = c.text ? `${c.text} ${spoken}` : spoken;
   }
   for (const [i, c] of chunks.entries()) {
-    c.file = `voice-${String(i + 1).padStart(2, '0')}.${provider === 'macos' ? 'wav' : 'mp3'}`;
-    c.key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings: Object.keys(settings).length ? settings : null}));
-    c.reuse = !args.force && previous?.chunks?.find((pc) => pc.key === c.key && fs.existsSync(path.join(out, pc.file)));
+    const context = provider === 'macos' ? null : [chunks[i - 1]?.text.slice(-600) ?? '', chunks[i + 1]?.text.slice(0,600) ?? ''];
+    c.key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings, context, mapping: c.scenes.map(({scene,pieces}) => [scene.id,pieces])}));
+    c.file = `voice-${c.key}.${provider === 'macos' ? 'wav' : 'mp3'}`;
+    c.reuse = !args.force && previous?.chunks?.find((pc) => pc.key === c.key && fs.existsSync(path.join(out, pc.file)) && c.scenes.every(({scene}) => previous.scenes?.[scene.id]?.file === pc.file && previous.scenes[scene.id].end > previous.scenes[scene.id].start && previous.scenes[scene.id].words?.every(w=>w.end>=w.start)));
   }
   return {video, settings, out, timingFile, previous, voiceId, chunks};
 });
@@ -186,7 +196,7 @@ for (const plan of plans) {
     // Chunks not reached yet keep their old records (unless their file was just overwritten), so they stay reusable.
     const later = (previous?.chunks ?? []).filter((pc) => !written.has(pc.file) && !timing.chunks.some((c) => c.key === pc.key) && chunks.slice(from).some((c) => c.key === pc.key));
     const laterScenes = Object.fromEntries(chunks.slice(from).filter((c) => later.some((pc) => pc.key === c.key)).flatMap((c) => c.scenes.map(({scene}) => [scene.id, previous.scenes[scene.id]])));
-    fs.writeFileSync(timingFile, JSON.stringify({...timing, chunks: [...timing.chunks, ...later], scenes: {...laterScenes, ...timing.scenes}}, null, 1) + '\n');
+    atomicJson(timingFile, {...timing, chunks: [...timing.chunks, ...later], scenes: {...laterScenes, ...timing.scenes}});
   };
   let spent = 0;
   for (const [i, c] of chunks.entries()) {
@@ -214,7 +224,7 @@ for (const plan of plans) {
       const nextText = chunks[i + 1]?.text.slice(0, 600) ?? '';
       console.log(`  ${video.id} ${c.file}: ${c.scenes.length} scenes, ${c.text.length} characters`);
       const {audio, alignment} = await eleven(voiceId, c.text, prevText, nextText, settings);
-      fs.writeFileSync(path.join(out, c.file), audio);
+      atomicWrite(path.join(out, c.file), audio);
       const all = wordsFromAlignment(c.scenes.flatMap((s) => s.pieces), alignment);
       let k = 0;
       for (const {scene, pieces} of c.scenes) {
@@ -230,7 +240,7 @@ for (const plan of plans) {
     timing.chunks.push({file: c.file, key: c.key, characters: c.text.length});
     save(i + 1);
   }
-  fs.writeFileSync(timingFile, JSON.stringify(timing, null, 1) + '\n');
+  atomicJson(timingFile, timing);
   const secs = Object.values(timing.scenes).reduce((a, s) => a + (s.end - s.start), 0);
-  console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${spent ? '' : ' (nothing regenerated)'}`);
+  console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${chunks.some(c=>!c.reuse) ? '' : ' (nothing regenerated)'}`);
 }

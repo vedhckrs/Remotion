@@ -27,7 +27,7 @@ export const DonutChart: React.FC<{
   const stroke = thickness ?? size * 0.11;
   const r = size / 2 - stroke / 2;
   const circumference = 2 * Math.PI * r;
-  const total = segments.length === 1 ? 100 : segments.reduce((s, d) => s + d.value, 0);
+  const total = segments.length === 1 ? 100 : Math.max(1, segments.reduce((s, d) => s + d.value, 0));
   // One hue, tonal steps: the leader in the accent, the rest lighter/darker versions and text tints.
   const palette = [accent, theme.colors.accent2, tone(accent, 45), tone(accent, -35), alpha(theme.colors.text, 0.35), alpha(theme.colors.text, 0.18)];
 

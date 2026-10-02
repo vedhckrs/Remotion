@@ -28,7 +28,7 @@ export const BarChart: React.FC<{
   const accent = accentProp ?? theme.colors.accent;
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const max = maxValue ?? Math.max(...data.map((d) => d.value)) * 1.08;
+  const max = Math.max(1, maxValue ?? Math.max(0, ...data.map((d) => d.value)) * 1.08);
   const leader = data.reduce((best, d, i) => (d.value > data[best].value ? i : best), 0);
   const gap = horizontal ? height * 0.06 : width * 0.05;
   const labelSpace = labelSize * 1.9;

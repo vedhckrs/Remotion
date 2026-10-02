@@ -1,5 +1,8 @@
 # Remotion Video Producer skill
 
+Private Vercel controls with local Mac rendering: [setup](docs/VERCEL-MAC.md). Audit corrections and verification limits: [report](docs/FIX-VERIFICATION.md). Run `npm ci`, `npm run verify`, and `npm run render:smoke` to check the pinned reference project.
+
+
 An agent skill for building high-end programmatic video with [Remotion](https://www.remotion.dev): YouTube long-form and Shorts, Instagram Reels / Feed / Stories, Facebook Reels / Feed, delivered as 4K 60 fps masters from one project. It gives Claude Code (or any agent that reads `SKILL.md` files) a full production pipeline: Markdown script to scene JSON, ElevenLabs voiceover with frame-accurate word sync, viral caption styles, fluid kinetic typography, a 3D camera rig and neon looks, ten single-hue animated background systems, computed color contrast (white type on dark, black on light, brand marks that never vanish), style presets for channel consistency, animated infographics, real brand logos and SVG icons with an on-screen credit line, color grades and LUTs, logo safe slots, music beds with ducking, thumbnails, per-platform SEO upload packs, scheduled publishing to YouTube / Instagram / Facebook, a daily autopilot (2 Shorts + 1 long video) and a local dashboard that renders on a 50 percent machine budget so you keep working. Everything is code: no AI video generation.
 
 ```

@@ -30,7 +30,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-LABEL="com.remotion.dashboard"
+PROJECT_KEY="$(printf '%s' "$PROJECT" | shasum -a 256 | cut -c 1-12)"
+LABEL="com.remotion.dashboard.$PROJECT_KEY"
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "This installer uses launchd (macOS). On Linux, a systemd user service works the same way:"
   echo "  ExecStart=$(command -v node || echo node) $PROJECT/tools/dashboard/server.mjs --skill $SKILL_DIR --port $PORT"

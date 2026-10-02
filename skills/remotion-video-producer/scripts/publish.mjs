@@ -23,6 +23,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import {safeId, atomicJson,sha256File} from './lib/files.mjs';
+import {resumableUpload} from './lib/resumable-upload.mjs';
 import {loadEnv, parseArgs} from './lib/env.mjs';
 
 loadEnv();
@@ -30,7 +33,7 @@ const args = parseArgs(process.argv.slice(2));
 const videoId = args.video || args._[0];
 const platform = args.platform || args._[1];
 const PLATFORMS = ['youtube', 'youtube-shorts', 'instagram', 'facebook', 'facebook-video'];
-if (!videoId || !PLATFORMS.includes(platform)) {
+if (!safeId(videoId) || !PLATFORMS.includes(platform)) {
   console.error(`Usage: node scripts/publish.mjs --video <id> --platform ${PLATFORMS.join('|')} [--when ISO] [--dry-run]`);
   process.exit(1);
 }
@@ -62,14 +65,6 @@ const resolveFile = () => {
   const own = tags.map((t) => path.join(ownDir, `${videoId}_${t}.mp4`)).find((f) => fs.existsSync(f));
   if (own) return own;
   if (fs.existsSync(ownDir) && fs.readdirSync(ownDir).some((f) => f.endsWith('.mp4'))) return null;
-  const candidates = fs.existsSync('out')
-    ? fs
-        .readdirSync('out')
-        .filter((f) => /\.mp4$/i.test(f) && compFor[platform].some((c) => f.startsWith(`${c}_`)))
-        .map((f) => ({f: path.join('out', f), m: fs.statSync(path.join('out', f)).mtimeMs}))
-        .sort((a, b) => b.m - a.m)
-    : [];
-  if (candidates.length) return candidates[0].f;
   return null;
 };
 const file = resolveFile();
@@ -81,11 +76,32 @@ const size = fs.statSync(file).size;
 const thumbnail = !args['no-thumbnail'] && (pack.thumbnail || pack.coverImage) && fs.existsSync(pack.thumbnail || pack.coverImage) ? pack.thumbnail || pack.coverImage : null;
 const srt = [pack.captions, path.join('public', 'captions', `${videoId}.srt`)].find((f) => f && fs.existsSync(f)) || path.join('public', 'captions', `${videoId}.srt`);
 
+const stateFile = path.join(packDir, `${platform}-state.json`);
+// One publisher per platform/video; receipts are read only after acquiring this lock.
+const lockFile = `${stateFile}.lock`;
+if (!dryRun) {
+  if (fs.existsSync(lockFile)) {
+    const pid=Number(fs.readFileSync(lockFile,'utf8'));
+    try { process.kill(pid,0); throw new Error('An upload is already active for this video/platform'); }
+    catch(error) { if(error.code !== 'ESRCH') throw error; fs.unlinkSync(lockFile); }
+  }
+  fs.writeFileSync(lockFile,String(process.pid),{flag:'wx',mode:0o600});
+  process.on('exit',()=>{ try { if(fs.readFileSync(lockFile,'utf8')===String(process.pid)) fs.unlinkSync(lockFile); } catch {} });
+}
+
+const identity = sha256File(file);
+let receipt = !dryRun && fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile,'utf8')) : {};
+if (!dryRun && receipt.identity && receipt.identity !== identity && !args['new-upload']) throw new Error('This video id already has a different upload artifact; use a new video id or explicitly --new-upload after reviewing the existing publication');
+if (args['new-upload']) receipt={};
+receipt.identity=identity;
+const checkpoint = (updates = {}) => { Object.assign(receipt,updates);if (!dryRun) atomicJson(stateFile,receipt); };
+if (!dryRun && receipt.phase === 'publishing' && !receipt.result && !['youtube','youtube-shorts'].includes(platform)) throw new Error('Previous publication has an ambiguous remote result. Verify the saved container/video id on the platform before retrying; no duplicate upload was sent.');
+
 const logResult = (entry) => {
   const logFile = path.join(packDir, 'log.json');
   const log = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile, 'utf8')) : [];
   log.push({at: new Date().toISOString(), platform, file, when: when ? when.toISOString() : null, ...entry});
-  fs.writeFileSync(logFile, JSON.stringify(log, null, 2) + '\n');
+  atomicJson(logFile,log);
 };
 
 const env = (name) => {
@@ -126,37 +142,6 @@ const youtubeToken = async () => {
   return data.access_token;
 };
 
-const uploadInChunks = async (sessionUrl, headers) => {
-  const chunk = 32 * 1024 * 1024;
-  const fd = fs.openSync(file, 'r');
-  try {
-    let offset = 0;
-    while (offset < size) {
-      const len = Math.min(chunk, size - offset);
-      const buf = Buffer.alloc(len);
-      fs.readSync(fd, buf, 0, len, offset);
-      let res;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        res = await fetch(sessionUrl, {method: 'PUT', headers: {...headers, 'Content-Length': String(len), 'Content-Range': `bytes ${offset}-${offset + len - 1}/${size}`}, body: buf});
-        if (res.status === 308 || res.ok) break;
-        await sleep(2000 * 2 ** attempt);
-      }
-      if (res.status === 308) {
-        const range = res.headers.get('Range');
-        offset = range ? Number(range.split('-')[1]) + 1 : offset + len;
-      } else if (res.ok) {
-        return res.json();
-      } else {
-        throw new Error(`Upload chunk failed: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
-      }
-      process.stdout.write(`\r  uploaded ${Math.round((offset / size) * 100)}%`);
-    }
-  } finally {
-    fs.closeSync(fd);
-  }
-  throw new Error('Upload ended without a final response');
-};
-
 const publishYouTube = async () => {
   const body = {
     snippet: {title: pack.title, description: pack.description, tags: pack.tags, categoryId: String(pack.categoryId || 22), defaultLanguage: pack.defaultLanguage || 'en', defaultAudioLanguage: pack.defaultAudioLanguage || pack.defaultLanguage || 'en'},
@@ -166,27 +151,29 @@ const publishYouTube = async () => {
   if (dryRun) return {id: 'dry-run'};
   const token = await youtubeToken();
   const auth = {Authorization: `Bearer ${token}`};
-  const start = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-    method: 'POST',
-    headers: {...auth, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Length': String(size), 'X-Upload-Content-Type': 'video/mp4'},
-    body: JSON.stringify(body),
-  });
-  if (!start.ok) throw new Error(`videos.insert start: HTTP ${start.status} ${(await start.text()).slice(0, 600)}`);
-  const sessionUrl = start.headers.get('Location');
-  const video = await uploadInChunks(sessionUrl, {...auth, 'Content-Type': 'video/mp4'});
-  console.log(`\n  video id ${video.id}`);
-  if (thumbnail && platform === 'youtube') {
-    const res = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${video.id}`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: fs.readFileSync(thumbnail)});
-    if (res.ok) console.log('  thumbnail set');
-    else console.log(`  thumbnail failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)} (channel may need phone verification for custom thumbnails)`);
+  if (!receipt.video && !receipt.session) {
+    const start = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      method:'POST',headers:{...auth,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':String(size),'X-Upload-Content-Type':'video/mp4'},body:JSON.stringify(body)
+    });
+    if (!start.ok) throw new Error(`videos.insert start: HTTP ${start.status}`);
+    const session=start.headers.get('Location');if(!session)throw new Error('Missing upload session');
+    checkpoint({session,offset:0});
   }
-  if (fs.existsSync(srt)) {
+  const video = await resumableUpload({file,headers:{...auth,'Content-Type':'video/mp4'},state:receipt,save:checkpoint});
+  console.log(`\n  video id ${video.id}`);
+  if (thumbnail && platform === 'youtube' && !receipt.thumbnailDone) {
+    const res = await fetch(`https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${video.id}`, {method: 'POST', headers: {...auth, 'Content-Type': 'image/jpeg'}, body: fs.readFileSync(thumbnail)});
+    if (!res.ok) throw new Error(`Thumbnail failed: HTTP ${res.status}; uploaded video ${video.id} is saved, retry will only repair metadata`);
+    checkpoint({thumbnailDone:true});
+  }
+  if (fs.existsSync(srt) && !receipt.captionsDone) {
     const boundary = 'remotion-caption-' + Date.now();
     const meta = JSON.stringify({snippet: {videoId: video.id, language: pack.defaultLanguage || 'en', name: 'Captions', isDraft: false}});
     const bodyParts = [`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`, `--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`];
     const multipart = Buffer.concat([Buffer.from(bodyParts[0]), Buffer.from(bodyParts[1]), fs.readFileSync(srt), Buffer.from(`\r\n--${boundary}--`)]);
     const res = await fetch('https://www.googleapis.com/upload/youtube/v3/captions?part=snippet&uploadType=multipart', {method: 'POST', headers: {...auth, 'Content-Type': `multipart/related; boundary=${boundary}`}, body: multipart});
-    console.log(res.ok ? '  captions uploaded' : `  captions failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Captions failed: HTTP ${res.status}; uploaded video ${video.id} is saved`);
+    checkpoint({captionsDone:true});
   }
   return {id: video.id, url: `https://youtu.be/${video.id}`, privacy: body.status.privacyStatus, publishAt: body.status.publishAt || null};
 };
@@ -208,14 +195,18 @@ const publishInstagram = async () => {
   );
   const up = await fetch(container.uri || `https://rupload.facebook.com/ig-api-upload/v25.0/${container.id}`, {method: 'POST', headers: {Authorization: `OAuth ${token}`, offset: '0', file_size: String(size), 'Content-Type': 'application/octet-stream'}, body: fs.readFileSync(file)});
   await jsonOrThrow(up, 'IG binary upload');
+  let ready = false;
   for (let i = 0; i < 60; i++) {
     await sleep(5000);
     const st = await jsonOrThrow(await fetch(`${GRAPH}/${container.id}?fields=status_code,status&access_token=${encodeURIComponent(token)}`), 'IG status');
     process.stdout.write(`\r  processing: ${st.status_code}   `);
-    if (st.status_code === 'FINISHED') break;
+    if (st.status_code === 'FINISHED') { ready=true; break; }
     if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') throw new Error(`IG container ${st.status_code}: ${st.status || ''}`);
   }
+  if (!ready) throw new Error('Instagram processing timed out; media_publish was not sent');
+  checkpoint({phase:'publishing',containerId:container.id});
   const pub = await jsonOrThrow(await fetch(`${GRAPH}/${igUser}/media_publish`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({creation_id: container.id, access_token: token})}), 'IG media_publish');
+  checkpoint({result:{id:pub.id,url:null},phase:'published'});
   const link = await fetch(`${GRAPH}/${pub.id}?fields=permalink&access_token=${encodeURIComponent(token)}`).then((r) => r.json()).catch(() => ({}));
   console.log(`\n  published ${pub.id}`);
   return {id: pub.id, url: link.permalink || null};
@@ -239,10 +230,13 @@ const publishFacebookReel = async () => {
   const start = await jsonOrThrow(await fetch(`${GRAPH}/${page}/video_reels`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({upload_phase: 'start', access_token: token})}), 'FB reel start');
   const up = await fetch(`https://rupload.facebook.com/video-upload/v25.0/${start.video_id}`, {method: 'POST', headers: {Authorization: `OAuth ${token}`, offset: '0', file_size: String(size), 'Content-Type': 'application/octet-stream'}, body: fs.readFileSync(file)});
   await jsonOrThrow(up, 'FB reel upload');
+  checkpoint({phase:'publishing',remoteId:start.video_id});
   const finish = await jsonOrThrow(
     await fetch(`${GRAPH}/${page}/video_reels`, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({upload_phase: 'finish', video_id: start.video_id, video_state: future ? 'SCHEDULED' : 'PUBLISHED', description: pack.description, title: pack.title, ...sched, access_token: token})}),
     'FB reel finish',
   );
+  if (!finish.success) throw new Error('Facebook did not confirm publication; verify remote status before retrying');
+  checkpoint({result:{id:start.video_id,url:`https://www.facebook.com/reel/${start.video_id}`},phase:'published'});
   console.log(`  reel ${start.video_id} ${finish.success ? 'accepted' : JSON.stringify(finish).slice(0, 200)}`);
   return {id: start.video_id, url: `https://www.facebook.com/reel/${start.video_id}`, scheduled: future ? when.toISOString() : null};
 };
@@ -261,6 +255,7 @@ const publishFacebookVideo = async () => {
   for (const [k, v] of Object.entries(sched)) form.set(k, v);
   form.set('source', new Blob([fs.readFileSync(file)], {type: 'video/mp4'}), path.basename(file));
   if (thumbnail) form.set('thumb', new Blob([fs.readFileSync(thumbnail)], {type: 'image/jpeg'}), 'thumb.jpg');
+  checkpoint({phase:'publishing'});
   const res = await jsonOrThrow(await fetch(`https://graph-video.facebook.com/v25.0/${page}/videos`, {method: 'POST', body: form}), 'FB video upload');
   console.log(`  video ${res.id}`);
   return {id: res.id, url: `https://www.facebook.com/${page}/videos/${res.id}`, scheduled: future ? when.toISOString() : null};
@@ -269,7 +264,8 @@ const publishFacebookVideo = async () => {
 // ---- run ---------------------------------------------------------------------------------------------
 const run = {youtube: publishYouTube, 'youtube-shorts': publishYouTube, instagram: publishInstagram, facebook: publishFacebookReel, 'facebook-video': publishFacebookVideo}[platform];
 try {
-  const result = await run();
+  const result = !dryRun && receipt.result ? receipt.result : await run();
+  if (!dryRun) checkpoint({result,phase:'complete'});
   if (!dryRun) logResult({status: future && platform !== 'instagram' ? 'scheduled' : 'published', ...result});
   if (result.url) console.log(`  ${result.url}`);
   console.log(dryRun ? 'Dry run only; nothing uploaded.' : 'Done.');

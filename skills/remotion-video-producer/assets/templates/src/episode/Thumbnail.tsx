@@ -42,8 +42,8 @@ const HL = (line: string, hl: string[]) =>
   ));
 
 export const Thumbnail: React.FC<ThumbnailProps> = ({data}) => {
-  useFonts();
-  if (!data) return null;
+  const fonts = useFonts();
+  if (!data || !fonts) return null;
   const {spec, vertical, label, brands} = data;
   const W = vertical ? 1080 : 1920;
   const H = vertical ? 1920 : 1080;

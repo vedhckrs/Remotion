@@ -107,6 +107,9 @@ case "$PRESET" in
 esac
 if [ "$FOURK" = "1" ] && [ "$PRESET" != "youtube-4k" ] && [ "$PRESET" != "preview" ]; then
   FLAGS+=(--scale=2)
+  if [ "$HW" = "1" ]; then
+    case "$PRESET" in shorts|reels|stories|facebook|feed) FLAGS=("${FLAGS[@]/--video-bitrate=14M/--video-bitrate=50M}"); FLAGS=("${FLAGS[@]/--video-bitrate=12M/--video-bitrate=50M}") ;; *) FLAGS=("${FLAGS[@]/--video-bitrate=16M/--video-bitrate=60M}") ;; esac
+  fi
   SUFFIX="${SUFFIX}_4k"
   # Four times the pixels per tab: halve the tab count unless the user pinned one.
   [ -z "${REMOTION_CONCURRENCY:-}" ] && CONC=$(( CONC / 2 > 0 ? CONC / 2 : 1 ))
@@ -117,7 +120,7 @@ FLAGS+=("--concurrency=${CONC}")
 RUNNER=(nice -n 10)
 if [ "$BACKGROUND" = "1" ] && [ "$(uname -s)" = "Darwin" ] && command -v taskpolicy >/dev/null 2>&1; then RUNNER=(taskpolicy -b nice -n 10); fi
 # Tell remotion.config.ts to skip CRF in hardware mode (CRF and bitrate are mutually exclusive).
-if [ "$HW" = "1" ]; then export REMOTION_HW=1; fi
+export REMOTION_HW="$HW"
 
 if [ -z "$OUT" ]; then
   mkdir -p out

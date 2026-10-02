@@ -1,3 +1,4 @@
+import {visibilityAt} from './beat-state.mjs';
 import React, {createContext, useContext} from 'react';
 import * as lucide from 'lucide-react';
 import {measureText} from '@remotion/layout-utils';
@@ -36,28 +37,12 @@ export type BeatState = {
  */
 export const useBeats = (stagger = 6): BeatState => {
   const {frame, beats} = useDiagram();
-  const scheduled = new Map<string, number>();
-  const hiddenAt = new Map<string, number>();
-  for (const b of beats) {
-    for (const id of b.show ?? []) if (!scheduled.has(id)) scheduled.set(id, b.frame);
-    for (const id of b.hide ?? []) hiddenAt.set(id, b.frame);
-  }
-  const shownAt = (id: string, index: number) => scheduled.get(id) ?? 4 + index * stagger;
-  const past = beats.filter((b) => b.frame <= frame);
+  const past = beats.filter((b) => b.frame <= frame).sort((a,b) => a.frame-b.frame);
   const lastFocus = [...past].reverse().find((b) => b.focus);
   const focus = new Set(lastFocus?.focus ?? []);
   return {
-    since: (id, index = 0) => {
-      const at = shownAt(id, index);
-      const hid = hiddenAt.get(id);
-      if (frame < at || (hid !== undefined && hid > at && frame >= hid)) return -1;
-      return frame - at;
-    },
-    visible: (id, index = 0) => {
-      const at = shownAt(id, index);
-      const hid = hiddenAt.get(id);
-      return frame >= at && !(hid !== undefined && hid > at && frame >= hid);
-    },
+    since: (id, index = 0) => visibilityAt(beats, frame, id, 4 + index * stagger).since,
+    visible: (id, index = 0) => visibilityAt(beats, frame, id, 4 + index * stagger).visible,
     focused: (id) => focus.has(id),
     anyFocus: focus.size > 0,
     param: <T,>(key: string, fallback: T) => {
