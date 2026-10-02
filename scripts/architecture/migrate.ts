@@ -1,1 +1,4 @@
-import fs from 'node:fs';import {migrate} from '@nuradi/database/migrate';await migrate(fs.readFileSync('packages/database/migrations/001_jobs.sql','utf8'));console.log('Render database migration applied.');
+import fs from 'node:fs';
+import { migrate } from '@nuradi/database/migrate';
+await migrate(fs.readFileSync('packages/database/migrations/001_jobs.sql', 'utf8'));
+console.log('Render database migration applied.');

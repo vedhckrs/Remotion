@@ -1,3 +1,23 @@
-import fs from 'node:fs';import crypto from 'node:crypto';import {prepareRelease,run} from '../../apps/worker/src/release';import {execute} from '../../apps/worker/src/render';import {JobSchema,SceneSpecSchema} from '@nuradi/schemas/index';import {demo} from '@nuradi/video/demo';
-const sha=(await run('git',['rev-parse','HEAD'],process.cwd())).trim();const release=await prepareRelease(process.cwd(),sha);const spec=SceneSpecSchema.parse({...demo,scenes:[demo.scenes[0],{...demo.scenes[0],id:'second',headline:'The same revision renders every scene'}]});let first:any;for(let attempt=0;attempt<2;attempt++){const job=JobSchema.parse({id:crypto.randomUUID(),projectId:'00000000-0000-4000-8000-000000000001',compositionId:'SemanticExplainer',sceneSpec:spec,profile:'preview',gitSha:sha,schemaVersion:1,status:'CLAIMED',workerId:crypto.randomUUID(),leaseToken:crypto.randomUUID(),progress:0,stage:'check',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),error:null});const start=Date.now();const result=await execute(job,release,async(status,progress,stage)=>console.log(attempt,status,Math.round(progress*100),stage),new AbortController().signal);const manifest=JSON.parse(fs.readFileSync(result.manifest,'utf8'));if(attempt===0)first=result;if(attempt===1&&manifest.reusedScenes!==2)throw new Error('Second render did not reuse verified scene cache');fs.writeFileSync(`.worker/release-check-${attempt}.json`,JSON.stringify({...result,elapsedSeconds:(Date.now()-start)/1000,manifest},null,2));console.log('Verified',job.id,'scene reuse',manifest.reusedScenes);}
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { prepareRelease, run } from '../../apps/worker/src/release';
+import { execute } from '../../apps/worker/src/render';
+import { JobSchema, SceneSpecSchema } from '@nuradi/schemas/index';
+import { demo } from '@nuradi/video/demo';
+const sha = (await run('git', ['rev-parse', 'HEAD'], process.cwd())).trim();
+const release = await prepareRelease(process.cwd(), sha);
+const spec = SceneSpecSchema.parse({ ...demo, scenes: [demo.scenes[0], { ...demo.scenes[0], id: 'second', headline: 'The same revision renders every scene' }] });
+let first: any;
+for (let attempt = 0; attempt < 2; attempt++) {
+    const job = JobSchema.parse({ id: crypto.randomUUID(), projectId: '00000000-0000-4000-8000-000000000001', compositionId: 'SemanticExplainer', sceneSpec: spec, profile: 'preview', gitSha: sha, schemaVersion: 1, status: 'CLAIMED', workerId: crypto.randomUUID(), leaseToken: crypto.randomUUID(), progress: 0, stage: 'check', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), error: null });
+    const start = Date.now();
+    const result = await execute(job, release, async (status, progress, stage) => console.log(attempt, status, Math.round(progress * 100), stage), new AbortController().signal);
+    const manifest = JSON.parse(fs.readFileSync(result.manifest, 'utf8'));
+    if (attempt === 0)
+        first = result;
+    if (attempt === 1 && manifest.reusedScenes !== 2)
+        throw new Error('Second render did not reuse verified scene cache');
+    fs.writeFileSync(`.worker/release-check-${attempt}.json`, JSON.stringify({ ...result, elapsedSeconds: (Date.now() - start) / 1000, manifest }, null, 2));
+    console.log('Verified', job.id, 'scene reuse', manifest.reusedScenes);
+}
 console.log('Isolated multi-scene rendering, joining, visual QC, private delivery and cache reuse passed.');

@@ -1,5 +1,31 @@
-import fs from 'node:fs';import crypto from 'node:crypto';import {spawnSync} from 'node:child_process';
-export function checksum(file:string){return new Promise<string>((resolve,reject)=>{const hash=crypto.createHash('sha256');const stream=fs.createReadStream(file);stream.on('data',d=>hash.update(d));stream.on('error',reject);stream.on('end',()=>resolve(hash.digest('hex')));});}
-export function verifyOutput(file:string,expected:{width:number;height:number;fps:number;duration:number;codec:string;audio:boolean}){if(!fs.existsSync(file)||fs.statSync(file).size<1000)throw new Error('Output is missing or empty');const result=spawnSync('ffprobe',['-v','error','-show_streams','-show_format','-of','json',file],{encoding:'utf8'});if(result.status!==0)throw new Error('Output cannot be decoded');const data=JSON.parse(result.stdout);const video=data.streams.find((s:any)=>s.codec_type==='video'),audio=data.streams.find((s:any)=>s.codec_type==='audio');const [n,d]=String(video?.avg_frame_rate).split('/').map(Number);const actualCodec=expected.codec==='h265'?'hevc':expected.codec;
- const audioCheck=expected.audio?spawnSync('ffmpeg',['-hide_banner','-i',file,'-vn','-af','volumedetect','-f','null','-'],{encoding:'utf8'}):null;const mean=audioCheck?Number(audioCheck.stderr.match(/mean_volume:\s*(-?[\d.]+) dB/)?.[1]??'-Infinity'):0;
- const checks={audible:!expected.audio||mean>-60,dimensions:video?.width===expected.width&&video?.height===expected.height,fps:Math.abs(n/d-expected.fps)<.01,duration:Math.abs(Number(data.format.duration)-expected.duration)<Math.max(.1,2/expected.fps),codec:video?.codec_name===actualCodec,audio:!expected.audio||Boolean(audio)};if(Object.values(checks).some(v=>!v))throw new Error('Output QC failed: '+JSON.stringify(checks));const decode=spawnSync('ffmpeg',['-v','error','-i',file,'-f','null','-'],{encoding:'utf8'});if(decode.status!==0||decode.stderr.trim())throw new Error('Encoded stream has decoding errors');return {checks,streams:data.streams,duration:Number(data.format.duration),size:fs.statSync(file).size};}
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+export function checksum(file: string) { return new Promise<string>((resolve, reject) => { const hash = crypto.createHash('sha256'); const stream = fs.createReadStream(file); stream.on('data', d => hash.update(d)); stream.on('error', reject); stream.on('end', () => resolve(hash.digest('hex'))); }); }
+export function verifyOutput(file: string, expected: {
+    width: number;
+    height: number;
+    fps: number;
+    duration: number;
+    codec: string;
+    audio: boolean;
+}) {
+    if (!fs.existsSync(file) || fs.statSync(file).size < 1000)
+        throw new Error('Output is missing or empty');
+    const result = spawnSync('ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { encoding: 'utf8' });
+    if (result.status !== 0)
+        throw new Error('Output cannot be decoded');
+    const data = JSON.parse(result.stdout);
+    const video = data.streams.find((s: any) => s.codec_type === 'video'), audio = data.streams.find((s: any) => s.codec_type === 'audio');
+    const [n, d] = String(video?.avg_frame_rate).split('/').map(Number);
+    const actualCodec = expected.codec === 'h265' ? 'hevc' : expected.codec;
+    const audioCheck = expected.audio ? spawnSync('ffmpeg', ['-hide_banner', '-i', file, '-vn', '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' }) : null;
+    const mean = audioCheck ? Number(audioCheck.stderr.match(/mean_volume:\s*(-?[\d.]+) dB/)?.[1] ?? '-Infinity') : 0;
+    const checks = { audible: !expected.audio || mean > -60, dimensions: video?.width === expected.width && video?.height === expected.height, fps: Math.abs(n / d - expected.fps) < .01, duration: Math.abs(Number(data.format.duration) - expected.duration) < Math.max(.1, 2 / expected.fps), codec: video?.codec_name === actualCodec, audio: !expected.audio || Boolean(audio) };
+    if (Object.values(checks).some(v => !v))
+        throw new Error('Output QC failed: ' + JSON.stringify(checks));
+    const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], { encoding: 'utf8' });
+    if (decode.status !== 0 || decode.stderr.trim())
+        throw new Error('Encoded stream has decoding errors');
+    return { checks, streams: data.streams, duration: Number(data.format.duration), size: fs.statSync(file).size };
+}

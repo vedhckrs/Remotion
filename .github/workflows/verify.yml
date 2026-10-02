@@ -16,14 +16,15 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm lint
       - run: pnpm test
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm test:architecture
       - run: pnpm typecheck
       - run: pnpm typecheck:architecture
       - run: pnpm build
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: pnpm exec tsx scripts/architecture/smoke-render.ts
         env:
           REMOTION_BROWSER_EXECUTABLE: /usr/bin/google-chrome
+      - run: pnpm exec tsx scripts/architecture/visual-regression.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
