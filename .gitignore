@@ -10,3 +10,6 @@ out/
 .env*
 
 !.env.example
+
+automation/remote-worker.json
+automation/remote-worker.json.lock
