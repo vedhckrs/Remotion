@@ -34,6 +34,7 @@ const arg = (name, fallback) => {
   const eq = argv.find((a) => a.startsWith(`--${name}=`));
   return eq ? eq.slice(name.length + 3) : fallback;
 };
+const BROWSER=process.env.REMOTION_BROWSER_EXECUTABLE || (process.platform==='darwin'&&fs.existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':null);
 const PORT = Number(arg('port', process.env.DASHBOARD_PORT || 4545));
 const SKILL_DIR = path.resolve(arg('skill', process.env.REMOTION_SKILL_DIR || path.join(here, '..', '..', '..', 'skills', 'remotion-video-producer')));
 const SETTINGS_FILE = path.join(here, 'settings.json');
@@ -215,7 +216,7 @@ let compositions = [];
 let compositionsError = null;
 const refreshCompositions = () =>
   new Promise((resolve) => {
-    const child = spawn('npx', ['remotion', 'compositions', '--quiet', ...(process.env.REMOTION_IGNORE_CERTS ? ['--ignore-certificate-errors'] : [])], {cwd, env: {...process.env}, shell: process.platform === 'win32'});
+    const child = spawn('npx', ['remotion', 'compositions', '--quiet', ...(BROWSER?['--browser-executable',BROWSER]:[]), ...(process.env.REMOTION_IGNORE_CERTS ? ['--ignore-certificate-errors'] : [])], {cwd, env: {...process.env}, shell: process.platform === 'win32'});
     let out = '';
     let err = '';
     child.on('error',(e) => { err = e.message; });
@@ -295,7 +296,7 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
   const scale = preset.scale ?? (fourK ? 2 : 1);
   const concurrency = forcedConcurrency || concurrencyFor(budget ?? settings.budget, fourK);
   const chromiumOptions = {gl: settings.gl, ignoreCertificateErrors: Boolean(process.env.REMOTION_IGNORE_CERTS)};
-  const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, logLevel: 'error'});
+  const composition = await renderer.selectComposition({serveUrl: url, id: compositionId, inputProps, chromiumOptions, browserExecutable:BROWSER, logLevel: 'error'});
   const width = Math.round(composition.width * scale);
   const height = Math.round(composition.height * scale);
   const info = {width, height, fps: composition.fps, totalFrames: composition.durationInFrames, concurrency, encoder: hw ? machine().hardwareEncoder : 'x264', fourK, hw};
@@ -329,6 +330,7 @@ const renderTo = async ({compositionId, preset: presetName, inputProps = {}, out
       outputLocation: target,
       inputProps,
       chromiumOptions,
+      browserExecutable:BROWSER,
       concurrency,
       scale,
       colorSpace: 'bt709',
@@ -850,6 +852,7 @@ const server = http.createServer(async (req, res) => {
 
 setInterval(() => send('machine', machine()), 2500);
 
+server.on('error',error=>{console.error(`Dashboard could not listen on port ${PORT}: ${error.message}`);process.exit(1);});
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Remotion dashboard  http://localhost:${PORT}`);
   console.log(`  project: ${cwd}`);

@@ -30,7 +30,7 @@ const timings=(dir,scenes)=>{
 };
 test('F01: inserting a scene cannot overwrite cached narration',t=>{
  const dir=temp(t);fixture(dir);const bin=path.join(dir,'bin');fs.mkdirSync(bin);
- const say=path.join(bin,'say');fs.writeFileSync(say,`#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);fs.writeFileSync(a[a.indexOf('-o')+1],Buffer.concat([Buffer.alloc(44),Buffer.alloc(48000,a.at(-1).charCodeAt(0))]));`);fs.chmodSync(say,0o755);
+ const say=path.join(bin,'say');fs.writeFileSync(say,`#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);const b=Buffer.concat([Buffer.alloc(44),Buffer.alloc(48000,a.at(-1).charCodeAt(0))]);b.write('RIFF');b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(48000,40);fs.writeFileSync(a[a.indexOf('-o')+1],b);`);fs.chmodSync(say,0o755);
  const env={PATH:bin+path.delimiter+process.env.PATH};let result=cli('package-voice.mjs',[dir,'--provider','macos'],dir,env);assert.equal(result.status,0,result.stderr);
  const first=JSON.parse(fs.readFileSync(path.join(dir,'voice/short/timing.json')));const old=first.scenes.a.file;
  fixture(dir,[scene('x'),scene('a')]);result=cli('package-voice.mjs',[dir,'--provider','macos'],dir,env);assert.equal(result.status,0,result.stderr);
@@ -155,4 +155,11 @@ test('F12: numeric identifiers and paths through escaping symlinks are rejected'
  assert.throws(()=>validateScript({videoId:123,scenes:[{id:1,headline:'A',voiceover:'A'}]}));
  const {inside}=await import('../skills/remotion-video-producer/scripts/lib/files.mjs');
  const root=temp(t),outside=temp(t);fs.symlinkSync(outside,path.join(root,'link'));assert.equal(inside(root,'link/not-created.wav'),null);
+});
+
+
+test('macOS speech rejects a silent successful subprocess',t=>{
+ const dir=temp(t);fixture(dir);const bin=path.join(dir,'bin');fs.mkdirSync(bin);
+ const say=path.join(bin,'say');fs.writeFileSync(say,`#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);const b=Buffer.alloc(48044);b.write('RIFF');b.writeUInt32LE(b.length-8,4);b.write('WAVEfmt ',8);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);b.writeUInt16LE(1,22);b.writeUInt32LE(24000,24);b.writeUInt32LE(48000,28);b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write('data',36);b.writeUInt32LE(48000,40);fs.writeFileSync(a[a.indexOf('-o')+1],b);`);fs.chmodSync(say,0o755);
+ const r=cli('package-voice.mjs',[dir,'--provider','macos'],dir,{PATH:bin+path.delimiter+process.env.PATH});assert.equal(r.status,1);assert.match(r.stderr,/empty or silent audio/);assert.equal(fs.existsSync(path.join(dir,'voice/short/timing.json')),false);
 });

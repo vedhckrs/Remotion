@@ -32,7 +32,7 @@ Additional fixes: font-dependent layout waits for bundled fonts; Instagram proce
 
 ## Verified locally
 
-- 34 native regression tests pass; reference TypeScript checks pass.
+- 35 native regression tests pass; reference TypeScript checks pass.
 - Chrome metadata check confirms final SocialVideo exports reject missing narration and explicit silent drafts resolve.
 - Actual landscape and portrait render smoke runs: 32 scene stills (16 per ratio, all 14 diagram kinds), plus two 120-frame H.264 clips.
 - Visual review of both contact sheets, including layer-label positions.
@@ -43,12 +43,22 @@ Additional fixes: font-dependent layout waits for bundled fonts; Instagram proce
 
 ## Verification boundaries
 
-Paid TTS/music APIs, live YouTube/Meta uploads, OAuth sign-in, launchd installation and a complete final voiced 4K package have not been exercised. Several script contracts have static regression checks; those are not live platform tests. Existing customized user projects have not been overwritten. Final artifact metadata/QC for arbitrary external --file uploads still requires manual review.
+Paid TTS/music APIs, live YouTube/Meta uploads and OAuth sign-in have not been exercised. Several script contracts have static regression checks; those are not live platform tests. Existing customized user projects have not been overwritten. Final artifact metadata/QC for arbitrary external --file uploads still requires manual review.
 
 The Endor dependency review could not run because its CLI/MCP evidence source is unavailable. Its package risk remains unassessed; npm audit is a separate known-vulnerability check, not an Endor approval.
 
-Vercel account/project access is verified. Hosted Redis provisioning, live authenticated Mac connection and custom-domain cutover remain deployment steps; do not call them complete solely because the web build passes.
+Vercel, hosted Redis, domain TLS, authentication and the live Mac connection were verified against production.
 
 ## Hosting snapshot
 
-Separate Vercel project: nuradi-render-control. Deployed control panel: https://nuradi-render-control.vercel.app. The deployed API was checked to reject unauthenticated requests. A dedicated free Upstash Redis resource named nuradi-render-queue was provisioned and connected; autoUpgrade=false and prodPack=false were requested. The existing www.nuradi.co.in mapping is unchanged. Authentication credentials were configured after explicit user approval. Live sign-in returned HTTP 200; the hosted connection check showed the Mac online; authenticated state/packages commands returned the reference project and its package list. Production project selection and domain cutover remain pending.
+Separate Vercel project: nuradi-render-control. Deployed control panel: https://nuradi-render-control.vercel.app. The deployed API was checked to reject unauthenticated requests. A dedicated free Upstash Redis resource named nuradi-render-queue was provisioned and connected; autoUpgrade=false and prodPack=false were requested. The existing www.nuradi.co.in mapping redirects to https://nuradi.co.in. Authentication credentials were configured after explicit user approval. Live sign-in returned HTTP 200; the hosted connection check showed the Mac online; authenticated state/packages commands returned the persistent local-studio project and its package list. The apex domain https://nuradi.co.in serves this project over HTTPS.
+
+
+## Live production verification - 2026-10-02
+
+- A persistent local project lives in Remotion/local-studio, with a dedicated local library. Dashboard and cloud worker are installed as per-project macOS login services. The worker inhibits idle sleep while it runs; rendering requires the Mac to remain powered and connected.
+- Real narrated 4K60 exports passed all encoded QC checks: landscape 3840x2160 and portrait 2160x3840, H.264/BT.709, stereo AAC 48 kHz, 3.117 seconds, measured -14 LUFS and -4.02 dBTP. This is a one-scene infrastructure check, not a full editorial episode.
+- Mac speech output is parsed as WAV and rejects empty or silent successful subprocess output. A new regression test covers this failure.
+- Render, storyboard and thumbnail browser startup use installed macOS Chrome or an explicit REMOTION_BROWSER_EXECUTABLE, avoiding stalled browser downloads. Dashboard composition and direct-render startup use the same installed-browser fallback.
+- Local library content and worker journals/logs are excluded from Vercel uploads.
+- Domain sign-in, live library retrieval, cloud render completion including thumbnails, and cloud cancellation were exercised using the configured private credentials.

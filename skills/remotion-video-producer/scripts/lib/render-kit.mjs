@@ -111,3 +111,11 @@ export const lowerPriority = () => {
     // not permitted: carry on at normal priority
   }
 };
+
+/** Reuse installed Chrome on macOS; avoid an unnecessary headless-shell download. */
+export const localBrowserExecutable = () => {
+  const configured=process.env.REMOTION_BROWSER_EXECUTABLE;
+  if(configured){if(!fs.existsSync(configured))throw new Error('Configured Chrome executable does not exist');return configured;}
+  const chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  return process.platform==='darwin'&&fs.existsSync(chrome)?chrome:undefined;
+};

@@ -20,6 +20,7 @@ import {spawnSync} from 'node:child_process';
 import {loadEnv, parseArgs, requireEnv} from './lib/env.mjs';
 import {sha256, validatePackage} from './lib/package-schema.mjs';
 import {atomicJson, atomicWrite} from './lib/files.mjs';
+import {readWav} from './lib/audio.mjs';
 import {VOICE_PRESETS, fetchVoices} from './lib/voice-presets.mjs';
 import {readableErrors} from './lib/render-kit.mjs';
 
@@ -133,8 +134,11 @@ const wordsFromAlignment = (pieces, alignment) => {
 const macSay = (text, file) => {
   const r = spawnSync('say', ['-v', String(args.voice ?? 'Samantha'), '-r', '175', '-o', file, '--file-format=WAVE', '--data-format=LEI16@24000', text], {encoding: 'utf8'});
   if (r.status !== 0) throw new Error(`say failed: ${r.stderr || r.error?.message}`);
-  const bytes = fs.statSync(file).size;
-  return (bytes - 44) / (24000 * 2);
+  const audio=readWav(file);
+  const seconds=audio.channels[0].length/audio.sampleRate;
+  const energy=audio.channels[0].reduce((sum,value)=>sum+value*value,0)/Math.max(1,audio.channels[0].length);
+  if (!Number.isFinite(seconds)||seconds<0.2||energy<1e-8) throw new Error('macOS speech produced empty or silent audio; check voice installation and system permissions');
+  return seconds;
 };
 
 const resolvedVoice = await resolveVoiceId();
@@ -161,7 +165,7 @@ const plans = videos.map((video) => {
     const context = provider === 'macos' ? null : [chunks[i - 1]?.text.slice(-600) ?? '', chunks[i + 1]?.text.slice(0,600) ?? ''];
     c.key = sha256(JSON.stringify({provider, voiceId, model, text: c.text, settings, context, mapping: c.scenes.map(({scene,pieces}) => [scene.id,pieces])}));
     c.file = `voice-${c.key}.${provider === 'macos' ? 'wav' : 'mp3'}`;
-    c.reuse = !args.force && previous?.chunks?.find((pc) => pc.key === c.key && fs.existsSync(path.join(out, pc.file)) && c.scenes.every(({scene}) => previous.scenes?.[scene.id]?.file === pc.file));
+    c.reuse = !args.force && previous?.chunks?.find((pc) => pc.key === c.key && fs.existsSync(path.join(out, pc.file)) && c.scenes.every(({scene}) => previous.scenes?.[scene.id]?.file === pc.file && previous.scenes[scene.id].end > previous.scenes[scene.id].start && previous.scenes[scene.id].words?.every(w=>w.end>=w.start)));
   }
   return {video, settings, out, timingFile, previous, voiceId, chunks};
 });
@@ -238,5 +242,5 @@ for (const plan of plans) {
   }
   atomicJson(timingFile, timing);
   const secs = Object.values(timing.scenes).reduce((a, s) => a + (s.end - s.start), 0);
-  console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${spent ? '' : ' (nothing regenerated)'}`);
+  console.log(`${video.id}: ${Object.keys(timing.scenes).length} scenes voiced, ${Math.round(secs)} s of speech, ${spent} new characters${chunks.some(c=>!c.reuse) ? '' : ' (nothing regenerated)'}`);
 }

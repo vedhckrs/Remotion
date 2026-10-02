@@ -13,3 +13,5 @@ out/
 
 automation/remote-worker.json
 automation/remote-worker.json.lock
+
+local-studio/

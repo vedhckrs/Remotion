@@ -13,7 +13,8 @@
     "verify": "npm test && npm run typecheck",
     "render:smoke": "node tests/render-smoke.mjs",
     "build:web": "node scripts/build-web.mjs",
-    "worker": "node scripts/mac-worker.mjs"
+    "worker": "node scripts/mac-worker.mjs",
+    "worker:install": "node scripts/install-worker.mjs"
   },
   "devDependencies": {
     "remotion": "4.0.532",
