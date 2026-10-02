@@ -14,7 +14,16 @@
     "render:smoke": "node tests/render-smoke.mjs",
     "build:web": "node scripts/build-web.mjs",
     "worker": "node scripts/mac-worker.mjs",
-    "worker:install": "node scripts/install-worker.mjs"
+    "worker:install": "node scripts/install-worker.mjs",
+    "dev": "pnpm --filter @nuradi/web dev",
+    "build": "pnpm --filter @nuradi/web build",
+    "typecheck:architecture": "tsc --noEmit -p tsconfig.architecture.json && pnpm --filter @nuradi/web typecheck",
+    "test:architecture": "node --import tsx --test tests/architecture/*.test.ts",
+    "lint": "node scripts/architecture/check.mjs",
+    "db:migrate": "node --import tsx scripts/architecture/migrate.ts",
+    "worker:architecture": "node --import tsx apps/worker/src/index.ts",
+    "architecture:verify": "pnpm lint && pnpm test && pnpm test:architecture && pnpm typecheck && pnpm typecheck:architecture && pnpm build",
+    "benchmark": "node --import tsx scripts/architecture/benchmark-render.ts"
   },
   "devDependencies": {
     "remotion": "4.0.532",
@@ -39,6 +48,14 @@
     "@types/react-dom": "19.1.0",
     "@types/node": "22.15.30",
     "@remotion/renderer": "4.0.532",
-    "@remotion/bundler": "4.0.532"
-  }
+    "@remotion/bundler": "4.0.532",
+    "tsx": "4.23.15",
+    "pnpm": "10.34.5",
+    "@nuradi/schemas": "workspace:*",
+    "@nuradi/design-tokens": "workspace:*",
+    "@nuradi/database": "workspace:*",
+    "@nuradi/shared": "workspace:*",
+    "@nuradi/video": "workspace:*"
+  },
+  "packageManager": "pnpm@10.34.5"
 }

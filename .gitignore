@@ -15,3 +15,16 @@ automation/remote-worker.json
 automation/remote-worker.json.lock
 
 local-studio/
+
+.worker/
+.next/
+*.tsbuildinfo
+.dependencies-ready
+.bundle-cache/
+.render-output/
+
+.DS_Store
+
+.runtime/
+
+.scene-cache/

@@ -1,0 +1,2 @@
+import fs from 'node:fs';import path from 'node:path';import {spawnSync} from 'node:child_process';
+let failed=false;for(const root of ['api','web/lib','scripts']){function walk(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())walk(p);else if(p.endsWith('.mjs')){const r=spawnSync(process.execPath,['--check',p],{encoding:'utf8'});if(r.status){failed=true;console.error(r.stderr);}}}}walk(root);}if(failed)process.exit(1);console.log('JavaScript syntax verified; TypeScript checks enforce typed architecture contracts.');

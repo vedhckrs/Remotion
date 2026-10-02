@@ -1,0 +1,193 @@
+import { z } from 'zod';
+export const SCHEMA_VERSION = 1 as const;
+const id = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/);
+const finite = z.number().finite();
+export const sceneTypes = ['HERO', 'EXPLAIN', 'PROCESS', 'COMPARISON', 'DATA', 'TIMELINE', 'MAP', 'NETWORK', 'SYSTEM', 'ZOOM_IN', 'CUTAWAY', 'ILLUSTRATION', 'THREE_D', 'UI_DEMO', 'QUOTE', 'SUMMARY', 'TRANSITION'] as const;
+export const motionVerbs = ['fade', 'slide', 'scale', 'maskReveal', 'draw', 'morph', 'depthReveal', 'pulse', 'glow', 'highlight', 'zoom', 'orbit', 'shake', 'tracePath', 'followPath', 'countUp', 'expand', 'assemble', 'transform', 'flow', 'connect', 'split', 'merge', 'collapse', 'wipe', 'push', 'zoomAway'] as const;
+export const EntitySchema = z.object({
+    id, label: z.string().min(1).max(120), kind: z.enum(['client', 'server', 'database', 'cloud', 'router', 'phone', 'chip', 'shield', 'globe', 'wifi', 'stack', 'arrow', 'currency', 'orb', 'text', 'shape']).default('shape'), x: finite.min(0).max(1), y: finite.min(0).max(1), value: finite.optional(), variant: z.string().max(40).optional(), assetId: id.optional()
+}).strict();
+export const BeatSchema = z.object({
+    at: finite.min(0), duration: finite.min(.05).max(30).default(.6), action: z.enum(motionVerbs), target: id, variant: z.string().max(40).optional(), to: z.object({
+        x: finite.min(0).max(1), y: finite.min(0).max(1)
+    }).optional()
+}).strict();
+export const SceneSchema = z.object({
+    id, type: z.enum(sceneTypes), visualIntent: z.string().min(1).max(500), headline: z.string().min(1).max(140), narration: z.string().max(5000).default(''), duration: finite.min(.5).max(180), entities: z.array(EntitySchema).min(1).max(50), relationships: z.array(z.object({
+        id, from: id, to: id, label: z.string().max(80).optional()
+    })).max(100).default([]), transformation: z.string().max(300).optional(), beats: z.array(BeatSchema).max(200).default([]), camera: z.array(z.object({
+        at: finite.min(0), duration: finite.min(.1).max(60), action: z.enum(['pan', 'push', 'pull', 'zoom', 'reframe', 'follow', 'parallax', 'whip', 'macro', 'orbit']), x: finite.min(0).max(1).default(.5), y: finite.min(0).max(1).default(.5), zoom: finite.min(.5).max(4).default(1)
+    })).max(50).default([]), data: z.array(z.object({
+        label: z.string().min(1).max(80), value: finite.min(0)
+    })).max(100).default([]), chart: z.enum(['bars', 'line', 'area', 'donut', 'funnel', 'hierarchy']).default('bars'), geo: z.array(z.object({
+        id, label: z.string().max(80), longitude: finite.min(-180).max(180), latitude: finite.min(-90).max(90)
+    })).max(50).default([]), words: z.array(z.object({
+        text: z.string().min(1).max(100), start: finite.min(0), end: finite.min(0)
+    })).max(1000).default([]), audio: z.object({
+        voiceAssetId: id.optional(), musicAssetId: id.optional(), sfx: z.array(z.object({
+            at: finite.min(0), assetId: id, volume: finite.min(0).max(1).default(.4)
+        })).max(50).default([])
+    }).default({
+        sfx: []
+    }), backgroundAssetId: id.optional(), motionBlur: z.boolean().default(false)
+}).strict().superRefine((s, c) => {
+    if (s.type === 'MAP' && !s.geo.length)
+        c.addIssue({
+            code: 'custom', message: 'Map scenes need explicit geographic points'
+        });
+    if (s.type === 'DATA' && !s.data.length && !s.entities.some(entity => entity.value !== undefined))
+        c.addIssue({
+            code: 'custom', message: 'Data scenes need explicit numeric values'
+        });
+    if (s.type === 'DATA' && s.entities.some(entity => entity.value !== undefined && entity.value < 0))
+        c.addIssue({
+            code: 'custom', message: 'Current data charts require nonnegative values'
+        });
+    if (new Set(s.geo.map(point => point.id)).size !== s.geo.length)
+        c.addIssue({
+            code: 'custom', message: 'Duplicate geographic point ID'
+        });
+    if (new Set(s.data.map(point => point.label)).size !== s.data.length)
+        c.addIssue({
+            code: 'custom', message: 'Data labels must uniquely identify categories'
+        });
+    const ids = new Set(s.entities.map(e => e.id)), targets = new Set([...ids, ...s.relationships.map(r => r.id)]);
+    if (targets.size !== s.entities.length + s.relationships.length)
+        c.addIssue({
+            code: 'custom', message: 'Entity and relationship targets must have distinct IDs'
+        });
+    if (ids.size !== s.entities.length)
+        c.addIssue({
+            code: 'custom', message: 'Duplicate entity ID'
+        });
+    if (new Set(s.relationships.map(r => r.id)).size !== s.relationships.length)
+        c.addIssue({
+            code: 'custom', message: 'Duplicate relationship ID'
+        });
+    for (const r of s.relationships)
+        if (!ids.has(r.from) || !ids.has(r.to))
+            c.addIssue({
+                code: 'custom', message: 'Relationship refers to missing entity'
+            });
+    for (const b of s.beats)
+        if (!targets.has(b.target) || b.at >= s.duration)
+            c.addIssue({
+                code: 'custom', message: 'Beat target or time is invalid'
+            });
+    for (const w of s.words)
+        if (w.end < w.start || w.end > s.duration)
+            c.addIssue({
+                code: 'custom', message: 'Word timing exceeds scene or runs backward'
+            });
+    for (const a of [...s.camera, ...s.audio.sfx])
+        if (a.at >= s.duration)
+            c.addIssue({
+                code: 'custom', message: 'Cue is outside scene'
+            });
+});
+export const SceneSpecSchema = z.object({
+    schemaVersion: z.literal(SCHEMA_VERSION), title: z.string().min(1).max(160), style: z.enum(['technical', 'editorial', 'cinematic']).default('technical'), ratio: z.enum(['16:9', '9:16']).default('16:9'), seed: z.number().int().nonnegative().default(1), scenes: z.array(SceneSchema).min(1).max(300), assets: z.array(z.object({
+        id, path: z.string().regex(/^assets\/[a-zA-Z0-9_./-]+$/).refine(p => !p.split('/').includes('..')), sha256: z.string().regex(/^[a-f0-9]{64}$/), type: z.enum(['svg', 'image', 'glb', 'voice', 'music', 'sfx', 'video'])
+    })).max(500).default([])
+}).strict().superRefine((s, c) => {
+    if (new Set(s.scenes.map(x => x.id)).size !== s.scenes.length)
+        c.addIssue({
+            code: 'custom', message: 'Duplicate scene ID'
+        });
+    const ids = new Set(s.assets.map(a => a.id));
+    if (ids.size !== s.assets.length)
+        c.addIssue({
+            code: 'custom', message: 'Duplicate asset ID'
+        });
+    const byId = new Map(s.assets.map(asset => [asset.id, asset]));
+    const byPath = new Map<string, string>();
+    const extensions: Record<string, RegExp> = {
+        svg: /\.svg$/i, glb: /\.glb$/i, image: /\.(png|jpe?g|webp)$/i, voice: /\.(wav|mp3|m4a|ogg|aac)$/i, music: /\.(wav|mp3|m4a|ogg|aac)$/i, sfx: /\.(wav|mp3|m4a|ogg|aac)$/i, video: /\.(mp4|webm|mov)$/i
+    };
+    for (const asset of s.assets) {
+        if (!extensions[asset.type].test(asset.path))
+            c.addIssue({
+                code: 'custom', message: 'Asset extension does not match its type'
+            });
+        if (byPath.has(asset.path) && byPath.get(asset.path) !== asset.sha256)
+            c.addIssue({
+                code: 'custom', message: 'Conflicting checksums for the same asset path'
+            });
+        byPath.set(asset.path, asset.sha256);
+    }
+    for (const scene of s.scenes) {
+        if (scene.backgroundAssetId && byId.get(scene.backgroundAssetId)?.type !== 'video')
+            c.addIssue({
+                code: 'custom', message: 'Background must reference a video asset'
+            });
+        for (const id of [scene.audio.voiceAssetId, scene.audio.musicAssetId, ...scene.audio.sfx.map(cue => cue.assetId)]) {
+            const asset = id ? byId.get(id) : undefined;
+            if (asset && !['voice', 'music', 'sfx'].includes(asset.type))
+                c.addIssue({
+                    code: 'custom', message: 'Audio cue must reference an audio asset'
+                });
+        }
+        for (const entity of scene.entities) {
+            const asset = entity.assetId ? byId.get(entity.assetId) : undefined;
+            if (asset && !['svg', 'image', 'glb', 'video'].includes(asset.type))
+                c.addIssue({
+                    code: 'custom', message: 'Visual object must reference a visual asset'
+                });
+        }
+    }
+    for (const scene of s.scenes)
+        for (const id of [scene.backgroundAssetId, scene.audio.voiceAssetId, scene.audio.musicAssetId, ...scene.audio.sfx.map(a => a.assetId), ...scene.entities.map(e => e.assetId)].filter(Boolean))
+            if (!ids.has(id!))
+                c.addIssue({
+                    code: 'custom', message: 'Unknown asset reference'
+                });
+});
+export type SceneSpec = z.infer<typeof SceneSpecSchema>;
+export type Scene = z.infer<typeof SceneSchema>;
+export type Entity = z.infer<typeof EntitySchema>;
+export type Beat = z.infer<typeof BeatSchema>;
+export const profiles = {
+    'preview': {
+        width: 1920, height: 1080, fps: 30, codec: 'h264', extension: 'mp4', bitrate: '8M'
+    }, 'final-4k60': {
+        width: 3840, height: 2160, fps: 60, codec: 'h264', extension: 'mp4', bitrate: '35M'
+    }, 'delivery-hevc': {
+        width: 3840, height: 2160, fps: 60, codec: 'h265', extension: 'mp4', bitrate: '25M'
+    }, 'master-prores': {
+        width: 3840, height: 2160, fps: 60, codec: 'prores', extension: 'mov', bitrate: undefined
+    }
+} as const;
+export const RenderRequestSchema = z.object({
+    id: z.string().uuid(), projectId: z.string().uuid(), compositionId: z.literal('SemanticExplainer'), sceneSpec: SceneSpecSchema, profile: z.enum(['preview', 'final-4k60', 'delivery-hevc', 'master-prores']), priority: z.number().int().min(0).max(10).default(0), scheduledAt: z.string().datetime().optional()
+}).strict();
+export const statuses = ['QUEUED', 'CLAIMED', 'PREPARING', 'RENDERING', 'UPLOADING', 'COMPLETED', 'CANCEL_REQUESTED', 'CANCELLED', 'FAILED'] as const;
+export type JobStatus = typeof statuses[number];
+export const transitions: Record<JobStatus, JobStatus[]> = {
+    QUEUED: ['CLAIMED', 'CANCELLED'], CLAIMED: ['PREPARING', 'CANCEL_REQUESTED', 'FAILED'], PREPARING: ['RENDERING', 'CANCEL_REQUESTED', 'FAILED'], RENDERING: ['UPLOADING', 'CANCEL_REQUESTED', 'FAILED'], UPLOADING: ['COMPLETED', 'CANCEL_REQUESTED', 'FAILED'], COMPLETED: [], CANCEL_REQUESTED: ['CANCELLED', 'FAILED'], CANCELLED: [], FAILED: []
+};
+export const JobSchema = RenderRequestSchema.extend({
+    gitSha: z.string().regex(/^[a-f0-9]{40}$/), schemaVersion: z.literal(SCHEMA_VERSION), status: z.enum(statuses), workerId: z.string().uuid().nullable(), leaseToken: z.string().uuid().nullable(), progress: finite.min(0).max(1), stage: z.string().max(100), createdAt: z.string(), updatedAt: z.string(), error: z.string().nullable(), artifacts: z.array(z.object({
+        pathname: z.string(), url: z.string().url(), sha256: z.string().regex(/^[a-f0-9]{64}$/), size: z.number().int().positive(), kind: z.enum(['video', 'thumbnail', 'manifest'])
+    })).default([])
+});
+export type RenderJob = z.infer<typeof JobSchema>;
+export type RenderJobSummary = Omit<RenderJob, 'sceneSpec'> & {
+    sceneSpec: Pick<SceneSpec, 'title' | 'ratio'>;
+};
+export type RenderRequest = z.infer<typeof RenderRequestSchema>;
+export function outputSettings(spec: SceneSpec, profile: keyof typeof profiles) {
+    const p = profiles[profile];
+    return {
+        ...p, width: spec.ratio === '9:16' ? p.height : p.width, height: spec.ratio === '9:16' ? p.width : p.height
+    };
+}
+export function shouldReport(previous: {
+    at: number;
+    progress: number;
+    stage: string;
+}, next: {
+    progress: number;
+    stage: string;
+}, now: number) {
+    return next.stage !== previous.stage || now - previous.at >= 1000 || next.progress - previous.progress >= .01;
+}
