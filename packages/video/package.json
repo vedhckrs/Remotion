@@ -1,0 +1,28 @@
+{
+  "name": "@nuradi/video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts",
+    "./Composition": "./src/Composition.tsx"
+  },
+  "dependencies": {
+    "@nuradi/schemas": "workspace:*",
+    "@nuradi/design-tokens": "workspace:*",
+    "remotion": "4.0.532",
+    "@remotion/three": "4.0.532",
+    "@remotion/paths": "4.0.532",
+    "@remotion/motion-blur": "4.0.532",
+    "@react-three/fiber": "9.3.0",
+    "@react-three/drei": "10.7.7",
+    "three": "0.180.0",
+    "d3": "7.9.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.180.0",
+    "@types/d3": "7.4.3"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@nuradi/database",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.0.2",
+    "@nuradi/schemas": "workspace:*"
+  },
+  "devDependencies": {}
+}

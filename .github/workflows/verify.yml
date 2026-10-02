@@ -1,16 +1,31 @@
-name: Verify
+name: Architecture CI
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
-  verify:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npm run verify
-      - run: npm run build:web
+      - run: npm install --global pnpm@10.30.3
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:architecture
+      - run: pnpm typecheck
+      - run: pnpm typecheck:architecture
+      - run: pnpm build
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pnpm exec tsx scripts/architecture/smoke-render.ts
+        env:
+          REMOTION_BROWSER_EXECUTABLE: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: architecture-smoke
+          path: .cache/architecture-smoke

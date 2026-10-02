@@ -1,0 +1,27 @@
+{
+  "name": "@nuradi/web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "@nuradi/schemas": "workspace:*",
+    "@nuradi/database": "workspace:*",
+    "@nuradi/shared": "workspace:*",
+    "@nuradi/video": "workspace:*",
+    "@remotion/player": "4.0.532",
+    "@vercel/blob": "2.8.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  }
+}
