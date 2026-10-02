@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 /** Inspect isolated fixture bands to catch early SFX and inverted narration ducking. */
 export function bandVolume(file: string, frequency: number, start: number, duration: number) {
-    const result = spawnSync('ffmpeg', ['-hide_banner', '-ss', String(start), '-t', String(duration), '-i', file, '-vn', '-af', `bandpass=f=${frequency}:width_type=h:w=40,volumedetect`, '-f', 'null', '-'], { encoding: 'utf8' });
+    const result = spawnSync('ffmpeg', ['-hide_banner', '-ss', String(start), '-t', String(duration), '-i', file, '-vn', '-af', `bandpass=f=${frequency}:width_type=h:w=40,volumedetect`, '-f', 'null', '-'], {
+        encoding: 'utf8'
+    });
     if (result.status !== 0)
         throw new Error('Cannot inspect mixed audio');
     return Number(result.stderr.match(/mean_volume:\s*(-?[\d.]+) dB/)?.[1] ?? '-Infinity');
@@ -13,5 +15,7 @@ export function verifyAudioFixture(file: string) {
         throw new Error('Music does not duck under word cues');
     if (sfxDuring - Math.max(sfxBefore, sfxAfter) < 12)
         throw new Error('SFX is missing or occurs outside its scheduled cue');
-    return { musicBefore, musicDuring, sfxBefore, sfxDuring, sfxAfter };
+    return {
+        musicBefore, musicDuring, sfxBefore, sfxDuring, sfxAfter
+    };
 }

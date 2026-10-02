@@ -6,15 +6,23 @@ export async function GET(req: NextRequest, { params }: {
     params: Promise<{
         id: string;
     }>;
-}) { try {
-    requireAdmin(req);
-    const id = z.string().uuid().parse((await params).id);
-    const store = new JobStore(database());
-    const job = await store.get(id);
-    if (!job)
-        throw new HttpError(404, 'Render not found');
-    return NextResponse.json({ job, events: await store.events(id) }, { headers: { 'Cache-Control': 'no-store' } });
+}) {
+    try {
+        requireAdmin(req);
+        const id = z.string().uuid().parse((await params).id);
+        const store = new JobStore(database());
+        const job = await store.get(id);
+        if (!job)
+            throw new HttpError(404, 'Render not found');
+        return NextResponse.json({
+            job, events: await store.events(id)
+        }, {
+            headers: {
+                'Cache-Control': 'no-store'
+            }
+        });
+    }
+    catch (e) {
+        return errorResponse(e);
+    }
 }
-catch (e) {
-    return errorResponse(e);
-} }

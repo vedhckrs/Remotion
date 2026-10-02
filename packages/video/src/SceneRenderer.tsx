@@ -6,7 +6,7 @@ import { Trail } from '@remotion/motion-blur';
 import type { Scene, SceneSpec } from '@nuradi/schemas/index';
 import { styles, typeScale } from '@nuradi/design-tokens/index';
 import { cameraAt, ease, stateAt, semanticCues } from './motion';
-import { chartGeometry, geoGeometry, treeGeometry, networkGeometry } from './geometry';
+import { chartGeometry, funnelGeometry, geoGeometry, treeGeometry, networkGeometry } from './geometry';
 import { ThreeScene } from './ThreeScene';
 const icon = 'M20 20 L80 20 L80 80 L20 80 Z';
 const shield = 'M50 5 L90 25 L75 80 L50 95 L25 80 L10 25 Z';
@@ -16,54 +16,167 @@ function Diagram({ scene, spec, time, width, height }: {
     time: number;
     width: number;
     height: number;
-}) { const c = styles[spec.style]; const network = useMemo(() => scene.type === 'NETWORK' ? networkGeometry(scene.entities.map(e => e.id), scene.relationships, spec.seed) : null, [scene, spec.seed]); const objects = scene.entities.map(e => ({ ...e, ...(network?.find(n => n.id === e.id) || {}) })); const s = { ...scene, entities: objects, beats: semanticCues(scene) }; const node = (id: string) => { const e = objects.find(e => e.id === id)!; return stateAt(s, e, time); }; return <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} style={{ overflow: 'visible' }}>{scene.relationships.map((r, i) => { const a = node(r.from), b = node(r.to); const cue = scene.beats.find(b => b.target === r.id); const p = cue ? ease((time - cue.at) / cue.duration) : ease((time - .5 - i * .2) / .8); const path = `M${a.x * width} ${a.y * height} Q${(a.x + b.x) * width / 2} ${(a.y + b.y) * height / 2 - 45} ${b.x * width} ${b.y * height}`; return <g key={r.id}><path d={path} fill="none" stroke={c.accent} strokeWidth={5} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - p} opacity={.6}/>{p > 0 && scene.type !== 'COMPARISON' && <circle r={8} fill={c.accent} cx={(a.x + (b.x - a.x) * ((time * .3 + i * .2) % 1)) * width} cy={(a.y + (b.y - a.y) * ((time * .3 + i * .2) % 1)) * height - 20 * Math.sin(((time * .3 + i * .2) % 1) * Math.PI)}/>}</g>; })}{objects.map(e => { const st = stateAt(s, e, time); const size = Math.min(width * .13, height * .22); const path = interpolatePaths(st.morph, [0, 1], [icon, shield]); return <g key={e.id} transform={`translate(${st.x * width} ${st.y * height}) rotate(${st.rotation}) scale(${st.scale})`} opacity={st.opacity}><circle r={size * .67} fill={c.accent} opacity={.05 + st.glow * .2}/><rect x={-size * .6} y={-size * .6} width={size * 1.2} height={size * 1.2} rx={18} fill={c.background} stroke={st.variant === 'authenticated' ? '#7ce2bf' : c.accent} strokeWidth={3}/>{scene.type === 'UI_DEMO' ? <g>{[0, 1, 2].map(n => <rect key={n} x={-size * .42} y={-size * .3 + n * size * .22} width={size * .8 * (n === 0 ? .6 : 1)} height={size * .08} rx={3} fill={c.accent} opacity={.3 + n * .2}/>)}</g> : <path d={e.kind === 'shield' ? shield : path} transform={`translate(${-size * .4} ${-size * .4}) scale(${size * .008})`} fill="none" stroke={c.accent} strokeWidth={6} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - st.trace}/>}<text y={size * .9} textAnchor="middle" fill={c.foreground} fontSize={width * .022}>{e.label}</text>{e.value !== undefined && <text y={size * 1.2} textAnchor="middle" fill={c.accent} fontSize={width * .025}>{Math.round(st.value)}</text>}</g>; })}</svg>; }
-function Data({ scene, time, width, height }: {
+}) {
+    const c = styles[spec.style];
+    const network = useMemo(() => scene.type === 'NETWORK' ? networkGeometry(scene.entities.map(e => e.id), scene.relationships, spec.seed) : null, [scene, spec.seed]);
+    const objects = scene.entities.map(e => ({
+        ...e, ...(network?.find(n => n.id === e.id) || {})
+    }));
+    const s = {
+        ...scene, entities: objects, beats: semanticCues(scene)
+    };
+    const node = (id: string) => {
+        const e = objects.find(e => e.id === id)!;
+        return stateAt(s, e, time);
+    };
+    return <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} style={{
+            overflow: 'visible'
+        }}>{scene.relationships.map((r, i) => {
+            const a = node(r.from), b = node(r.to);
+            const cue = scene.beats.find(b => b.target === r.id);
+            const p = cue ? ease((time - cue.at) / cue.duration) : ease((time - .5 - i * .2) / .8);
+            const path = `M${a.x * width} ${a.y * height} Q${(a.x + b.x) * width / 2} ${(a.y + b.y) * height / 2 - 45} ${b.x * width} ${b.y * height}`;
+            return <g key={r.id}><path d={path} fill="none" stroke={c.accent} strokeWidth={5} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - p} opacity={.6}/>{p > 0 && scene.type !== 'COMPARISON' && <circle r={8} fill={c.accent} cx={(a.x + (b.x - a.x) * ((time * .3 + i * .2) % 1)) * width} cy={(a.y + (b.y - a.y) * ((time * .3 + i * .2) % 1)) * height - 20 * Math.sin(((time * .3 + i * .2) % 1) * Math.PI)}/>}</g>;
+        })}{objects.map(e => {
+            const st = stateAt(s, e, time);
+            const size = Math.min(width * .13, height * .22);
+            const path = interpolatePaths(st.morph, [0, 1], [icon, shield]);
+            return <g key={e.id} transform={`translate(${st.x * width} ${st.y * height}) rotate(${st.rotation}) scale(${st.scale})`} opacity={st.opacity}><circle r={size * .67} fill={c.accent} opacity={.05 + st.glow * .2}/><rect x={-size * .6} y={-size * .6} width={size * 1.2} height={size * 1.2} rx={18} fill={c.background} stroke={st.variant === 'authenticated' ? '#7ce2bf' : c.accent} strokeWidth={3}/>{scene.type === 'UI_DEMO' ? <g>{[0, 1, 2].map(n => <rect key={n} x={-size * .42} y={-size * .3 + n * size * .22} width={size * .8 * (n === 0 ? .6 : 1)} height={size * .08} rx={3} fill={c.accent} opacity={.3 + n * .2}/>)}</g> : <path d={e.kind === 'shield' ? shield : path} transform={`translate(${-size * .4} ${-size * .4}) scale(${size * .008})`} fill="none" stroke={c.accent} strokeWidth={6} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - st.trace}/>}<text y={size * .9} textAnchor="middle" fill={c.foreground} fontSize={width * .022}>{e.label}</text>{e.value !== undefined && <text y={size * 1.2} textAnchor="middle" fill={c.accent} fontSize={width * .025}>{Math.round(st.value)}</text>}</g>;
+        })}</svg>;
+}
+function Data({ scene, spec, time, width, height }: {
     scene: Scene;
+    spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { const data = scene.data.length ? scene.data : scene.entities.map((e, i) => ({ label: e.label, value: e.value ?? (i + 1) * 20 })); const w = width * .8, h = height * .55; const g = chartGeometry(data, w, h), p = ease(time / 1.5); const tree = treeGeometry(data.map(d => d.label), w, h); return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}><g transform={`translate(${width * .1} ${height * .18})`}>{scene.chart === 'bars' ? g.bars.map(b => <g key={b.label}><rect x={b.x} y={h - b.height * p} width={b.width} height={b.height * p} rx={10} fill="#ffd34f"/><text x={b.x + b.width / 2} y={h + 35} textAnchor="middle" fill="white" fontSize={24}>{b.label}</text></g>) : scene.chart === 'donut' ? <g transform={`translate(${w / 2} ${h / 2})`}>{g.donut.map((d, i) => <path key={d.label} d={d.path} fill={['#ffd34f', '#78b6f5', '#7ce2bf', '#a493ff'][i % 4]} opacity={p}/>)}</g> : scene.chart === 'funnel' ? data.map((d, i) => <g key={d.label}><path d={`M${w * .1 + i * 20},${i * h / data.length} L${w * .9 - i * 20},${i * h / data.length} L${w * .9 - (i + 1) * 20},${(i + 1) * h / data.length - 8} L${w * .1 + (i + 1) * 20},${(i + 1) * h / data.length - 8} Z`} fill="#ffd34f" opacity={p * (1 - i * .15)}/><text x={w / 2} y={(i + .5) * h / data.length} textAnchor="middle" fill="#172238" fontSize={26}>{d.label}</text></g>) : scene.chart === 'hierarchy' ? tree.map((n, i) => <g key={i}>{n.parent && <line x1={n.x} y1={n.y} x2={n.parent.x} y2={n.parent.y} stroke="#ffd34f"/>}<circle cx={n.x} cy={n.y} r={18} fill="#ffd34f"/><text x={n.x + 25} y={n.y} fill="white" fontSize={24}>{n.label}</text></g>) : <path d={scene.chart === 'area' ? g.area : g.line} fill={scene.chart === 'area' ? '#ffd34f33' : 'none'} stroke="#ffd34f" strokeWidth={6} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - p}/>}</g></svg>; }
-function Map({ scene, time, width, height }: {
+}) {
+    const c = styles[spec.style];
+    const data = scene.data.length ? scene.data : scene.entities.filter(entity => entity.value !== undefined).map(entity => ({
+        label: entity.label, value: entity.value!
+    }));
+    const w = width * .8, h = height * .55;
+    const g = chartGeometry(data, w, h), p = ease(time / 1.5);
+    const tree = treeGeometry(data.map(d => d.label), w, h);
+    return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}><g transform={`translate(${width * .1} ${height * .18})`}>{scene.chart === 'bars' ? g.bars.map(b => <g key={b.label}><rect x={b.x} y={h - b.height * p} width={b.width} height={b.height * p} rx={10} fill={c.accent}/><text x={b.x + b.width / 2} y={h + 35} textAnchor="middle" fill={c.foreground} fontSize={24}>{b.label}</text></g>) : scene.chart === 'donut' ? <g transform={`translate(${w / 2} ${h / 2})`}>{g.donut.map((d, i) => <path key={d.label} d={d.path} fill={['#ffd34f', '#78b6f5', '#7ce2bf', '#a493ff'][i % 4]} opacity={p}/>)}</g> : scene.chart === 'funnel' ? funnelGeometry(data, w, h).map((stage, i) => <g key={stage.label}><path d={stage.path} fill={c.accent} opacity={p * (.55 + .45 * (1 - i / Math.max(1, data.length)))}/><text x={w / 2} y={stage.y} textAnchor="middle" fill={stage.value > 0 ? c.background : c.foreground} fontSize={Math.min(26, h / data.length * .4)}>{stage.label} · {stage.value}</text></g>) : scene.chart === 'hierarchy' ? tree.map((n, i) => <g key={i}>{n.parent && <line x1={n.x} y1={n.y} x2={n.parent.x} y2={n.parent.y} stroke={c.accent}/>}<circle cx={n.x} cy={n.y} r={18} fill={c.accent}/><text x={n.x + 25} y={n.y} fill={c.foreground} fontSize={24}>{n.label}</text></g>) : <path d={scene.chart === 'area' ? g.area : g.line} fill={scene.chart === 'area' ? c.accent + '33' : 'none'} stroke={c.accent} strokeWidth={6} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - p}/>}</g></svg>;
+}
+function Map({ scene, spec, time, width, height }: {
     scene: Scene;
+    spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { const points = geoGeometry(scene.geo, width, height); return <svg width={width} height={height}>{Array.from({ length: 7 }, (_, i) => <path key={i} d={`M0 ${height * (i + 1) / 8} Q${width / 2} ${height * (i + 1) / 8 - 30} ${width} ${height * (i + 1) / 8}`} stroke="#49617e" fill="none"/>)}{points.map((p, i) => <g key={p.id}>{i > 0 && <path d={`M${points[0].x} ${points[0].y} Q${width / 2} ${height * .1} ${p.x} ${p.y}`} stroke="#ffd34f" fill="none" strokeWidth={4} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - ease((time - i * .3) / 1.2)}/>}<circle cx={p.x} cy={p.y} r={10 + 3 * Math.sin(time * 3)} fill="#ffd34f"/><text x={p.x + 20} y={p.y} fill="white" fontSize={24}>{p.label}</text></g>)}</svg>; }
-function Timeline({ scene, time, width, height }: {
+}) {
+    const c = styles[spec.style];
+    const points = geoGeometry(scene.geo, width, height);
+    return <svg width={width} height={height}>{Array.from({
+            length: 7
+        }, (_, i) => <path key={i} d={`M0 ${height * (i + 1) / 8} Q${width / 2} ${height * (i + 1) / 8 - 30} ${width} ${height * (i + 1) / 8}`} stroke={c.muted} fill="none"/>)}{points.map((p, i) => <g key={p.id}>{i > 0 && <path d={`M${points[0].x} ${points[0].y} Q${width / 2} ${height * .1} ${p.x} ${p.y}`} stroke={c.accent} fill="none" strokeWidth={4} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - ease((time - i * .3) / 1.2)}/>}<circle cx={p.x} cy={p.y} r={10 + 3 * Math.sin(time * 3)} fill={c.accent}/><text x={p.x + 20} y={p.y} fill={c.foreground} fontSize={24}>{p.label}</text></g>)}</svg>;
+}
+function Timeline({ scene, spec, time, width, height }: {
     scene: Scene;
+    spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { const n = scene.entities.length; return <svg width={width} height={height}><line x1={width * .12} x2={width * .88} y1={height * .5} y2={height * .5} stroke="#49617e" strokeWidth={6}/>{scene.entities.map((e, i) => { const x = width * (.12 + .76 * (n === 1 ? .5 : i / (n - 1))), p = ease((time - i * .35) / .6); return <g key={e.id} opacity={p}><circle cx={x} cy={height * .5} r={18 * p} fill="#ffd34f"/><text x={x} y={height * .5 + (i % 2 ? -50 : 70)} textAnchor="middle" fill="white" fontSize={width * .022}>{e.label}</text></g>; })}</svg>; }
+}) {
+    const c = styles[spec.style];
+    const n = scene.entities.length;
+    return <svg width={width} height={height}><line x1={width * .12} x2={width * .88} y1={height * .5} y2={height * .5} stroke={c.muted} strokeWidth={6}/>{scene.entities.map((e, i) => {
+            const x = width * (.12 + .76 * (n === 1 ? .5 : i / (n - 1))), p = ease((time - i * .35) / .6);
+            return <g key={e.id} opacity={p}><circle cx={x} cy={height * .5} r={18 * p} fill={c.accent}/><text x={x} y={height * .5 + (i % 2 ? -50 : 70)} textAnchor="middle" fill={c.foreground} fontSize={width * .022}>{e.label}</text></g>;
+        })}</svg>;
+}
 function Illustration({ scene, spec, time, width, height }: {
     scene: Scene;
     spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { const assetUrl = useAssetUrl(); return <div style={{ width, height, position: 'relative' }}>{scene.entities.map((entity, i) => { const state = stateAt(scene, entity, time), asset = spec.assets.find(a => a.id === entity.assetId); return <div key={entity.id} style={{ position: 'absolute', left: state.x * width, top: state.y * height, transform: `translate(-50%,-50%) scale(${state.scale}) rotate(${state.rotation}deg)`, opacity: state.opacity, zIndex: i }}>{asset?.type === 'video' ? <OffthreadVideo src={assetUrl(asset.path)} muted style={{ width: width * .25, maxHeight: height * .6, objectFit: 'contain' }}/> : asset && ['svg', 'image'].includes(asset.type) ? <Img src={assetUrl(asset.path)} style={{ width: width * .25, maxHeight: height * .6, objectFit: 'contain' }}/> : <svg width={width * .22} height={width * .22} viewBox="0 0 100 100"><circle cx={50} cy={50} r={40} fill={['#ffd34f', '#7ce2bf', '#82b9fa'][i % 3]} opacity={.25}/><path d={state.morph > .5 ? shield : icon} fill="none" stroke={styles[spec.style].accent} strokeWidth={5}/><text x={50} y={95} fontSize={8} textAnchor="middle" fill={styles[spec.style].foreground}>{entity.label}</text></svg>}</div>; })}</div>; }
-function Cutaway({ scene, time, width, height }: {
+}) {
+    const assetUrl = useAssetUrl();
+    return <div style={{
+            width, height, position: 'relative'
+        }}>{scene.entities.map((entity, i) => {
+            const state = stateAt(scene, entity, time), asset = spec.assets.find(a => a.id === entity.assetId);
+            return <div key={entity.id} style={{
+                    position: 'absolute', left: state.x * width, top: state.y * height, transform: `translate(-50%,-50%) scale(${state.scale}) rotate(${state.rotation}deg)`, opacity: state.opacity, zIndex: i
+                }}>{asset?.type === 'video' ? <OffthreadVideo src={assetUrl(asset.path)} muted style={{
+                        width: width * .25, maxHeight: height * .6, objectFit: 'contain'
+                    }}/> : asset && ['svg', 'image'].includes(asset.type) ? <Img src={assetUrl(asset.path)} style={{
+                        width: width * .25, maxHeight: height * .6, objectFit: 'contain'
+                    }}/> : <svg width={width * .22} height={width * .22} viewBox="0 0 100 100"><circle cx={50} cy={50} r={40} fill={['#ffd34f', '#7ce2bf', '#82b9fa'][i % 3]} opacity={.25}/><path d={state.morph > .5 ? shield : icon} fill="none" stroke={styles[spec.style].accent} strokeWidth={5}/><text x={50} y={95} fontSize={8} textAnchor="middle" fill={styles[spec.style].foreground}>{entity.label}</text></svg>}</div>;
+        })}</div>;
+}
+function Cutaway({ scene, spec, time, width, height }: {
     scene: Scene;
+    spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { return <svg width={width} height={height}>{scene.entities.map((e, i) => { const p = ease((time - i * .3) / .8); const x = width * .25 + i * width * .035 * p, y = height * .3 + i * height * .12 * p; return <g key={e.id} opacity={p}><path d={`M${x} ${y} l${width * .35} -40 l${width * .15} 70 l-${width * .35} 40 Z`} fill={['#ffd34f', '#7ce2bf', '#84b8ff'][i % 3]} opacity={.75}/><line x1={x + width * .4} y1={y + 20} x2={width * .85} y2={y + 20} stroke="#f4f7fc"/><text x={width * .87} y={y + 25} fill="#f4f7fc" fontSize={width * .021}>{e.label}</text></g>; })}</svg>; }
-function Summary({ scene, time, width, height }: {
+}) {
+    const c = styles[spec.style];
+    return <svg width={width} height={height}>{scene.entities.map((e, i) => {
+            const p = ease((time - i * .3) / .8);
+            const x = width * .25 + i * width * .035 * p, y = height * .3 + i * height * .12 * p;
+            return <g key={e.id} opacity={p}><path d={`M${x} ${y} l${width * .35} -40 l${width * .15} 70 l-${width * .35} 40 Z`} fill={['#ffd34f', '#7ce2bf', '#84b8ff'][i % 3]} opacity={.75}/><line x1={x + width * .4} y1={y + 20} x2={width * .85} y2={y + 20} stroke={c.foreground}/><text x={width * .87} y={y + 25} fill={c.foreground} fontSize={width * .021}>{e.label}</text></g>;
+        })}</svg>;
+}
+function Summary({ scene, spec, time, width, height }: {
     scene: Scene;
+    spec: SceneSpec;
     time: number;
     width: number;
     height: number;
-}) { return <div style={{ padding: '5% 10%', width, height }}>{scene.entities.map((e, i) => <div key={e.id} style={{ opacity: ease((time - i * .35) / .5), padding: '3% 0', fontSize: width * .035, borderBottom: '1px solid #49617e' }}><span style={{ color: '#ffd34f', marginRight: 30 }}>0{i + 1}</span>{e.label}</div>)}</div>; }
-export function SceneRenderer({ scene, spec }: {
+}) {
+    const c = styles[spec.style];
+    return <div style={{
+            padding: '5% 10%', width, height
+        }}>{scene.entities.map((e, i) => <div key={e.id} style={{
+                opacity: ease((time - i * .35) / .5), padding: '3% 0', fontSize: width * .035, borderBottom: `1px solid ${c.muted}`
+            }}><span style={{
+                color: c.accent, marginRight: 30
+            }}>0{i + 1}</span>{e.label}</div>)}</div>;
+}
+export function SceneRenderer({ scene: sourceScene, spec }: {
     scene: Scene;
     spec: SceneSpec;
 }) {
+    const scene = useMemo(() => ({
+        ...sourceScene, beats: semanticCues(sourceScene)
+    }), [sourceScene]);
     const assetUrl = useAssetUrl();
     const f = useCurrentFrame(), { fps, width, height } = useVideoConfig(), time = f / fps, c = styles[spec.style], camera = cameraAt(scene, time);
     const asset = (id?: string) => spec.assets.find(a => a.id === id);
-    const voice = asset(scene.audio.voiceAssetId), music = asset(scene.audio.musicAssetId);
+    const voice = asset(scene.audio.voiceAssetId), music = asset(scene.audio.musicAssetId), background = asset(scene.backgroundAssetId);
     const activeWord = scene.words.find(w => time >= w.start && time < w.end);
     const headlineSize = Math.min(width * typeScale.headline, width * .86 / Math.max(18, scene.headline.length) * 2.3);
-    const content = scene.type === 'ILLUSTRATION' ? <Illustration scene={scene} spec={spec} time={time} width={width} height={height * .65}/> : scene.type === 'CUTAWAY' ? <Cutaway scene={scene} time={time} width={width} height={height * .65}/> : scene.type === 'SUMMARY' || scene.type === 'QUOTE' ? <Summary scene={scene} time={time} width={width} height={height * .65}/> : scene.type === 'TRANSITION' ? <div style={{ width: '100%', height: '100%', background: c.accent, clipPath: `circle(${ease(time / scene.duration) * 150}% at 50% 50%)` }}/> : scene.type === 'THREE_D' ? <ThreeScene scene={scene} spec={spec}/> : scene.type === 'TIMELINE' ? <Timeline scene={scene} time={time} width={width} height={height * .7}/> : scene.type === 'DATA' ? <Data scene={scene} time={time} width={width} height={height * .7}/> : scene.type === 'MAP' ? <Map scene={scene} time={time} width={width} height={height * .7}/> : <Diagram scene={scene.type === 'HERO' ? { ...scene, entities: [scene.entities[0]], relationships: [], beats: scene.beats.filter(b => b.target === scene.entities[0].id) } : scene} spec={spec} time={time} width={width} height={height * .65}/>;
-    return <AbsoluteFill style={{ background: c.background, color: c.foreground, fontFamily: c.font, overflow: 'hidden' }}><div style={{ position: 'absolute', inset: 0, backgroundImage: `radial-gradient(${c.muted}22 1px, transparent 1px)`, backgroundSize: '30px 30px', transform: `translateY(${Math.sin(time * .2) * 8}px)` }}/><div style={{ position: 'absolute', left: '7%', right: '7%', top: '8%', fontSize: headlineSize, fontWeight: 750, lineHeight: 1.08, opacity: ease(time / .4) }}>{scene.type === 'QUOTE' ? '“' : ''}{scene.headline}{scene.type === 'QUOTE' ? '”' : ''}</div><div style={{ position: 'absolute', top: '24%', width: '100%', height: '65%', transformOrigin: `${camera.x * 100}% ${camera.y * 100}%`, transform: `scale(${camera.zoom}) translate(${(.5 - camera.x) * width}px,${(.5 - camera.y) * height * .65}px) rotate(${camera.rotation}deg)` }}>{scene.motionBlur ? <Trail layers={4} lagInFrames={.4} trailOpacity={.2}>{content}</Trail> : content}</div>{activeWord && <div style={{ position: 'absolute', bottom: '9%', left: '10%', right: '10%', textAlign: 'center', fontSize: width * typeScale.caption, fontWeight: 650 }}><span style={{ background: '#000b', padding: '12px 24px', borderRadius: 12 }}>{activeWord.text}</span></div>}{voice && <Audio src={assetUrl(voice.path)}/>} {music && <Audio src={assetUrl(music.path)} volume={frame => { const t = frame / fps; return voice && (!scene.words.length || scene.words.some(w => t >= w.start - .15 && t <= w.end + .2)) ? .12 : .28; }}/>}{scene.audio.sfx.map((s, i) => { const a = asset(s.assetId); return a ? <Sequence key={i} from={Math.round(s.at * fps)}><Audio src={assetUrl(a.path)} volume={s.volume}/></Sequence> : null; })}</AbsoluteFill>;
+    const content = scene.type === 'ILLUSTRATION' ? <Illustration scene={scene} spec={spec} time={time} width={width} height={height * .65}/> : scene.type === 'CUTAWAY' ? <Cutaway scene={scene} spec={spec} time={time} width={width} height={height * .65}/> : scene.type === 'SUMMARY' || scene.type === 'QUOTE' ? <Summary scene={scene} spec={spec} time={time} width={width} height={height * .65}/> : scene.type === 'TRANSITION' ? <div style={{
+            width: '100%', height: '100%', background: c.accent, clipPath: `circle(${ease(time / scene.duration) * 150}% at 50% 50%)`
+        }}/> : scene.type === 'THREE_D' ? <ThreeScene scene={scene} spec={spec}/> : scene.type === 'TIMELINE' ? <Timeline scene={scene} spec={spec} time={time} width={width} height={height * .7}/> : scene.type === 'DATA' ? <Data scene={scene} spec={spec} time={time} width={width} height={height * .7}/> : scene.type === 'MAP' ? <Map scene={scene} spec={spec} time={time} width={width} height={height * .7}/> : <Diagram scene={scene.type === 'HERO' ? {
+            ...scene, entities: [scene.entities[0]], relationships: [], beats: scene.beats.filter(b => b.target === scene.entities[0].id)
+        } : scene} spec={spec} time={time} width={width} height={height * .65}/>;
+    return <AbsoluteFill style={{
+            background: c.background, color: c.foreground, fontFamily: c.font, overflow: 'hidden'
+        }}>{background && <AbsoluteFill style={{
+                opacity: .24
+            }}><OffthreadVideo src={assetUrl(background.path)} muted style={{
+                width: '100%', height: '100%', objectFit: 'cover'
+            }}/></AbsoluteFill>}<div style={{
+            position: 'absolute', inset: 0, backgroundImage: `radial-gradient(${c.muted}22 1px, transparent 1px)`, backgroundSize: '30px 30px', transform: `translateY(${Math.sin(time * .2) * 8}px)`
+        }}/><div style={{
+            position: 'absolute', left: '7%', right: '7%', top: '8%', fontSize: headlineSize, fontWeight: 750, lineHeight: 1.08, opacity: ease(time / .4)
+        }}>{scene.type === 'QUOTE' ? '“' : ''}{scene.headline}{scene.type === 'QUOTE' ? '”' : ''}</div><div style={{
+            position: 'absolute', top: '24%', width: '100%', height: '65%', transformOrigin: `${camera.x * 100}% ${camera.y * 100}%`, transform: `scale(${camera.zoom}) translate(${(.5 - camera.x) * width}px,${(.5 - camera.y) * height * .65}px) rotate(${camera.rotation}deg)`
+        }}>{scene.motionBlur ? <Trail layers={4} lagInFrames={.4} trailOpacity={.2}>{content}</Trail> : content}</div>{activeWord && <div style={{
+                position: 'absolute', bottom: '9%', left: '10%', right: '10%', textAlign: 'center', fontSize: Math.min(width * typeScale.caption, width * .72 / Math.max(24, activeWord.text.length) * 1.8), overflowWrap: 'anywhere', fontWeight: 650
+            }}><span style={{
+                background: '#000b', padding: '12px 24px', borderRadius: 12
+            }}>{activeWord.text}</span></div>}{voice && <Audio src={assetUrl(voice.path)}/>} {music && <Audio src={assetUrl(music.path)} volume={frame => {
+                const t = frame / fps;
+                return voice && (!scene.words.length || scene.words.some(w => t >= w.start - .15 && t <= w.end + .2)) ? .12 : .28;
+            }}/>}{scene.audio.sfx.map((s, i) => {
+            const a = asset(s.assetId);
+            return a ? <Sequence key={i} from={Math.round(s.at * fps)}><Audio src={assetUrl(a.path)} volume={s.volume}/></Sequence> : null;
+        })}</AbsoluteFill>;
 }

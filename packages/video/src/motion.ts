@@ -1,8 +1,13 @@
 import type { Scene, Entity } from '@nuradi/schemas/index';
 export const clamp = (v: number) => Math.max(0, Math.min(1, v));
-export const ease = (v: number) => { const t = clamp(v); return t * t * (3 - 2 * t); };
+export const ease = (v: number) => {
+    const t = clamp(v);
+    return t * t * (3 - 2 * t);
+};
 export function stateAt(scene: Scene, entity: Entity, time: number) {
-    const state = { x: entity.x, y: entity.y, opacity: 1, scale: 1, rotation: 0, glow: 0, trace: 1, morph: 0, variant: entity.variant || '', value: entity.value || 0 };
+    const state = {
+        x: entity.x, y: entity.y, opacity: 1, scale: 1, rotation: 0, glow: 0, trace: 1, morph: 0, variant: entity.variant || '', value: entity.value || 0
+    };
     const beats = scene.beats.filter(b => b.target === entity.id).sort((a, b) => a.at - b.at);
     const first = beats.find(b => ['fade', 'slide', 'scale', 'maskReveal', 'draw', 'depthReveal', 'assemble'].includes(b.action));
     if (first && time < first.at)
@@ -101,23 +106,45 @@ export function stateAt(scene: Scene, entity: Entity, time: number) {
     }
     return state;
 }
-export function cameraAt(scene: Scene, time: number) { const camera = { x: .5, y: .5, zoom: 1, rotation: 0 }; for (const cue of [...scene.camera].sort((a, b) => a.at - b.at)) {
-    if (time < cue.at)
-        continue;
-    const p = ease((time - cue.at) / cue.duration);
-    camera.x += (cue.x - camera.x) * p;
-    camera.y += (cue.y - camera.y) * p;
-    camera.zoom += (cue.zoom - camera.zoom) * p;
-    if (cue.action === 'orbit')
-        camera.rotation = 6 * Math.sin(p * Math.PI * 2);
-    if (cue.action === 'parallax')
-        camera.x += .012 * Math.sin(time * .6);
-    if (cue.action === 'whip')
-        camera.rotation = 8 * Math.sin(p * Math.PI);
-} return camera; }
-export function sceneTimeline(scenes: Scene[], fps: number) { let from = 0; return scenes.map(scene => { const duration = Math.max(1, Math.round(scene.duration * fps)); const item = { id: scene.id, from, duration }; from += duration; return item; }); }
-export function semanticCues(scene: Scene) { const cues = [...scene.beats]; for (const w of scene.words) {
-    const entity = scene.entities.find(e => w.text.toLowerCase().replace(/[^a-z0-9]/g, '') === e.label.toLowerCase());
-    if (entity && !cues.some(b => b.target === entity.id && Math.abs(b.at - w.start) < .2))
-        cues.push({ at: w.start, duration: .4, action: 'pulse', target: entity.id });
-} return cues.sort((a, b) => a.at - b.at); }
+export function cameraAt(scene: Scene, time: number) {
+    const camera = {
+        x: .5, y: .5, zoom: 1, rotation: 0
+    };
+    for (const cue of [...scene.camera].sort((a, b) => a.at - b.at)) {
+        if (time < cue.at)
+            continue;
+        const p = ease((time - cue.at) / cue.duration);
+        camera.x += (cue.x - camera.x) * p;
+        camera.y += (cue.y - camera.y) * p;
+        camera.zoom += (cue.zoom - camera.zoom) * p;
+        if (cue.action === 'orbit')
+            camera.rotation = 6 * Math.sin(p * Math.PI * 2);
+        if (cue.action === 'parallax')
+            camera.x += .012 * Math.sin(time * .6);
+        if (cue.action === 'whip')
+            camera.rotation = 8 * Math.sin(p * Math.PI);
+    }
+    return camera;
+}
+export function sceneTimeline(scenes: Scene[], fps: number) {
+    let from = 0;
+    return scenes.map(scene => {
+        const duration = Math.max(1, Math.round(scene.duration * fps));
+        const item = {
+            id: scene.id, from, duration
+        };
+        from += duration;
+        return item;
+    });
+}
+export function semanticCues(scene: Scene) {
+    const cues = [...scene.beats];
+    for (const w of scene.words) {
+        const entity = scene.entities.find(e => w.text.toLowerCase().replace(/[^a-z0-9]/g, '') === e.label.toLowerCase());
+        if (entity && !cues.some(b => b.target === entity.id && Math.abs(b.at - w.start) < .2))
+            cues.push({
+                at: w.start, duration: .4, action: 'pulse', target: entity.id
+            });
+    }
+    return cues.sort((a, b) => a.at - b.at);
+}

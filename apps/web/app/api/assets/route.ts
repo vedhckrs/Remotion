@@ -3,48 +3,82 @@ import { issueSignedToken, presignUrl, head } from '@vercel/blob';
 import { database } from '@nuradi/database/jobs';
 import { requireAdmin, body, HttpError, errorResponse } from '../../../lib/access';
 import { z } from 'zod';
-const Input = z.object({ projectId: z.string().uuid(), sha256: z.string().regex(/^[a-f0-9]{64}$/), extension: z.enum(['wav', 'mp3', 'mp4', 'png', 'jpg', 'svg', 'glb']), size: z.number().int().positive().max(128 * 1024 ** 2) }).strict();
-const types = { wav: 'audio/wav', mp3: 'audio/mpeg', mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', svg: 'image/svg+xml', glb: 'model/gltf-binary' };
-export async function POST(req: NextRequest) { try {
-    requireAdmin(req, true);
-    const raw = await body(req);
-    const d = Input.parse(raw.asset);
-    const sql = database();
-    if (!(await sql('SELECT id FROM projects WHERE id=$1', [d.projectId]))[0])
-        throw new HttpError(404, 'Project not found');
-    const pathname = `assets/${d.projectId}/${d.sha256}.${d.extension}`;
-    if (raw.op === 'authorize') {
-        const signed = await issueSignedToken({ pathname, operations: ['put'], validUntil: Date.now() + 15 * 60000, allowedContentTypes: [types[d.extension]], maximumSizeInBytes: d.size });
-        return NextResponse.json({ signed, pathname });
+const Input = z.object({
+    projectId: z.string().uuid(), sha256: z.string().regex(/^[a-f0-9]{64}$/), extension: z.enum(['wav', 'mp3', 'mp4', 'png', 'jpg', 'svg', 'glb']), size: z.number().int().positive().max(128 * 1024 ** 2)
+}).strict();
+const types = {
+    wav: 'audio/wav', mp3: 'audio/mpeg', mp4: 'video/mp4', png: 'image/png', jpg: 'image/jpeg', svg: 'image/svg+xml', glb: 'model/gltf-binary'
+};
+export async function POST(req: NextRequest) {
+    try {
+        requireAdmin(req, true);
+        const raw = await body(req);
+        const d = Input.parse(raw.asset);
+        const sql = database();
+        if (!(await sql('SELECT id FROM projects WHERE id=$1', [d.projectId]))[0])
+            throw new HttpError(404, 'Project not found');
+        const pathname = `assets/${d.projectId}/${d.sha256}.${d.extension}`;
+        if (raw.op === 'authorize') {
+            const signed = await issueSignedToken({
+                pathname, operations: ['put'], validUntil: Date.now() + 15 * 60000, allowedContentTypes: [types[d.extension]], maximumSizeInBytes: d.size
+            });
+            return NextResponse.json({
+                signed, pathname
+            });
+        }
+        if (raw.op === 'complete') {
+            const blob = await head(pathname);
+            if (blob.size !== d.size)
+                throw new HttpError(400, 'Uploaded size mismatch');
+            await sql('INSERT INTO assets(id,project_id,sha256,pathname,size,content_type) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5) ON CONFLICT(project_id,sha256) DO NOTHING', [d.projectId, d.sha256, pathname, d.size, types[d.extension]]);
+            return NextResponse.json({
+                asset: {
+                    id: 'asset_' + d.sha256.slice(0, 24), path: `assets/${d.sha256}.${d.extension}`, sha256: d.sha256, type: d.extension === 'glb' ? 'glb' : d.extension === 'svg' ? 'svg' : ['wav', 'mp3'].includes(d.extension) ? 'voice' : d.extension === 'mp4' ? 'video' : 'image'
+                }
+            });
+        }
+        throw new HttpError(400, 'Unknown asset operation');
     }
-    if (raw.op === 'complete') {
-        const blob = await head(pathname);
-        if (blob.size !== d.size)
-            throw new HttpError(400, 'Uploaded size mismatch');
-        await sql('INSERT INTO assets(id,project_id,sha256,pathname,size,content_type) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5) ON CONFLICT(project_id,sha256) DO NOTHING', [d.projectId, d.sha256, pathname, d.size, types[d.extension]]);
-        return NextResponse.json({ asset: { id: 'asset_' + d.sha256.slice(0, 24), path: `assets/${d.sha256}.${d.extension}`, sha256: d.sha256, type: d.extension === 'glb' ? 'glb' : d.extension === 'svg' ? 'svg' : ['wav', 'mp3'].includes(d.extension) ? 'voice' : d.extension === 'mp4' ? 'video' : 'image' } });
+    catch (e) {
+        if (e instanceof z.ZodError)
+            return NextResponse.json({
+                error: 'Invalid asset specification'
+            }, {
+                status: 400
+            });
+        return errorResponse(e);
     }
-    throw new HttpError(400, 'Unknown asset operation');
 }
-catch (e) {
-    if (e instanceof z.ZodError)
-        return NextResponse.json({ error: 'Invalid asset specification' }, { status: 400 });
-    return errorResponse(e);
-} }
-export async function GET(req: NextRequest) { try {
-    requireAdmin(req);
-    const projectId = z.string().uuid().parse(req.nextUrl.searchParams.get('projectId'));
-    const sha = z.string().regex(/^[a-f0-9]{64}$/).parse(req.nextUrl.searchParams.get('sha256'));
-    const rows = await database()('SELECT pathname FROM assets WHERE project_id=$1 AND sha256=$2', [projectId, sha]);
-    if (!rows[0])
-        throw new HttpError(404, 'Preview asset unavailable');
-    const pathname = rows[0].pathname as string, validUntil = Date.now() + 15 * 60 * 1000;
-    const signed = await issueSignedToken({ pathname, operations: ['get'], validUntil });
-    const { presignedUrl } = await presignUrl(signed, { pathname, operation: 'get', access: 'private', validUntil });
-    return NextResponse.json({ url: presignedUrl }, { headers: { 'Cache-Control': 'private, no-store' } });
+export async function GET(req: NextRequest) {
+    try {
+        requireAdmin(req);
+        const projectId = z.string().uuid().parse(req.nextUrl.searchParams.get('projectId'));
+        const sha = z.string().regex(/^[a-f0-9]{64}$/).parse(req.nextUrl.searchParams.get('sha256'));
+        const rows = await database()('SELECT pathname FROM assets WHERE project_id=$1 AND sha256=$2', [projectId, sha]);
+        if (!rows[0])
+            throw new HttpError(404, 'Preview asset unavailable');
+        const pathname = rows[0].pathname as string, validUntil = Date.now() + 15 * 60 * 1000;
+        const signed = await issueSignedToken({
+            pathname, operations: ['get'], validUntil
+        });
+        const { presignedUrl } = await presignUrl(signed, {
+            pathname, operation: 'get', access: 'private', validUntil
+        });
+        return NextResponse.json({
+            url: presignedUrl
+        }, {
+            headers: {
+                'Cache-Control': 'private, no-store'
+            }
+        });
+    }
+    catch (e) {
+        if (e instanceof z.ZodError)
+            return NextResponse.json({
+                error: 'Invalid asset specification'
+            }, {
+                status: 400
+            });
+        return errorResponse(e);
+    }
 }
-catch (e) {
-    if (e instanceof z.ZodError)
-        return NextResponse.json({ error: 'Invalid asset specification' }, { status: 400 });
-    return errorResponse(e);
-} }

@@ -20,5 +20,5 @@ Pause the new worker before restoring the previous Vercel deployment/build confi
 - The director is a deterministic local fallback; a general-purpose external AI planner is not integrated.
 - Visual regression covers the two PROCESS ratio fixtures. Blank/stuck-frame sampling is technical QC; editorial object/text/camera QA remains necessary.
 - A complete 15-second benchmark matrix does not prove an uninterrupted hour-long project. Memory and thermal throughput acceptance must describe the actual test duration.
-- Delivery costs cannot be inferred from frame throughput; monetary estimates require known electricity/storage/provider rates.
+- Render throughput uses measured RENDERING-to-UPLOADING event time. Optional render cost estimates require explicit NURADI_RENDER_HOURLY_COST and a three-letter NURADI_RENDER_COST_CURRENCY; no rates are invented. These estimates exclude storage/transfer/provider costs and waiting time.
 - The referenced Endor dependency-risk tooling is unavailable. No Endor verdict has been represented as passing.

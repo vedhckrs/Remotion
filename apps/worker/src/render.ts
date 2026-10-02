@@ -1,3 +1,4 @@
+import { assertCapacity } from './capacity';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -10,7 +11,7 @@ import { type RenderJob, outputSettings } from '@nuradi/schemas/index';
 import { checksum, verifyOutput } from './qc';
 import { validateAssetFile } from './assets';
 import { visualQc } from './visual-qc';
-import { sceneKey, reuseScene, recordScene, joinScenes } from './scene-cache';
+import { sceneKey, bundleAssetKey, reuseScene, recordScene, joinScenes } from './scene-cache';
 export type Report = (status: RenderJob['status'], progress: number, stage: string, artifacts?: RenderJob['artifacts']) => Promise<void>;
 export async function execute(job: RenderJob, release: {
     root: string;
@@ -20,6 +21,7 @@ export async function execute(job: RenderJob, release: {
     const narration = job.sceneSpec.scenes.some(s => s.narration.trim());
     if (job.profile !== 'preview' && job.sceneSpec.scenes.some(s => s.narration.trim() && !s.audio.voiceAssetId))
         throw new Error('Final narration requires a voice asset for every spoken scene');
+    assertCapacity(release.root, settings, job.sceneSpec.scenes.reduce((total, scene) => total + Math.round(scene.duration * settings.fps) / settings.fps, 0));
     const req = createRequire(path.join(release.root, 'package.json'));
     const renderer = await import(pathToFileURL(req.resolve('@remotion/renderer')).href);
     const bundler = await import(pathToFileURL(req.resolve('@remotion/bundler')).href);
@@ -28,7 +30,9 @@ export async function execute(job: RenderJob, release: {
         throw new Error('Install Chrome or set REMOTION_BROWSER_EXECUTABLE');
     for (const asset of job.sceneSpec.assets) {
         const publicRoot = path.resolve(release.root, 'packages/video/public');
-        fs.mkdirSync(publicRoot, { recursive: true });
+        fs.mkdirSync(publicRoot, {
+            recursive: true
+        });
         const file = path.resolve(publicRoot, asset.path);
         if (!file.startsWith(publicRoot + path.sep))
             throw new Error('Asset escapes public root');
@@ -36,71 +40,118 @@ export async function execute(job: RenderJob, release: {
             const filename = path.basename(asset.path);
             if (!filename.startsWith(asset.sha256 + '.'))
                 throw new Error('Non-release assets must be content-addressed');
-            const data = await get(`assets/${job.projectId}/${filename}`, { access: 'private' });
+            const data = await get(`assets/${job.projectId}/${filename}`, {
+                access: 'private'
+            });
             if (!data || data.statusCode !== 200 || data.blob.size > 128 * 1024 ** 2)
                 throw new Error('Asset is missing or too large');
-            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.mkdirSync(path.dirname(file), {
+                recursive: true
+            });
             const tmp = file + '.partial';
-            await pipeline(Readable.fromWeb(data.stream as any), fs.createWriteStream(tmp), { signal });
-            if (await checksum(tmp) !== asset.sha256) {
+            await pipeline(Readable.fromWeb(data.stream as any), fs.createWriteStream(tmp), {
+                signal
+            });
+            if (await checksum(tmp, signal) !== asset.sha256) {
                 fs.unlinkSync(tmp);
                 throw new Error('Asset checksum mismatch');
             }
             fs.renameSync(tmp, file);
         }
-        if (!fs.realpathSync(file).startsWith(fs.realpathSync(publicRoot) + path.sep) || await checksum(file) !== asset.sha256)
+        if (!fs.realpathSync(file).startsWith(fs.realpathSync(publicRoot) + path.sep) || await checksum(file, signal) !== asset.sha256)
             throw new Error('Missing or changed release asset: ' + asset.id);
         validateAssetFile(file, asset.type);
     }
     const out = path.join(release.root, '.render-output', job.id);
-    fs.mkdirSync(out, { recursive: true });
-    const assetKey = crypto.createHash('sha256').update(job.sceneSpec.assets.map(a => a.sha256).sort().join(':')).digest('hex');
+    fs.mkdirSync(out, {
+        recursive: true
+    });
+    const assetKey = bundleAssetKey(job.sceneSpec.assets);
     const cache = path.join(release.root, '.bundle-cache', release.key + '-' + assetKey);
     let serveUrl: string;
     if (fs.existsSync(path.join(cache, 'index.html')))
         serveUrl = cache;
     else {
-        serveUrl = await bundler.bundle({ entryPoint: path.join(release.root, 'packages/video/src/index.tsx'), publicDir: path.join(release.root, 'packages/video/public'), outDir: cache, onProgress: () => { } });
+        serveUrl = await bundler.bundle({
+            entryPoint: path.join(release.root, 'packages/video/src/index.tsx'), publicDir: path.join(release.root, 'packages/video/public'), outDir: cache, onProgress: () => {
+            }
+        });
     }
     signal.throwIfAborted();
     const { cancelSignal, cancel } = renderer.makeCancelSignal();
-    signal.addEventListener('abort', cancel, { once: true });
-    const inputProps = { spec: job.sceneSpec };
-    const original = await renderer.selectComposition({ serveUrl, id: job.compositionId, inputProps, browserExecutable: browser, chromiumOptions: { gl: 'angle' }, logLevel: 'error' });
+    signal.addEventListener('abort', cancel, {
+        once: true
+    });
+    const inputProps = {
+        spec: job.sceneSpec
+    };
+    const original = await renderer.selectComposition({
+        serveUrl, id: job.compositionId, inputProps, browserExecutable: browser, chromiumOptions: {
+            gl: 'angle'
+        }, logLevel: 'error'
+    });
     const durationInFrames = job.sceneSpec.scenes.reduce((n, s) => n + Math.round(s.duration * settings.fps), 0);
-    const composition = { ...original, width: settings.width, height: settings.height, fps: settings.fps, durationInFrames };
+    const composition = {
+        ...original, width: settings.width, height: settings.height, fps: settings.fps, durationInFrames
+    };
     const file = path.join(out, `video.${settings.extension}`);
-    let last = { at: 0, progress: 0, stage: '' }, pending = Promise.resolve();
+    let last = {
+        at: 0, progress: 0, stage: ''
+    }, pending = Promise.resolve();
     let reportError: unknown = null;
     const profilesFile = path.resolve(process.env.NURADI_MACHINE_PROFILE || '.worker/machine-profile.json');
     const tuned = fs.existsSync(profilesFile) ? JSON.parse(fs.readFileSync(profilesFile, 'utf8')) : {};
-    const family = job.sceneSpec.scenes.some(s => s.type === 'THREE_D') ? 'three' : job.sceneSpec.scenes.some(s => ['DATA', 'MAP', 'TIMELINE'].includes(s.type)) ? 'd3' : 'svg';
-    const concurrency = Math.max(1, Math.min(6, tuned.profiles?.[family]?.concurrency ?? (family === 'three' ? 2 : 3)));
+    const hasVideo = job.sceneSpec.scenes.some(scene => Boolean(scene.backgroundAssetId) || scene.entities.some(entity => job.sceneSpec.assets.find(asset => asset.id === entity.assetId)?.type === 'video'));
+    const hasThree = job.sceneSpec.scenes.some(scene => scene.type === 'THREE_D');
+    const family = hasVideo && hasThree ? 'mixed' : hasVideo ? 'video' : hasThree ? 'three' : job.sceneSpec.scenes.some(scene => ['DATA', 'MAP', 'TIMELINE'].includes(scene.type)) ? 'd3' : 'svg';
+    const concurrency = Math.max(1, Math.min(6, tuned.profiles?.[family]?.concurrency ?? (['three', 'mixed', 'video'].includes(family) ? 2 : 3)));
     const cacheBytes = Math.max(1, Math.min(4, tuned.profiles?.[family]?.cacheGiB ?? 2)) * 1024 ** 3;
     await report('RENDERING', 0, 'frames');
     const segments: string[] = [];
     let completedFrames = 0;
     let reusedScenes = 0;
     for (let sceneIndex = 0; sceneIndex < job.sceneSpec.scenes.length; sceneIndex++) {
-        const scene = job.sceneSpec.scenes[sceneIndex], frames = Math.round(scene.duration * settings.fps), sceneProps = { spec: { ...job.sceneSpec, scenes: [scene] } };
+        const scene = job.sceneSpec.scenes[sceneIndex], frames = Math.round(scene.duration * settings.fps), sceneProps = {
+            spec: {
+                ...job.sceneSpec, scenes: [scene]
+            }
+        };
         const key = sceneKey(release.key, job.sceneSpec, sceneIndex, settings);
         const segment = path.join(release.root, '.scene-cache', key + '.' + settings.extension);
-        fs.mkdirSync(path.dirname(segment), { recursive: true });
+        fs.mkdirSync(path.dirname(segment), {
+            recursive: true
+        });
         if (await reuseScene(segment)) {
             reusedScenes++;
         }
         else {
-            await renderer.renderMedia({ composition: { ...composition, durationInFrames: frames }, serveUrl, inputProps: sceneProps, outputLocation: segment, enforceAudioTrack: true, codec: settings.codec, videoBitrate: settings.bitrate, proResProfile: settings.codec === 'prores' ? 'hq' : undefined, pixelFormat: settings.codec === 'prores' ? 'yuv422p10le' : 'yuv420p', audioCodec: settings.codec === 'prores' ? 'pcm-16' : 'aac', hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', browserExecutable: browser, chromiumOptions: { gl: 'angle' }, concurrency, mediaCacheSizeInBytes: cacheBytes, offthreadVideoCacheSizeInBytes: cacheBytes, offthreadVideoThreads: 2, colorSpace: 'bt709', cancelSignal, logLevel: 'error', onProgress: ({ progress }: {
+            await renderer.renderMedia({
+                composition: {
+                    ...composition, durationInFrames: frames
+                }, serveUrl, inputProps: sceneProps, outputLocation: segment, enforceAudioTrack: true, codec: settings.codec, videoBitrate: settings.bitrate, proResProfile: settings.codec === 'prores' ? 'hq' : undefined, pixelFormat: settings.codec === 'prores' ? 'yuv422p10le' : 'yuv420p', audioCodec: settings.codec === 'prores' ? 'pcm-16' : 'aac', hardwareAcceleration: process.platform === 'darwin' ? 'if-possible' : 'disable', browserExecutable: browser, chromiumOptions: {
+                    gl: 'angle'
+                }, concurrency, mediaCacheSizeInBytes: cacheBytes, offthreadVideoCacheSizeInBytes: cacheBytes, offthreadVideoThreads: 2, colorSpace: 'bt709', cancelSignal, logLevel: 'error', onProgress: ({ progress }: {
                     progress: number;
-                }) => { const now = Date.now(); if (now - last.at >= 1000 || progress - last.progress >= .01) {
-                    last = { at: now, progress, stage: 'frames' };
-                    pending = pending.then(() => report('RENDERING', ((completedFrames + progress * frames) / durationInFrames) * .9, 'frames')).catch(error => { reportError = error; cancel(); });
-                } } });
+                }) => {
+                    const now = Date.now();
+                    if (now - last.at >= 1000 || progress - last.progress >= .01) {
+                        last = {
+                            at: now, progress, stage: 'frames'
+                        };
+                        pending = pending.then(() => report('RENDERING', ((completedFrames + progress * frames) / durationInFrames) * .9, 'frames')).catch(error => {
+                            reportError = error;
+                            cancel();
+                        });
+                    }
+                }
+            });
             await pending;
             if (reportError)
                 throw reportError;
             signal.throwIfAborted();
-            verifyOutput(segment, { ...settings, duration: frames / settings.fps, audio: Boolean(scene.audio.voiceAssetId) });
+            await verifyOutput(segment, {
+                ...settings, duration: frames / settings.fps, audio: Boolean(scene.audio.voiceAssetId)
+            }, signal);
             await recordScene(segment);
         }
         segments.push(segment);
@@ -112,42 +163,61 @@ export async function execute(job: RenderJob, release: {
     if (reportError)
         throw reportError;
     signal.throwIfAborted();
-    const qc = verifyOutput(file, { ...settings, duration: durationInFrames / settings.fps, audio: narration });
-    const visual = visualQc(file, durationInFrames / settings.fps, job.sceneSpec.scenes.some(s => s.beats.length > 0 || s.camera.length > 0));
-    const hash = await checksum(file);
+    const qc = await verifyOutput(file, {
+        ...settings, duration: durationInFrames / settings.fps, audio: narration
+    }, signal);
+    const visual = await visualQc(file, durationInFrames / settings.fps, job.sceneSpec.scenes.some(s => s.beats.length > 0 || s.camera.length > 0), signal);
+    const hash = await checksum(file, signal);
     const thumb = path.join(out, 'thumbnail.jpg');
-    await renderer.renderStill({ composition, serveUrl, inputProps, frame: Math.min(durationInFrames - 1, Math.round(settings.fps)), output: thumb, imageFormat: 'jpeg', scale: .33, browserExecutable: browser, chromiumOptions: { gl: 'angle' }, logLevel: 'error' });
+    await renderer.renderStill({
+        composition, serveUrl, inputProps, frame: Math.min(durationInFrames - 1, Math.round(settings.fps)), output: thumb, imageFormat: 'jpeg', scale: .33, browserExecutable: browser, chromiumOptions: {
+            gl: 'angle'
+        }, logLevel: 'error'
+    });
     const manifest = path.join(out, 'manifest.json');
-    fs.writeFileSync(manifest, JSON.stringify({ renderId: job.id, gitSha: job.gitSha, schemaVersion: job.schemaVersion, profile: job.profile, settings, checksum: hash, qc, visual, reusedScenes, sceneCount: job.sceneSpec.scenes.length, concurrency, cacheGiB: cacheBytes / 1024 ** 3, createdAt: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(manifest, JSON.stringify({
+        renderId: job.id, gitSha: job.gitSha, schemaVersion: job.schemaVersion, profile: job.profile, settings, checksum: hash, qc, visual, reusedScenes, sceneCount: job.sceneSpec.scenes.length, concurrency, cacheGiB: cacheBytes / 1024 ** 3, createdAt: new Date().toISOString()
+    }, null, 2));
     await report('UPLOADING', .92, 'private upload');
     const artifacts: RenderJob['artifacts'] = [];
     for (const [kind, target] of [['video', file], ['thumbnail', thumb], ['manifest', manifest]] as const) {
         signal.throwIfAborted();
         const pathname = `renders/${job.id}/${path.basename(target)}`;
-        const sha256 = await checksum(target);
+        const sha256 = await checksum(target, signal);
         let blob;
         let existing;
         try {
             existing = await head(pathname);
             blob = existing;
         }
-        catch { /* New artifact. */ }
+        catch { /* New artifact. */
+        }
         if (existing) {
             if (existing.size !== fs.statSync(target).size)
                 throw new Error('Conflicting upload receipt');
-            const saved = await get(pathname, { access: 'private' });
+            const saved = await get(pathname, {
+                access: 'private'
+            });
             if (!saved || saved.statusCode !== 200)
                 throw new Error('Cannot verify existing upload');
             const hash = crypto.createHash('sha256');
-            for await (const chunk of Readable.fromWeb(saved.stream as any))
+            for await (const chunk of Readable.fromWeb(saved.stream as any)) {
+                signal.throwIfAborted();
                 hash.update(chunk);
+            }
             if (hash.digest('hex') !== sha256)
                 throw new Error('Uploaded checksum conflicts with local artifact');
         }
         if (!blob)
-            blob = await put(pathname, fs.createReadStream(target), { access: 'private', multipart: true, addRandomSuffix: false, allowOverwrite: false, abortSignal: signal, contentType: kind === 'video' ? (settings.extension === 'mov' ? 'video/quicktime' : 'video/mp4') : kind === 'thumbnail' ? 'image/jpeg' : 'application/json' });
-        artifacts.push({ kind, pathname: blob.pathname, url: blob.url, sha256, size: fs.statSync(target).size });
+            blob = await put(pathname, fs.createReadStream(target), {
+                access: 'private', multipart: true, addRandomSuffix: false, allowOverwrite: false, abortSignal: signal, contentType: kind === 'video' ? (settings.extension === 'mov' ? 'video/quicktime' : 'video/mp4') : kind === 'thumbnail' ? 'image/jpeg' : 'application/json'
+            });
+        artifacts.push({
+            kind, pathname: blob.pathname, url: blob.url, sha256, size: fs.statSync(target).size
+        });
     }
     await report('COMPLETED', 1, 'delivered', artifacts);
-    return { file, manifest, artifacts };
+    return {
+        file, manifest, artifacts
+    };
 }

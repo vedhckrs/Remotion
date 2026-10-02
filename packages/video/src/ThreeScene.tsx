@@ -11,10 +11,21 @@ import { stateAt } from './motion';
 function Asset({ path, type }: {
     path: string;
     type: string;
-}) { const assetUrl = useAssetUrl(); const model = useLoader(GLTFLoader, assetUrl(path)); return <primitive object={model.scene.clone()} scale={.7}/>; }
+}) {
+    const assetUrl = useAssetUrl();
+    const model = useLoader(GLTFLoader, assetUrl(path));
+    return <primitive object={model.scene.clone()} scale={.7}/>;
+}
 function Extruded({ path }: {
     path: string;
-}) { const assetUrl = useAssetUrl(); const svg = useLoader(SVGLoader, assetUrl(path)); const shapes = useMemo(() => svg.paths.flatMap(p => SVGLoader.createShapes(p)).map(s => new THREE.ExtrudeGeometry(s, { depth: 8, bevelEnabled: true, bevelSize: 1, bevelThickness: 1, bevelSegments: 2 })), [svg]); return <group scale={.008}>{shapes.map((geometry, i) => <mesh key={i} geometry={geometry}><meshStandardMaterial color="#ffd34f" metalness={.4} roughness={.3}/></mesh>)}</group>; }
+}) {
+    const assetUrl = useAssetUrl();
+    const svg = useLoader(SVGLoader, assetUrl(path));
+    const shapes = useMemo(() => svg.paths.flatMap(p => SVGLoader.createShapes(p)).map(s => new THREE.ExtrudeGeometry(s, {
+        depth: 8, bevelEnabled: true, bevelSize: 1, bevelThickness: 1, bevelSegments: 2
+    })), [svg]);
+    return <group scale={.008}>{shapes.map((geometry, i) => <mesh key={i} geometry={geometry}><meshStandardMaterial color="#ffd34f" metalness={.4} roughness={.3}/></mesh>)}</group>;
+}
 function Icon({ entity }: {
     entity: Entity;
 }) {
@@ -48,7 +59,9 @@ function Icon({ entity }: {
             shape.lineTo(-.4, -.35);
             shape.lineTo(-.55, .4);
             shape.closePath();
-            return <mesh><extrudeGeometry args={[shape, { depth: .15, bevelEnabled: true, bevelSize: .04, bevelThickness: .04, bevelSegments: 2 }]}/>{material}</mesh>;
+            return <mesh><extrudeGeometry args={[shape, {
+                        depth: .15, bevelEnabled: true, bevelSize: .04, bevelThickness: .04, bevelSegments: 2
+                    }]}/>{material}</mesh>;
         }
         case 'chip': return <group>{box([0, 0, 0], [.9, .8, .3])}{[-1, 1].flatMap(side => [0, 1, 2, 3].map(n => box([side * .55, n * .2 - .3, 0], [.25, .08, .12], side * 10 + n)))}</group>;
         case 'router': return <group>{box([0, -.2, 0], [1.2, .3, .6])}{[-1, 1].map(side => box([side * .45, .2, 0], [.07, .65, .07], side))}</group>;
@@ -64,4 +77,14 @@ function Icon({ entity }: {
 export function ThreeScene({ scene, spec }: {
     scene: Scene;
     spec: SceneSpec;
-}) { const frame = useCurrentFrame(); const { fps, width, height } = useVideoConfig(); const time = frame / fps; return <ThreeCanvas width={width} height={Math.round(height * .65)} camera={{ position: [0, 0, width < height ? 8 : 5], fov: 45 }}><ambientLight intensity={1.1}/><directionalLight position={[3, 4, 4]} intensity={3}/><pointLight position={[-3, -2, 3]} color="#739dff" intensity={25}/>{scene.entities.map(entity => { const s = stateAt(scene, entity, time), asset = spec.assets.find(a => a.id === entity.assetId); return <group key={entity.id} position={[(s.x - .5) * 6, (.5 - s.y) * 3, 0]} scale={s.scale * s.opacity} rotation={[Math.sin(time * .5) * .1, time * .35, s.rotation * Math.PI / 180]}>{asset?.type === 'glb' ? <Asset path={asset.path} type={asset.type}/> : asset?.type === 'svg' ? <Extruded path={asset.path}/> : <Icon entity={entity}/>}</group>; })}</ThreeCanvas>; }
+}) {
+    const frame = useCurrentFrame();
+    const { fps, width, height } = useVideoConfig();
+    const time = frame / fps;
+    return <ThreeCanvas width={width} height={Math.round(height * .65)} camera={{
+            position: [0, 0, width < height ? 8 : 5], fov: 45
+        }}><ambientLight intensity={1.1}/><directionalLight position={[3, 4, 4]} intensity={3}/><pointLight position={[-3, -2, 3]} color="#739dff" intensity={25}/>{scene.entities.map(entity => {
+            const s = stateAt(scene, entity, time), asset = spec.assets.find(a => a.id === entity.assetId);
+            return <group key={entity.id} position={[(s.x - .5) * 6, (.5 - s.y) * 3, 0]} scale={s.scale * s.opacity} rotation={[Math.sin(time * .5) * .1, time * .35, s.rotation * Math.PI / 180]}>{asset?.type === 'glb' ? <Asset path={asset.path} type={asset.type}/> : asset?.type === 'svg' ? <Extruded path={asset.path}/> : <Icon entity={entity}/>}</group>;
+        })}</ThreeCanvas>;
+}
