@@ -26,3 +26,5 @@ local-studio/
 .DS_Store
 
 .runtime/
+
+.scene-cache/

@@ -1,8 +1,6 @@
-# Source this file from the repository root to use its pinned Node runtime.
-NURADI_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")/.." && pwd)"
-if [ ! -x "$NURADI_REPO_ROOT/.runtime/node24/bin/node" ]; then
-  echo 'Install Node 24 and set PATH to its bin directory.' >&2
+# Source from the repository root: source scripts/use-node24.sh
+if [ ! -x "$PWD/.runtime/node24/bin/node" ]; then
+  echo 'Run from the repository root after installing its Node 24 runtime.' >&2
   return 1 2>/dev/null || exit 1
 fi
-export PATH="$NURADI_REPO_ROOT/.runtime/node24/bin:$PATH"
-unset NURADI_REPO_ROOT
+export PATH="$PWD/.runtime/node24/bin:$PATH"
